@@ -64,13 +64,21 @@ def find_saved_problem(
     return filename, saved_probs
 
 def print_metrics(
-    datasets,
     model,
     problem,
     loss_type,
     loss_fn,
     prefix="",
+    isTrain=False
 ):
+    X_train, Y_train, Y_train_aux = problem.get_train_data()
+    X_val, Y_val, Y_val_aux = problem.get_val_data()
+
+    if isTrain == False:
+        X_test, Y_test, Y_test_aux = problem.get_test_data()
+        datasets = [(X_train, Y_train, Y_train_aux, 'train'), (X_val, Y_val, Y_val_aux, 'val'), (X_test, Y_test, Y_test_aux, 'test')]
+    else:
+        datasets = [(X_train, Y_train, Y_train_aux, 'train'), (X_val, Y_val, Y_val_aux, 'val')]
     # print(f"Current model parameters: {[param for param in model.parameters()]}")
     metrics = {}
     for Xs, Ys, Ys_aux, partition in datasets:

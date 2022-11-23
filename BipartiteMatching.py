@@ -6,7 +6,7 @@ import random
 import numpy as np
 from SubmodularOptimizer import SubmodularOptimizer
 import torch
-import metis
+#import metis
 import pdb
 import cvxpy as cp
 from cvxpylayers.torch import CvxpyLayer
