@@ -22,7 +22,7 @@ def train_xgb(args, problem):
     Xtrain = X_train.numpy().reshape(-1, X_train.shape[-1])
     Ytrain = Y_train.numpy().reshape(-1, Y_train.shape[-1])
 
-    reg = xgb.XGBRegressor(tree_method='hist', n_estimators=10)
+    reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
     ### Warning? Parameters: { "tree_mothod" } might not be used.
 
     #This could be a false alarm, with some parameters getting used by language bindings but

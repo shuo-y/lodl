@@ -137,6 +137,7 @@ if __name__ == '__main__':
     #       Approach-Specific: Quadratic
     parser.add_argument('--quadrank', type=int, default=20)
     parser.add_argument('--quadalpha', type=float, default=0)
+    parser.add_argument('--num_estimators', type=int, default=10)
     args = parser.parse_args()
 
     # Load problem
