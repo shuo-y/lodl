@@ -1,35 +1,45 @@
 import xgboost as xgb
 import torch
+import numpy as np
 
 class custom_tree:
     # Make instance callable based on https://medium.com/swlh/callables-in-python-how-to-make-custom-instance-objects-callable-too-516d6eaf0c8d
-    def __init__(self, reg):
+    def __init__(self, reg, num_inp, num_out, Yishape):
         self.reg = reg
+        self.num_inp = num_inp
+        self.num_out = num_out
+        self.Yishape = Yishape
 
     def __call__(self, X: torch.Tensor):
         Xi = X.numpy().reshape(-1, X.shape[-1])
         Yi = self.reg.predict(Xi)
         Y = torch.tensor(Yi)
-        Y = torch.reshape(Y, X.shape)
-        return Y
+
+        # Used prod based on https://numpy.org/doc/stable/reference/generated/numpy.prod.html
+        if np.prod(Xi.shape) > self.num_inp:
+            # X is a batch
+            Y = torch.reshape(Y, [X.shape[0]] + list(self.Yishape))
+            return Y
+        elif np.prod(Xi.shape) == self.num_inp:
+            return Y
+        else:
+            # https://docs.python.org/3/library/exceptions.html
+            raise ValueError
 
 def train_xgb(args, problem):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_val, Y_val, Y_val_aux = problem.get_val_data()
-    X_test, Y_test, Y_test_aux = problem.get_test_data()
 
 
     Xtrain = X_train.numpy().reshape(-1, X_train.shape[-1])
     Ytrain = Y_train.numpy().reshape(-1, Y_train.shape[-1])
 
+    Xval = X_val.numpy().reshape(-1, X_val.shape[-1])
+    Yval = Y_val.numpy().reshape(-1, Y_val.shape[-1])
+
     reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
-    ### Warning? Parameters: { "tree_mothod" } might not be used.
 
-    #This could be a false alarm, with some parameters getting used by language bindings but
-    #then being mistakenly passed down to XGBoost core, or some parameter actually being used
-    #but getting flagged wrongly here. Please open an issue if you find any such cases.
 
-    reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
-
-    model = custom_tree(reg)
+    reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain), (Xval, Yval)])
+    model = custom_tree(reg, np.prod(X_train[0].shape), np.prod(Y_train[0].shape), Y_train[0].shape)
     return model

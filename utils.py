@@ -91,20 +91,19 @@ def print_metrics(
         objectives = problem.get_objective(Ys, Zs_pred, aux_data=Ys_aux)
 
         # Loss and Error
-        if partition!='test':
-            losses = []
-            for i in range(len(Xs)):
-                # Surrogate Loss
-                pred = model(Xs[i]).squeeze()
-                losses.append(loss_fn(pred, Ys[i], aux_data=Ys_aux[i], partition=partition, index=i))
-            losses = torch.stack(losses).flatten()
-        else:
-            losses = torch.zeros_like(objectives)
+        losses = []
+        for i in range(len(Xs)):
+            # Surrogate Loss
+            pred = model(Xs[i]).squeeze()
+            losses.append(loss_fn(pred, Ys[i], aux_data=Ys_aux[i], partition=partition, index=i))
+        losses = torch.stack(losses).flatten()
+        loss = losses.mean().item()
+        mae = torch.nn.L1Loss()(losses, -objectives).item()
+
 
         # Print
         objective = objectives.mean().item()
-        loss = losses.mean().item()
-        mae = torch.nn.L1Loss()(losses, -objectives).item()
+
         print(f"{prefix} {partition} DQ: {objective}, Loss: {loss}, MAE: {mae}")
         metrics[partition] = {'objective': objective, 'loss': loss, 'mae': mae}
 
