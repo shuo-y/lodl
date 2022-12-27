@@ -104,7 +104,7 @@ def print_metrics(
         # Print
         objective = objectives.mean().item()
 
-        print(f"{prefix} {partition} DQ: {objective}, Loss: {loss}, MAE: {mae}")
+        print("%s %s DQ: %.12f ,  %.12f , %.12f " % (prefix, partition, objective, loss, mae))
         metrics[partition] = {'objective': objective, 'loss': loss, 'mae': mae}
 
     return metrics

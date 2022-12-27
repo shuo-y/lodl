@@ -221,7 +221,7 @@ if __name__ == '__main__':
 
     print("\nBenchmarking Model...")
     # Print final metrics
-    print_metrics(model, problem, args.loss, loss_fn, "Final")
+    metrics = print_metrics(model, problem, args.loss, loss_fn, "Final")
 
 
     X_test, Y_test, Y_test_aux = problem.get_test_data()
@@ -231,13 +231,19 @@ if __name__ == '__main__':
         Z_test_rand = problem.get_decision(torch.rand_like(Y_test), aux_data=Y_test_aux, isTrain=False)
         objectives = problem.get_objective(Y_test, Z_test_rand, aux_data=Y_test_aux)
         objs_rand.append(objectives)
-    print(f"\nRandom Decision Quality: {torch.stack(objs_rand).mean().item()}")
+    randomdq = torch.stack(objs_rand).mean().item()
+    print(f"\nRandom Decision Quality: {randomdq}")
 
     #   Document the optimal value
     Z_test_opt = problem.get_decision(Y_test, aux_data=Y_test_aux, isTrain=False)
     objectives = problem.get_objective(Y_test, Z_test_opt, aux_data=Y_test_aux)
-    print(f"Optimal Decision Quality: {objectives.mean().item()}")
+    optimaldq = objectives.mean().item()
+    print(f"Optimal Decision Quality: {optimaldq}")
     print()
+
+    for partition in metrics:
+        nordq = (metrics[partition]['objective'] - randomdq)/(optimaldq - randomdq)
+        print("%s Normalize DQ on test set: %.12f" % (partition, nordq))
 
     # pdb.set_trace()
 
