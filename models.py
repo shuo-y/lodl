@@ -312,4 +312,4 @@ class LowRankQuadratic(torch.nn.Module):
         return quad + self.alpha * mse
 
 
-model_dict = {'dense': dense_nn}
+model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}

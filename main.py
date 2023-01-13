@@ -27,7 +27,104 @@ from models import model_dict
 from losses import MSE, get_loss_fn
 from utils import print_metrics, init_if_not_saved, move_to_gpu
 
+def train_dense_multi(args, problem):
+    # Load a loss function to train the ML model on
+    #   TODO: Figure out loss function "type" for mypy type checking. Define class/interface?
+    # Get data
+    X_train, Y_train, Y_train_aux = problem.get_train_data()
+    X_val, Y_val, Y_val_aux = problem.get_val_data()
+    X_test, Y_test, Y_test_aux = problem.get_test_data()
+
+    ipdim, opdim = problem.get_modelio_shape()
+    model_builder = model_dict[args.model]
+    model = model_builder(
+        num_features=ipdim,
+        num_targets=opdim,
+        num_layers=args.layers,
+        intermediate_size=500,
+        output_activation=problem.get_output_activation(),
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+    print(f"Loading {args.loss} Loss Function...")
+    for i in range(args.lodl_iter):
+        model.eval()
+        loss_fn = get_loss_fn(
+            args.loss,
+            problem,
+            sampling=args.sampling,
+            num_samples=args.numsamples,
+            rank=args.quadrank,
+            sampling_std=args.samplingstd,
+            quadalpha=args.quadalpha,
+            lr=args.losslr,
+            serial=args.serial,
+            dflalpha=args.dflalpha,
+            train_model=model,
+        )
+        model.train()
+
+        # Train neural network with a given loss function
+        print(f"Training {args.model} model on {args.loss} loss...")
+        #   Move everything to GPU, if available
+        #if torch.cuda.is_available():
+        #    move_to_gpu(problem)
+        #    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        #    model = model.to(device)
+
+
+        best = (float("inf"), None)
+        time_since_best = 0
+        for iter_idx in range(args.iters):
+            # Check metrics on val set
+            if iter_idx % args.valfreq == 0:
+                # Compute metrics
+                metrics = print_metrics(model, problem, args.loss, loss_fn, f"Iter {iter_idx},", isTrain=True)
+
+                # Save model if it's the best one
+                if best[1] is None or metrics['val']['loss'] < best[0]:
+                    best = (metrics['val']['loss'], deepcopy(model))
+                    time_since_best = 0
+
+                # Stop if model hasn't improved for patience steps
+                if args.earlystopping and time_since_best > args.patience:
+                    break
+
+            # Learn
+            losses = []
+            for i in random.sample(range(len(X_train)), min(args.batchsize, len(X_train))):
+                pred = model(X_train[i]).squeeze()
+                losses.append(loss_fn(pred, Y_train[i], aux_data=Y_train_aux[i], partition='train', index=i))
+            loss = torch.stack(losses).mean()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            time_since_best += 1
+
+        if args.earlystopping:
+            model = best[1]
+
+    metrics = print_metrics(model, problem, args.loss, loss_fn, "final", skiptestloss=True)
+    return model, metrics
+
+
+
 def train_dense(args, problem):
+    # Load a loss function to train the ML model on
+    #   TODO: Figure out loss function "type" for mypy type checking. Define class/interface?
+    print(f"Loading {args.loss} Loss Function...")
+    loss_fn = get_loss_fn(
+        args.loss,
+        problem,
+        sampling=args.sampling,
+        num_samples=args.numsamples,
+        rank=args.quadrank,
+        sampling_std=args.samplingstd,
+        quadalpha=args.quadalpha,
+        lr=args.losslr,
+        serial=args.serial,
+        dflalpha=args.dflalpha,
+    )
     # Get data
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_val, Y_val, Y_val_aux = problem.get_val_data()
@@ -84,7 +181,11 @@ def train_dense(args, problem):
     if args.earlystopping:
         model = best[1]
 
-    return model
+    print("\nBenchmarking Model...")
+    # Print final metrics
+    metrics = print_metrics(model, problem, args.loss, loss_fn, "Final")
+
+    return model, metrics
 
 if __name__ == '__main__':
     # Get hyperparams from the command line
@@ -101,7 +202,7 @@ if __name__ == '__main__':
     parser.add_argument('--valfreq', type=int, default=5)
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--model', type=str, choices=['dense', 'xgboost'], default='dense')
+    parser.add_argument('--model', type=str, choices=['dense', 'xgboost', 'dense_multi'], default='dense')
     parser.add_argument('--loss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--batchsize', type=int, default=1000)
@@ -130,7 +231,7 @@ if __name__ == '__main__':
     parser.add_argument('--dflalpha', type=float, default=1.)
     #   Learned-Loss
     parser.add_argument('--serial', type=ast.literal_eval, default=True)
-    parser.add_argument('--sampling', type=str, choices=['random', 'random_flip', 'random_uniform', 'numerical_jacobian', 'random_jacobian', 'random_hessian', 'random'], default='random')
+    parser.add_argument('--sampling', type=str, choices=['random', 'random_flip', 'random_uniform', 'numerical_jacobian', 'random_jacobian', 'random_hessian', 'sample_iter'], default='random')
     parser.add_argument('--samplingstd', type=float)
     parser.add_argument('--numsamples', type=int, default=5000)
     parser.add_argument('--losslr', type=float, default=0.01)
@@ -138,6 +239,7 @@ if __name__ == '__main__':
     parser.add_argument('--quadrank', type=int, default=20)
     parser.add_argument('--quadalpha', type=float, default=0)
     parser.add_argument('--num_estimators', type=int, default=10)
+    parser.add_argument('--lodl_iter', type=int, default=10, help='if we want to train lodl multi rounds')
     args = parser.parse_args()
 
     # Load problem
@@ -194,34 +296,18 @@ if __name__ == '__main__':
         problem = init_problem(PortfolioOpt, problem_kwargs)
 
 
-    # Load a loss function to train the ML model on
-    #   TODO: Figure out loss function "type" for mypy type checking. Define class/interface?
-    print(f"Loading {args.loss} Loss Function...")
-    loss_fn = get_loss_fn(
-        args.loss,
-        problem,
-        sampling=args.sampling,
-        num_samples=args.numsamples,
-        rank=args.quadrank,
-        sampling_std=args.samplingstd,
-        quadalpha=args.quadalpha,
-        lr=args.losslr,
-        serial=args.serial,
-        dflalpha=args.dflalpha,
-    )
 
     # Load an ML model to predict the parameters of the problem
     print(f"Building {args.model} Model...")
     if args.model == "xgboost":
         from train_xgb import train_xgb
-        model = train_xgb(args, problem)
+        model, metrics = train_xgb(args, problem)
     elif args.model == "dense":
-        model = train_dense(args, problem)
+        model, metrics = train_dense(args, problem)
+    elif args.model == "dense_multi":
+        model, metrics = train_dense_multi(args, problem)
         # Document how well this trained model does
 
-    print("\nBenchmarking Model...")
-    # Print final metrics
-    metrics = print_metrics(model, problem, args.loss, loss_fn, "Final")
 
 
     X_test, Y_test, Y_test_aux = problem.get_test_data()
@@ -241,9 +327,9 @@ if __name__ == '__main__':
     print(f"Optimal Decision Quality: {optimaldq}")
     print()
 
-    for partition in metrics:
-        nordq = (metrics[partition]['objective'] - randomdq)/(optimaldq - randomdq)
-        print("%s Normalize DQ on test set: %.12f" % (partition, nordq))
+
+    nordq = (metrics['test']['objective'] - randomdq)/(optimaldq - randomdq)
+    print("Normalize DQ on test set: %.12f" % nordq)
 
     # pdb.set_trace()
 

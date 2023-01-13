@@ -42,4 +42,41 @@ def train_xgb(args, problem):
 
     reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain), (Xval, Yval)])
     model = custom_tree(reg, np.prod(X_train[0].shape), np.prod(Y_train[0].shape), Y_train[0].shape)
-    return model
+    from utils import print_metrics
+    from losses import get_loss_fn
+    metrics = print_metrics(model, problem, args.loss, get_loss_fn('mse', problem), f"Iter {iter_idx},", isTrain=True)
+    return model, metrics
+
+
+#class ext_model:
+
+
+
+def train_from_x(args, problem):
+    X_train, Y_train, Y_train_aux = problem.get_train_data()
+    X_val, Y_val, Y_val_aux = problem.get_val_data()
+
+    from models import model_dict, QuadraticPlusPlus
+
+    model_builder = model_dict['dense']
+    model = model_builder(
+        num_features=np.prod(X_train[0].shape),
+        num_targets=np.prod(Y_train[0].shape),
+        num_layers=args.layers,
+        intermediate_size=500,
+        output_activation='relu',
+    )
+
+    lodl_model = QuaddraticPlusPlus(Y_train[0])
+
+    dlosses = []
+    for x, y in zip(X_train, Y_train):
+        yhat = model(x)
+
+        dloss = lodl_model(yhat)
+        dlosses.append(dloss)
+
+
+
+
+

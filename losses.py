@@ -64,6 +64,8 @@ def _sample_points(
     Y_aux=None,  # Extra information needed to solve the problem
     sampling_std=None,  # Standard deviation for the training data
     num_restarts=10,  # The number of times to run the optimisation problem for Z_opt
+    X=None,
+    train_model=None,
 ):
     # Sample points in the neighbourhood
     #   Find the rough scale of the predictions
@@ -119,6 +121,16 @@ def _sample_points(
             noise += (idxs * noise_scale).view((num_samples, *Y.shape))
         #   Find some points using this
         Yhats = Y + noise
+    elif sampling == 'sample_iter' and X != None and train_model != None:
+        ypred = train_model(X).detach().squeeze()
+        Yhat = (ypred + Y) / 2
+        noise = torch.zeros((num_samples, *Y.shape))
+        for _ in range(2):
+            idxs = torch.randint(Y.numel(), size=(num_samples,))
+            idxs = torch.nn.functional.one_hot(idxs, num_classes=Y.numel())
+            noise_scale = torch.distributions.Normal(0, Y_std).sample((num_samples,)).unsqueeze(dim=-1)
+            noise += (idxs * noise_scale).view((num_samples, *Y.shape))
+        Yhats = Yhat + noise
     else:
         raise LookupError()
     #   Make sure that the points are valid predictions
@@ -408,6 +420,120 @@ def _get_learned_loss(
     return surrogate_decision_quality
 
 
+def _get_learned_loss_model(
+    problem,
+    model_type='weightedmse',
+    folder='models',
+    num_samples=400,
+    sampling='random',
+    sampling_std=None,
+    serial=True,
+    **kwargs
+):
+    print("Learning Loss Functions...")
+
+    # Learn Losses
+    #   Get Ys
+    X_train, Y_train, Y_train_aux = problem.get_train_data()
+    X_val, Y_val, Y_val_aux = problem.get_val_data()
+
+    #   Get points in the neighbourhood of the Ys
+    #       Try to load sampled points
+    master_filename = os.path.join(folder, f"{problem.__class__.__name__}.csv")
+    problem_filename, _ = find_saved_problem(master_filename, problem.__dict__)
+    samples_filename_read = f"{problem_filename[:-4]}_{sampling}_{sampling_std}.pkl"
+
+    # Check if there are enough stored samples
+    num_samples_needed = num_extra_samples = num_samples
+
+    num_existing_samples = 0
+    SL_dataset_old = {partition: [(Y, None, None, None) for Y in Ys] for Ys, partition in zip([Y_train, Y_val], ['train', 'val'])}
+
+    # Sample more points if needed
+    num_samples_needed = num_samples
+    num_extra_samples = max(num_samples_needed - num_existing_samples, 0)
+    datasets = [entry for entry in zip([X_train, X_val], [Y_train, Y_val], [Y_train_aux, Y_val_aux], ['train', 'val'])]
+    if num_extra_samples > 0:
+        SL_dataset = {partition: [(Y, None, None, None) for Y in Ys] for Ys, partition in zip([Y_train, Y_val], ['train', 'val'])}
+        for Xs, Ys, Ys_aux, partition in datasets:
+            # Get new sampled points
+            start_time = time.time()
+            if serial == True:
+                sampled_points = [_sample_points(Y, problem, sampling, num_extra_samples, Y_aux, sampling_std, 10, X, kwargs['train_model']) for X, Y, Y_aux in zip(Xs, Ys, Ys_aux)]
+            else:
+                with Pool(NUM_CPUS) as pool:
+                    sampled_points = pool.starmap(_sample_points, [(Y, problem, sampling, num_extra_samples, Y_aux, sampling_std, 10, X, kwargs['train_model']) for X, Y, Y_aux in zip(Xs, Ys, Ys_aux)])
+            print(f"({partition}) Time taken to generate {num_extra_samples} samples for {len(Ys)} instances: {time.time() - start_time}")
+
+            # Use them to augment existing sampled points
+            for idx, (Y, opt_objective, Yhats, objectives) in enumerate(sampled_points):
+                SL_dataset[partition][idx] = (Y, opt_objective, Yhats, objectives)
+
+        #   Augment with new data
+        for Xs, Ys, Ys_aux, partition in datasets:
+            for idx, Y in enumerate(Ys):
+                # Get old samples
+                Y_old, opt_objective_old, Yhats_old, objectives_old = SL_dataset_old[partition][idx]
+                Y_new, opt_objective_new, Yhats_new, objectives_new = SL_dataset[partition][idx]
+                assert torch.isclose(Y_old, Y).all()
+                assert torch.isclose(Y_new, Y).all()
+
+                # Combine entries
+                opt_objective = opt_objective_new if opt_objective_old is None else max(opt_objective_new, opt_objective_old)
+                Yhats = Yhats_new if Yhats_old is None else torch.cat((Yhats_old, Yhats_new), dim=0)
+                objectives = objectives_new if objectives_old is None else torch.cat((objectives_old, objectives_new), dim=0)
+
+                # Update
+                SL_dataset[partition][idx] = (Y, opt_objective, Yhats, objectives)
+        num_existing_samples += num_extra_samples
+    else:
+        SL_dataset = SL_dataset_old
+
+    #   Learn SL based on the sampled Yhats
+    train_maes, test_maes, avg_dls = [], [], []
+    losses = {}
+    for Xs, Ys, Ys_aux, partition in datasets:
+        # Sanity check that the saved data is the same as the problem's data
+        for idx, (Y, Y_aux) in enumerate(zip(Ys, Ys_aux)):
+            Y_dataset, opt_objective, _, objectives = SL_dataset[partition][idx]
+            assert torch.isclose(Y, Y_dataset).all()
+
+            # Also log the "average error"
+            avg_dls.append((opt_objective - objectives).abs().mean().item())
+
+        # Get num_samples_needed points
+        random.seed(0)  # TODO: Remove. Temporary hack for reproducibility.
+        idxs = random.sample(range(num_existing_samples), num_samples_needed)
+        random.seed()
+
+        # Learn a loss
+        start_time = time.time()
+        if serial == True:
+            losses_and_stats = [_learn_loss(problem, (Y_dataset, opt_objective, Yhats[idxs], objectives[idxs]), model_type, **kwargs) for Y_dataset, opt_objective, Yhats, objectives in SL_dataset[partition]]
+        else:
+            with Pool(NUM_CPUS) as pool:
+                losses_and_stats = starmap_with_kwargs(pool, _learn_loss, [(problem, (Y_dataset, opt_objective.detach().clone(), Yhats[idxs].detach().clone(), objectives[idxs].detach().clone()), deepcopy(model_type)) for Y_dataset, opt_objective, Yhats, objectives in SL_dataset[partition]], kwargs=kwargs)
+        print(f"({partition}) Time taken to learn loss for {len(Ys)} instances: {time.time() - start_time}")
+
+        # Parse and log results
+        losses[partition] = []
+        for learned_loss, train_mae, test_mae in losses_and_stats:
+            train_maes.append(train_mae)
+            test_maes.append(test_mae)
+            losses[partition].append(learned_loss)
+
+    # Print overall statistics
+    print(f"\nMean Train DL - OPT: {mean(avg_dls)}")
+    print(f"Train MAE for SL: {mean(train_maes)}")
+    print(f"Test MAE for SL: {mean(test_maes)}\n")
+
+    # Return the loss function in the expected form
+    def surrogate_decision_quality(Yhats, Ys, partition, index, **kwargs):
+        return losses[partition][index](Yhats).flatten() - SL_dataset[partition][index][1]
+    return surrogate_decision_quality
+
+
+
 def _get_decision_focused(
     problem,
     dflalpha=1.,
@@ -443,5 +569,7 @@ def get_loss_fn(
         return CE
     elif name == 'dfl':
         return _get_decision_focused(problem, **kwargs)
+    elif 'train_model' in kwargs and kwargs['train_model'] != None:
+        return _get_learned_loss_model(problem, name, **kwargs)
     else:
         return _get_learned_loss(problem, name, **kwargs)

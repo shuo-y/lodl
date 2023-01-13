@@ -69,7 +69,8 @@ def print_metrics(
     loss_type,
     loss_fn,
     prefix="",
-    isTrain=False
+    isTrain=False,
+    skiptestloss=False
 ):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_val, Y_val, Y_val_aux = problem.get_val_data()
@@ -81,6 +82,7 @@ def print_metrics(
         datasets = [(X_train, Y_train, Y_train_aux, 'train'), (X_val, Y_val, Y_val_aux, 'val')]
     # print(f"Current model parameters: {[param for param in model.parameters()]}")
     metrics = {}
+    print(prefix, end='')
     for Xs, Ys, Ys_aux, partition in datasets:
         # Choose whether we should use train or test 
         isTrain = (partition=='train') and (prefix != "Final")
@@ -90,6 +92,11 @@ def print_metrics(
         Zs_pred = problem.get_decision(pred, aux_data=Ys_aux, isTrain=isTrain)
         objectives = problem.get_objective(Ys, Zs_pred, aux_data=Ys_aux)
 
+        objective = objectives.mean().item()
+
+        if skiptestloss == True and partition == 'test':
+            metrics[partition] = {'objective': objective}
+            continue
         # Loss and Error
         losses = []
         for i in range(len(Xs)):
@@ -100,13 +107,9 @@ def print_metrics(
         loss = losses.mean().item()
         mae = torch.nn.L1Loss()(losses, -objectives).item()
 
-
-        # Print
-        objective = objectives.mean().item()
-
-        print("%s %s DQ: %.12f ,  loss: %.12f , mae: %.12f " % (prefix, partition, objective, loss, mae))
         metrics[partition] = {'objective': objective, 'loss': loss, 'mae': mae}
 
+    print(metrics)
     return metrics
 
 def starmap_with_kwargs(pool, fn, args_iter, kwargs):
