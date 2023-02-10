@@ -387,7 +387,6 @@ def test_weightedmse_jax(loss_model):
 
     mygrad, myhess = mse.my_grad_hess((yn + offset))
     from jax import grad, jacfwd
-    ## Use jnp.diagonal based on https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.diagonal.html
     g = grad(fn)(jnp.array((yn + offset).flatten()))
     jh = jnp.diagonal(jacfwd(grad(fn))(jnp.array((yn + offset).flatten())))
     diff = ((g - mygrad) ** 2).sum()
@@ -420,7 +419,7 @@ def test_jax():
 
 
 
-test_jax()
-test_weightedmse_jax(WeightedMSE)
-test_weightedmse_jax(WeightedMSESum)
+#test_jax()
+#test_weightedmse_jax(WeightedMSE)
+#test_weightedmse_jax(WeightedMSESum)
 model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}

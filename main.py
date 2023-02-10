@@ -202,7 +202,7 @@ if __name__ == '__main__':
     parser.add_argument('--valfreq', type=int, default=5)
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--model', type=str, choices=['dense', 'xgboost', 'dense_multi'], default='dense')
+    parser.add_argument('--model', type=str, choices=['dense', 'xgboost', 'dense_multi', 'xgb_lodl'], default='dense')
     parser.add_argument('--loss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--batchsize', type=int, default=1000)
@@ -302,6 +302,9 @@ if __name__ == '__main__':
     if args.model == "xgboost":
         from train_xgb import train_xgb
         model, metrics = train_xgb(args, problem)
+    elif args.model == "xgb_lodl":
+        from train_xgb import train_xgb_lodl
+        model, metrics = train_xgb_lodl(args, problem)
     elif args.model == "dense":
         model, metrics = train_dense(args, problem)
     elif args.model == "dense_multi":

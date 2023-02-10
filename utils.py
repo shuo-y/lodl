@@ -70,7 +70,6 @@ def print_metrics(
     loss_fn,
     prefix="",
     isTrain=False,
-    skiptestloss=False
 ):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_val, Y_val, Y_val_aux = problem.get_val_data()
@@ -93,16 +92,19 @@ def print_metrics(
         objectives = problem.get_objective(Ys, Zs_pred, aux_data=Ys_aux)
 
         objective = objectives.mean().item()
-
-        if skiptestloss == True and partition == 'test':
-            metrics[partition] = {'objective': objective}
-            continue
         # Loss and Error
         losses = []
         for i in range(len(Xs)):
             # Surrogate Loss
-            pred = model(Xs[i]).squeeze()
+            pred = model(Xs[i][None]).squeeze()
             losses.append(loss_fn(pred, Ys[i], aux_data=Ys_aux[i], partition=partition, index=i))
+            if None in losses:
+                print("This loss function does not support {} partition".format(partition))
+                break
+
+        if None in losses:
+            metrics[partition] = {'objective': objective}
+            continue
         losses = torch.stack(losses).flatten()
         loss = losses.mean().item()
         mae = torch.nn.L1Loss()(losses, -objectives).item()

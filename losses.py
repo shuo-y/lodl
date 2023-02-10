@@ -307,6 +307,7 @@ def _get_learned_loss(
     sampling='random',
     sampling_std=None,
     serial=True,
+    get_grad_hess=False,
     **kwargs
 ):
     print("Learning Loss Functions...")
@@ -416,7 +417,24 @@ def _get_learned_loss(
 
     # Return the loss function in the expected form
     def surrogate_decision_quality(Yhats, Ys, partition, index, **kwargs):
+        if partition == "test":
+            print("This is a trained loss so it don't have value for the test set")
+            return None
         return losses[partition][index](Yhats).flatten() - SL_dataset[partition][index][1]
+    from jax import grad, jacfwd
+    import jax.numpy as jnp
+    import numpy as np
+    def grad_hess(yhatnp, ynp, partition, index, **kwargs):
+        # The yhatnap and ynp should be np
+        fn = losses[partition][index].get_jnp_fun()
+        yinp = jnp.array(yhatnp.flatten())
+        g = grad(fn)(yinp)
+        h = jnp.diagonal(jacfwd(grad(fn))(yinp))
+        g = np.array(g)
+        h = np.array(h)
+        return g, h
+    if (get_grad_hess == True):
+        return surrogate_decision_quality, grad_hess
     return surrogate_decision_quality
 
 
