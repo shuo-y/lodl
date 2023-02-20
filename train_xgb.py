@@ -64,6 +64,19 @@ class treefromlodl:
         Y = torch.reshape(Y, [X.shape[0]] + list(self.Yishape))
         return Y
 
+class xgbwrapper:
+    # This class to be called by torch data type
+    def __init__(self, tree, Yishape):
+        self.tree = tree
+        self.Yishape = Yishape
+
+    def __call__(self, X: torch.Tensor):
+        xn = X.numpy().reshape(X.shape[0], np.prod(X.shape[1:]))
+        yhatn = self.tree.predict(xn)
+        Y = torch.tensor(yhatn)
+        Y = torch.reshape(Y, [X.shape[0]] + list(self.Yishape))
+        return Y
+
 class custom_loss():
     def __init__(self, ygold, grad_hess_fn, loss_fn):
         self.ygold = ygold
@@ -106,11 +119,29 @@ class custom_loss():
 
 
 def train_xgb_lodl(args, problem):
+    from losses import get_loss_fn
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_val, Y_val, Y_val_aux = problem.get_val_data()
+    Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
+    Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
+
+    Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
+    Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
+
+    if args.model == "xgbrmse":
+        print("Using native xgb.XGBRegressor")
+        print("This option will ignore the args.loss")
+        reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
+        reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain), (Xval, Yval)])
+        dump_booster(reg.get_booster(), args)
+        model = xgbwrapper(reg, Y_train[0].shape)
+        from utils import print_metrics
+        metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), f"tree evaluate", isTrain=False)
+        return model, metrics
+
 
     print(f"Loading {args.loss} Loss Function...")
-    from losses import get_loss_fn
+
 
     loss_fn, grad_hess_fn = get_loss_fn(
         args.loss,
@@ -134,11 +165,7 @@ def train_xgb_lodl(args, problem):
     obj_fun = cusloss.get_obj_fn()
     eval_fun = cusloss.get_eval_fn()
 
-    Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
-    Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
 
-    Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
-    Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
 
     #reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
     Xy = xgb.DMatrix(Xtrain, Ytrain)
@@ -153,11 +180,38 @@ def train_xgb_lodl(args, problem):
         obj = obj_fun,
         evals = [(Xy, "train")],
         custom_metric = eval_fun)
-
+    dump_booster(booster, args)
     model = treefromlodl(booster, Y_train[0].shape)
+
     from utils import print_metrics
     metrics = print_metrics(model, problem, args.loss, loss_fn, f"tree evaluate", isTrain=False)
     return model, metrics
+
+
+def dump_booster(booster, args):
+    # Get time based on https://www.programiz.com/python-programming/datetime/current-time
+    from datetime import datetime
+    timestr = "models/" + args.model + datetime.now().strftime("%m-%d-%Y-%H-%M-%S")
+    import sys
+    configfilename = timestr + ".config"
+    treefilename = timestr + ".tree"
+    with open(timestr + ".args", "w") as f:
+        f.write(str(args))
+        f.write(configfilename)
+        f.write(treefilename)
+
+    treedump = booster.get_dump()
+
+    with open(treefilename, "w") as f:
+        for cnt, tr in enumerate(treedump):
+            f.write("=======tree{}=======\n".format(cnt))
+            f.write(tr)
+
+    config = booster.save_config()
+    with open(configfilename, "w") as f:
+        f.write(config)
+
+
 
 
 
