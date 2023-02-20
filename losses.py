@@ -296,6 +296,9 @@ def _learn_loss(
     # plt.legend(loc='upper right')
     # plt.show()
 
+    if torch.cuda.is_available():
+        model = model.to("cpu")
+
     return model, train_loss, test_loss
 
 

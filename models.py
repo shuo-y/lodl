@@ -106,8 +106,8 @@ class WeightedMSE(torch.nn.Module):
         """
         yhat should be a numpy array
         """
-        y = self.Y.detach().numpy()
-        w = self.weights.clamp(min=self.min_val).detach().numpy()
+        y = self.Y.detach().cpu().numpy()
+        w = self.weights.clamp(min=self.min_val).detach().cpu().numpy()
         yhat = yhat.flatten()
         diff = (yhat - y)
         grad = 2 * (diff * w)/(len(yhat))
@@ -125,8 +125,8 @@ class WeightedMSE(torch.nn.Module):
         https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.subtract.html
         https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.square.html
         """
-        w = jnp.array(self.weights.clamp(min=self.min_val).detach().numpy())
-        y = jnp.array(self.Y.detach().numpy())
+        w = jnp.array(self.weights.clamp(min=self.min_val).detach().cpu().numpy())
+        y = jnp.array(self.Y.detach().cpu().numpy())
         def jnp_forward(yhat):
             diff = yhat - y
             res = (w * (diff ** 2)).mean()

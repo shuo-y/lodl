@@ -65,9 +65,10 @@ class treefromlodl:
         return Y
 
 class custom_loss():
-    def __init__(self, ygold, grad_hess_fn):
+    def __init__(self, ygold, grad_hess_fn, loss_fn):
         self.ygold = ygold
         self.grad_hess_fn = grad_hess_fn
+        self.loss_fn = loss_fn
         #print("initial custom_loss")
         #print(ygold[0])
 
@@ -85,6 +86,22 @@ class custom_loss():
             hes = grad.flatten()
             return grad, hes
         return obj
+
+    def get_eval_fn(self):
+        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            predt = predt.reshape(self.ygold.shape)
+            Yhats = torch.tensor(predt)
+            # Borrow from utils.py
+            losses = []
+            for i, Yh in enumerate(Yhats):
+                losses.append(self.loss_fn(Yh, None, 'train', i))
+            losses = torch.stack(losses).flatten()
+            loss = losses.mean().item()
+            return "LODLloss", loss
+        return eval_fn
+
+
+
 
 def train_xgb_lodl(args, problem):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
@@ -111,8 +128,9 @@ def train_xgb_lodl(args, problem):
 
     # Based on some code from https://xgboost.readthedocs.io/en/stable/python/examples/multioutput_regression.html
 
-    cusloss = custom_loss(Y_train.detach().numpy(), grad_hess_fn)
+    cusloss = custom_loss(Y_train.detach().numpy(), grad_hess_fn, loss_fn)
     obj_fun = cusloss.get_obj_fn()
+    eval_fun = cusloss.get_eval_fn()
 
     Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
     Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
@@ -122,14 +140,17 @@ def train_xgb_lodl(args, problem):
 
     #reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
     Xy = xgb.DMatrix(Xtrain, Ytrain)
+    Xyval = xgb.DMatrix(Xval, Yval)
 
     booster = xgb.train(
             {"tree_method": "hist",
-             "num_target": Ytrain.shape[1]
+             "num_target": Ytrain.shape[1],
             },
         dtrain=Xy,
         num_boost_round = args.num_estimators,
-        obj = obj_fun)
+        obj = obj_fun,
+        evals = [(Xy, "train")],
+        custom_metric = eval_fun)
 
     model = treefromlodl(booster, Y_train[0].shape)
     from utils import print_metrics
@@ -137,81 +158,7 @@ def train_xgb_lodl(args, problem):
     return model, metrics
 
 
-"""
-numpy code
-https://numpy.org/doc/stable/reference/generated/numpy.reshape.html
-some debug log
-(Pdb) (Y_train+ 0.01).shape
-torch.Size([200, 50])
-(Pdb) res = loss_fn((Y_train+ 0.01), Y_train, aux_data=Y_train_aux)
-*** TypeError: surrogate_decision_quality() missing 2 required positional arguments: 'partition' and 'index'
-(Pdb) res = loss_fn((Y_train+ 0.01), Y_train, aux_data=Y_train_aux, partition='train', index=0)
 
-(Pdb) res
-tensor([-0.0296, -0.0293, -0.0291, -0.0293, -0.0294, -0.0292, -0.0294, -0.0294,
-        -0.0294, -0.0288, -0.0292, -0.0295, -0.0294, -0.0294, -0.0294, -0.0291,
-        -0.0292, -0.0290, -0.0294, -0.0294, -0.0294, -0.0294, -0.0294, -0.0295,
-        -0.0294, -0.0293, -0.0294, -0.0294, -0.0294, -0.0295, -0.0293, -0.0292,
-        -0.0289, -0.0290, -0.0290, -0.0291, -0.0294, -0.0291, -0.0294, -0.0295,
-        -0.0292, -0.0295, -0.0294, -0.0293, -0.0295, -0.0295, -0.0293, -0.0294,
-        -0.0291, -0.0293, -0.0294, -0.0294, -0.0295, -0.0294, -0.0293, -0.0288,
-        -0.0293, -0.0294, -0.0294, -0.0294, -0.0293, -0.0294, -0.0294, -0.0292,
-        -0.0294, -0.0293, -0.0295, -0.0294, -0.0295, -0.0293, -0.0292, -0.0289,
-        -0.0293, -0.0294, -0.0294, -0.0294, -0.0295, -0.0294, -0.0294, -0.0293,
-        -0.0295, -0.0294, -0.0295, -0.0295, -0.0291, -0.0294, -0.0288, -0.0291,
-        -0.0291, -0.0291, -0.0294, -0.0294, -0.0295, -0.0294, -0.0293, -0.0294,
-        -0.0294, -0.0294, -0.0294, -0.0295, -0.0294, -0.0289, -0.0294, -0.0294,
-        -0.0295, -0.0294, -0.0295, -0.0294, -0.0294, -0.0286, -0.0292, -0.0293,
-        -0.0294, -0.0294, -0.0294, -0.0295, -0.0294, -0.0280, -0.0294, -0.0294,
-        -0.0294, -0.0294, -0.0295, -0.0294, -0.0288, -0.0286, -0.0293, -0.0293,
-        -0.0294, -0.0294, -0.0294, -0.0295, -0.0291, -0.0294, -0.0294, -0.0295,
-        -0.0295, -0.0295, -0.0292, -0.0288, -0.0285, -0.0294, -0.0294, -0.0293,
-        -0.0294, -0.0293, -0.0292, -0.0287, -0.0292, -0.0294, -0.0294, -0.0294,
-        -0.0293, -0.0293, -0.0292, -0.0284, -0.0292, -0.0290, -0.0293, -0.0294,
-        -0.0295, -0.0294, -0.0292, -0.0279, -0.0293, -0.0294, -0.0294, -0.0294,
-        -0.0294, -0.0295, -0.0283, -0.0292, -0.0294, -0.0295, -0.0294, -0.0294,
-        -0.0294, -0.0294, -0.0287, -0.0294, -0.0293, -0.0294, -0.0294, -0.0294,
-        -0.0293, -0.0292, -0.0277, -0.0292, -0.0294, -0.0294, -0.0291, -0.0287,
-        -0.0294, -0.0288, -0.0293, -0.0294, -0.0295, -0.0295, -0.0295, -0.0294],
-       grad_fn=<SubBackward0>)
-(Pdb) res.shape
-torch.Size([200])
-(Pdb) res = loss_fn((Y_train[0]+ 0.01), Y_train[0], aux_data=Y_train_aux[0], partition='train', index=0)
-(Pdb) res.shape
-torch.Size([1])
-(Pdb) res
-tensor([-0.0296], grad_fn=<SubBackward0>)
-(Pdb) res = loss_fn((Y_train[1]+ 0.01), Y_train[1], aux_data=Y_train_aux[1], partition='train', index=1)
-(Pdb) res.shape
-torch.Size([1])
-(Pdb) res = loss_fn((Y_train[1]+ 0.01), Y_train[1], aux_data=Y_train_aux[1], partition='train', index=200)
-*** IndexError: list index out of range
-(Pdb) res = loss_fn((Y_train[1]+ 0.01), Y_train[1], aux_data=Y_train_aux[1], partition='train', index=199)
-(Pdb)
-
-
-debug log
-(Pdb) booster.predict(Xtrain)
-*** TypeError: ('Expecting data to be a DMatrix object, got: ', <class 'numpy.ndarray'>)
-(Pdb) booster.inplace_predict(Xtrain)
-array([[0.5, 0.5, 0.5, ..., 0.5, 0.5, 0.5],
-       [0.5, 0.5, 0.5, ..., 0.5, 0.5, 0.5],
-       [0.5, 0.5, 0.5, ..., 0.5, 0.5, 0.5],
-       ...,
-       [0.5, 0.5, 0.5, ..., 0.5, 0.5, 0.5],
-       [0.5, 0.5, 0.5, ..., 0.5, 0.5, 0.5],
-       [0.5, 0.5, 0.5, ..., 0.5, 0.5, 0.5]], dtype=float32)
-(Pdb) booster.inplace_predict(Xtrain).shape
-(80, 50)
-(Pdb) Ytrain.shape
-(80, 50)
-(Pdb) Y_train.shape
-torch.Size([80, 5, 10])
-(Pdb) booster.predict(Xtrain)
-
-
-
-"""
 
 
 
