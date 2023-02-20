@@ -84,6 +84,8 @@ class custom_loss():
                  grad[i], hes[i] = self.grad_hess_fn(predt[i], self.ygold[i], 'train', i)
             grad = grad.flatten()
             hes = grad.flatten()
+            print("grad.sum() {}".format(grad.sum()))
+            print("hes.sum() {}".format(hes.sum()))
             return grad, hes
         return obj
 
