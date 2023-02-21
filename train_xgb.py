@@ -45,7 +45,7 @@ def train_xgb(args, problem):
     model = custom_tree(reg, np.prod(X_train[0].shape), np.prod(Y_train[0].shape), Y_train[0].shape)
     from utils import print_metrics
     from losses import get_loss_fn
-    metrics = print_metrics(model, problem, args.loss, get_loss_fn('mse', problem), f"Iter {iter_idx},", isTrain=True)
+    metrics = print_metrics(model, problem, args.loss, get_loss_fn('mse', problem), f"Tree Evaluation,", isTrain=False)
     return model, metrics
 
 
