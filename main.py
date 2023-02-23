@@ -334,19 +334,19 @@ if __name__ == '__main__':
     X_test, Y_test, Y_test_aux = problem.get_test_data()
     randomdq, optimaldq = get_random_optDQ(Y_test, Y_test_aux)
     nordq = (metrics['test']['objective'] - randomdq)/(optimaldq - randomdq)
-    print("Normalize DQ on test set: %.12f" % nordq)
+    print("(Only this run) Normalize DQ on test set: %.12f" % nordq)
 
     _, Y_train, Y_train_aux = problem.get_test_data()
     print("train set")
     trainrandomdq, trainoptimaldq = get_random_optDQ(Y_train, Y_train_aux)
     nordq = (metrics['train']['objective'] - trainrandomdq)/(trainoptimaldq - trainrandomdq)
-    print("Normalize DQ on train set: %.12f" % nordq)
+    print("(Only this run) Normalize DQ on train set: %.12f" % nordq)
 
     _, Y_val, Y_val_aux = problem.get_val_data()
     print("eval set")
     valrandomdq, valoptimaldq = get_random_optDQ(Y_val, Y_val_aux)
     nordq = (metrics['val']['objective'] - valrandomdq)/(valoptimaldq - valrandomdq)
-    print("Normalize DQ on eval set: %.12f" % nordq)
+    print("(Only this run) Normalize DQ on eval set: %.12f" % nordq)
 
     # pdb.set_trace()
 
