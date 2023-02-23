@@ -87,7 +87,19 @@ class custom_loss():
 
     # Need use static method ?
     # https://www.digitalocean.com/community/tutorials/python-static-method
+    # The rmse loss is based on https://xgboost.readthedocs.io/en/stable/python/examples/multioutput_regression.html
+    def get_rmse_obj(self):
+        def obj(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+            return (predt - y).reshape(y.size), np.ones(predt.shape).reshape(predt.size)
+        return obj
 
+    def get_rmse_eval(self):
+        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+            return "RMSE", np.sqrt(np.sum((y - predt) ** 2))
+        return eval_fn  
+  
     def get_obj_fn(self):
         def obj(predt: np.ndarray, dtrain: xgb.DMatrix):
             predt = predt.reshape(self.ygold.shape)
@@ -96,7 +108,7 @@ class custom_loss():
             for i in range(self.ygold.shape[0]):
                  grad[i], hes[i] = self.grad_hess_fn(predt[i], self.ygold[i], 'train', i)
             grad = grad.flatten()
-            hes = grad.flatten()
+            hes = hes.flatten()
             print("grad.sum() {}".format(grad.sum()))
             print("hes.sum() {}".format(hes.sum()))
             return grad, hes

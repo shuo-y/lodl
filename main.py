@@ -187,6 +187,24 @@ def train_dense(args, problem):
 
     return model, metrics
 
+def get_random_optDQ(Y, Y_aux):
+    #   Document the value of a random guess
+    objs_rand = []
+    for _ in range(10):
+        Z_rand = problem.get_decision(torch.rand_like(Y), aux_data=Y_aux, isTrain=False)
+        objectives = problem.get_objective(Y, Z_rand, aux_data=Y_aux)
+        objs_rand.append(objectives)
+    randomdq = torch.stack(objs_rand).mean().item()
+    print(f"Random Decision Quality: {randomdq}")
+
+    #   Document the optimal value
+    Z_opt = problem.get_decision(Y, aux_data=Y_aux, isTrain=False)
+    objectives = problem.get_objective(Y, Z_opt, aux_data=Y_aux)
+    optimaldq = objectives.mean().item()
+    print(f"Optimal Decision Quality: {optimaldq}")
+    return randomdq, optimaldq
+
+
 if __name__ == '__main__':
     # Get hyperparams from the command line
     # TODO: Separate main into folders per domain
@@ -312,27 +330,23 @@ if __name__ == '__main__':
         # Document how well this trained model does
 
 
-
+    print("test set")
     X_test, Y_test, Y_test_aux = problem.get_test_data()
-    #   Document the value of a random guess
-    objs_rand = []
-    for _ in range(10):
-        Z_test_rand = problem.get_decision(torch.rand_like(Y_test), aux_data=Y_test_aux, isTrain=False)
-        objectives = problem.get_objective(Y_test, Z_test_rand, aux_data=Y_test_aux)
-        objs_rand.append(objectives)
-    randomdq = torch.stack(objs_rand).mean().item()
-    print(f"\nRandom Decision Quality: {randomdq}")
-
-    #   Document the optimal value
-    Z_test_opt = problem.get_decision(Y_test, aux_data=Y_test_aux, isTrain=False)
-    objectives = problem.get_objective(Y_test, Z_test_opt, aux_data=Y_test_aux)
-    optimaldq = objectives.mean().item()
-    print(f"Optimal Decision Quality: {optimaldq}")
-    print()
-
-
+    randomdq, optimaldq = get_random_optDQ(Y_test, Y_test_aux)
     nordq = (metrics['test']['objective'] - randomdq)/(optimaldq - randomdq)
     print("Normalize DQ on test set: %.12f" % nordq)
+
+    _, Y_train, Y_train_aux = problem.get_test_data()
+    print("train set")
+    trainrandomdq, trainoptimaldq = get_random_optDQ(Y_train, Y_train_aux)
+    nordq = (metrics['train']['objective'] - trainrandomdq)/(trainoptimaldq - trainrandomdq)
+    print("Normalize DQ on train set: %.12f" % nordq)
+
+    _, Y_val, Y_val_aux = problem.get_val_data()
+    print("eval set")
+    valrandomdq, valoptimaldq = get_random_optDQ(Y_val, Y_val_aux)
+    nordq = (metrics['val']['objective'] - valrandomdq)/(valoptimaldq - valrandomdq)
+    print("Normalize DQ on eval set: %.12f" % nordq)
 
     # pdb.set_trace()
 
