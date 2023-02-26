@@ -209,7 +209,9 @@ def dump_booster(booster, args):
     treefilename = timestr + ".tree"
     with open(timestr + ".args", "w") as f:
         f.write(str(args))
+        f.write("\n")
         f.write(configfilename)
+        f.write("\n")
         f.write(treefilename)
 
     treedump = booster.get_dump()
