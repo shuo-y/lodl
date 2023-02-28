@@ -336,7 +336,7 @@ if __name__ == '__main__':
     nordq = (metrics['test']['objective'] - randomdq)/(optimaldq - randomdq)
     print("(Only this run) Normalize DQ on test set: %.12f" % nordq)
 
-    _, Y_train, Y_train_aux = problem.get_test_data()
+    _, Y_train, Y_train_aux = problem.get_train_data()
     print("train set")
     trainrandomdq, trainoptimaldq = get_random_optDQ(Y_train, Y_train_aux)
     nordq = (metrics['train']['objective'] - trainrandomdq)/(trainoptimaldq - trainrandomdq)
