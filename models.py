@@ -140,7 +140,7 @@ class WeightedMSEPlusPlus(torch.nn.Module):
     """
     A weighted version of MSE
     """
-
+    import numpy as np
     def __init__(self, Y, min_val=1e-3):
         super(WeightedMSEPlusPlus, self).__init__()
         # Save true labels
@@ -166,8 +166,36 @@ class WeightedMSEPlusPlus(torch.nn.Module):
 
         return weighted_mse
 
-    def my_grad_hess(self):
-        pass
+    def get_jnp_fun(self):
+        import jax.numpy as jnp
+
+        posw = jnp.array(self.weights_pos.clamp(min=self.min_val).detach().cpu().numpy())
+        negw = jnp.array(self.weights_neg.clamp(min=self.min_val).detach().cpu().numpy())
+        y = jnp.array(self.Y.detach().cpu().numpy())
+
+        def jnp_forward(yhat):
+            cur_pos_w = (yhat > y) * posw
+            cur_neg_w = (yhat < y) * negw
+            w = cur_pos_w + cur_neg_w
+            diff = (yhat - y)
+            res = (w * (diff ** 2)).mean()
+            return res
+        return jnp_forward
+
+
+    def my_grad_hess(self, yhat: np.ndarray):
+        yhat = yhat.flatten()
+        posw = self.weights_pos.clamp(min=self.min_val).detach().cpu().numpy()
+        negw = self.weights_neg.clamp(min=self.min_val).detach().cpu().numpy()
+        y = self.Y.detach().cpu().numpy()
+
+        diff = (yhat - y)
+        posdiff = (diff > 0) * diff
+        negdiff = (diff < 0) * diff
+
+        grad = (2 * (posw * posdiff) + 2 * (negw * negdiff))/len(yhat)
+        hess = (2 * (posw * (diff > 0)) + 2 * (negw * (diff < 0))) / len(yhat)
+        return grad, hess
 
 
 class WeightedCE(torch.nn.Module):
@@ -377,15 +405,16 @@ class LowRankQuadratic(torch.nn.Module):
 def test_weightedmse_jax(loss_model):
     Y = torch.rand((2, 3))
     yn = Y.detach().numpy()
+    print(loss_model.__name__)
 
     import jax.numpy as jnp
-    mse = loss_model(Y)
+    loss = loss_model(Y)
     offset = 0.134
-    print(mse(Y + offset).item())
-    fn = mse.get_jnp_fun()
+    print(loss(Y + offset).item())
+    fn = loss.get_jnp_fun()
     print(fn(jnp.array((yn + offset).flatten())))
 
-    mygrad, myhess = mse.my_grad_hess((yn + offset))
+    mygrad, myhess = loss.my_grad_hess((yn + offset))
     from jax import grad, jacfwd
     g = grad(fn)(jnp.array((yn + offset).flatten()))
     jh = jnp.diagonal(jacfwd(grad(fn))(jnp.array((yn + offset).flatten())))
@@ -419,7 +448,12 @@ def test_jax():
 
 
 
-#test_jax()
-#test_weightedmse_jax(WeightedMSE)
-#test_weightedmse_jax(WeightedMSESum)
+def test():
+    test_jax()
+    test_weightedmse_jax(WeightedMSE)
+    test_weightedmse_jax(WeightedMSESum)
+    test_weightedmse_jax(WeightedMSEPlusPlus)
+
+test()
+
 model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}
