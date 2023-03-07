@@ -454,6 +454,6 @@ def test():
     test_weightedmse_jax(WeightedMSESum)
     test_weightedmse_jax(WeightedMSEPlusPlus)
 
-test()
+#test()
 
 model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}

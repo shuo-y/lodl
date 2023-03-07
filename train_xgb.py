@@ -82,6 +82,15 @@ class custom_loss():
         self.ygold = ygold
         self.grad_hess_fn = grad_hess_fn
         self.loss_fn = loss_fn
+        g = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
+        h = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
+        for i in range(self.ygold.shape[0]):
+            g[i], h[i] = self.grad_hess_fn(self.ygold[i], self.ygold[i], 'train', i)
+        #import pdb
+        #pdb.set_trace()
+        print("check g sum {}".format(g.sum()))
+        print("check h sum {}".format(h.sum()))
+
         #print("initial custom_loss")
         #print(ygold[0])
 
