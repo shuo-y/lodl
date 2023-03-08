@@ -112,6 +112,12 @@ def print_metrics(
         metrics[partition] = {'objective': objective, 'loss': loss, 'mae': mae}
 
     print(metrics)
+    import sys
+    sys.stdout.write("Fit")
+    for key in metrics:
+        for subkey in metrics[key]:
+            sys.stdout.write(",%.12f" % metrics[key][subkey])
+    sys.stdout.write("\n")
     return metrics
 
 def starmap_with_kwargs(pool, fn, args_iter, kwargs):

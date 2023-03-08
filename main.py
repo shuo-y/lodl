@@ -330,23 +330,25 @@ if __name__ == '__main__':
         # Document how well this trained model does
 
 
-    print("test set")
-    X_test, Y_test, Y_test_aux = problem.get_test_data()
-    randomdq, optimaldq = get_random_optDQ(Y_test, Y_test_aux)
-    nordq = (metrics['test']['objective'] - randomdq)/(optimaldq - randomdq)
-    print("(Only this run) Normalize DQ on test set: %.12f" % nordq)
-
     _, Y_train, Y_train_aux = problem.get_train_data()
     print("train set")
     trainrandomdq, trainoptimaldq = get_random_optDQ(Y_train, Y_train_aux)
-    nordq = (metrics['train']['objective'] - trainrandomdq)/(trainoptimaldq - trainrandomdq)
-    print("(Only this run) Normalize DQ on train set: %.12f" % nordq)
+    trainnordq = (metrics['train']['objective'] - trainrandomdq)/(trainoptimaldq - trainrandomdq)
+    print("(Only this run) Normalize DQ on train set: %.12f" % trainnordq)
 
     _, Y_val, Y_val_aux = problem.get_val_data()
     print("eval set")
     valrandomdq, valoptimaldq = get_random_optDQ(Y_val, Y_val_aux)
-    nordq = (metrics['val']['objective'] - valrandomdq)/(valoptimaldq - valrandomdq)
-    print("(Only this run) Normalize DQ on eval set: %.12f" % nordq)
+    valnordq = (metrics['val']['objective'] - valrandomdq)/(valoptimaldq - valrandomdq)
+    print("(Only this run) Normalize DQ on eval set: %.12f" % valnordq)
+
+    print("test set")
+    X_test, Y_test, Y_test_aux = problem.get_test_data()
+    testrandomdq, testoptimaldq = get_random_optDQ(Y_test, Y_test_aux)
+    testnordq = (metrics['test']['objective'] - testrandomdq)/(testoptimaldq - testrandomdq)
+    print("(Only this run) Normalize DQ on test set: %.12f" % testnordq)
+
+    print("DQ,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (trainnordq, trainrandomdq, trainoptimaldq, valnordq, valrandomdq, valoptimaldq, testnordq, testrandomdq, testoptimaldq))
 
     # pdb.set_trace()
 
