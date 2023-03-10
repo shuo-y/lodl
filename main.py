@@ -220,7 +220,7 @@ if __name__ == '__main__':
     parser.add_argument('--valfreq', type=int, default=5)
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--model', type=str, choices=['dense', 'xgboost', 'dense_multi', 'xgb_lodl', 'xgbrmse'], default='dense')
+    parser.add_argument('--model', type=str, choices=['dense', 'xgb_decoupled', 'dense_multi', 'xgb_lodl', 'xgb_coupled'], default='dense')
     parser.add_argument('--loss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--batchsize', type=int, default=1000)
@@ -317,10 +317,10 @@ if __name__ == '__main__':
 
     # Load an ML model to predict the parameters of the problem
     print(f"Building {args.model} Model...")
-    if args.model == "xgboost":
+    if args.model == "xgb_decoupled":
         from train_xgb import train_xgb
         model, metrics = train_xgb(args, problem)
-    elif args.model == "xgb_lodl" or args.model == "xgbrmse":
+    elif args.model == "xgb_lodl" or args.model == "xgb_coupled":
         from train_xgb import train_xgb_lodl
         model, metrics = train_xgb_lodl(args, problem)
     elif args.model == "dense":

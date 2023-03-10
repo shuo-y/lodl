@@ -28,6 +28,7 @@ class custom_tree:
             raise ValueError
 
 def train_xgb(args, problem):
+    # 2stage xgboost decoupled version
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_val, Y_val, Y_val_aux = problem.get_val_data()
 
@@ -45,7 +46,7 @@ def train_xgb(args, problem):
     model = custom_tree(reg, np.prod(X_train[0].shape), np.prod(Y_train[0].shape), Y_train[0].shape)
     from utils import print_metrics
     from losses import get_loss_fn
-    metrics = print_metrics(model, problem, args.loss, get_loss_fn('mse', problem), f"Tree Evaluation,", isTrain=False)
+    metrics = print_metrics(model, problem, args.loss, get_loss_fn('mse', problem), "", isTrain=False)
     return model, metrics
 
 
@@ -85,7 +86,7 @@ class custom_loss():
         g = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
         h = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
         for i in range(self.ygold.shape[0]):
-            g[i], h[i] = self.grad_hess_fn(self.ygold[i], self.ygold[i], 'train', i)
+            g[i], h[i] = self.grad_hess_fn(self.ygold[i], self.ygold[i], "train", i)
         #import pdb
         #pdb.set_trace()
         print("check g sum {}".format(g.sum()))
@@ -115,7 +116,7 @@ class custom_loss():
             grad = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
             hes = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
             for i in range(self.ygold.shape[0]):
-                 grad[i], hes[i] = self.grad_hess_fn(predt[i], self.ygold[i], 'train', i)
+                 grad[i], hes[i] = self.grad_hess_fn(predt[i], self.ygold[i], "train", i)
             grad = grad.flatten()
             hes = hes.flatten()
             print("grad.sum() {}".format(grad.sum()))
@@ -130,7 +131,7 @@ class custom_loss():
             # Borrow from utils.py
             losses = []
             for i, Yh in enumerate(Yhats):
-                losses.append(self.loss_fn(Yh, None, 'train', i))
+                losses.append(self.loss_fn(Yh, None, "train", i))
             losses = torch.stack(losses).flatten()
             loss = losses.mean().item()
             return "LODLloss", loss
@@ -149,7 +150,8 @@ def train_xgb_lodl(args, problem):
     Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
     Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
 
-    if args.model == "xgbrmse":
+    if args.model == "xgb_coupled":
+        # 2stage xgboost coupled version
         print("Using native xgb.XGBRegressor")
         print("This option will ignore the args.loss")
         reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
@@ -157,7 +159,7 @@ def train_xgb_lodl(args, problem):
         dump_booster(reg.get_booster(), args)
         model = xgbwrapper(reg, Y_train[0].shape)
         from utils import print_metrics
-        metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), f"tree evaluate", isTrain=False)
+        metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "", isTrain=False)
         return model, metrics
 
 
@@ -205,7 +207,7 @@ def train_xgb_lodl(args, problem):
     model = treefromlodl(booster, Y_train[0].shape)
 
     from utils import print_metrics
-    metrics = print_metrics(model, problem, args.loss, loss_fn, f"tree evaluate", isTrain=False)
+    metrics = print_metrics(model, problem, args.loss, loss_fn, "", isTrain=False)
     return model, metrics
 
 
