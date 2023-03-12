@@ -42,7 +42,7 @@ def train_xgb(args, problem):
     reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
 
 
-    reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain), (Xval, Yval)])
+    reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
     model = custom_tree(reg, np.prod(X_train[0].shape), np.prod(Y_train[0].shape), Y_train[0].shape)
     from utils import print_metrics
     from losses import get_loss_fn
@@ -155,7 +155,7 @@ def train_xgb_lodl(args, problem):
         print("Using native xgb.XGBRegressor")
         print("This option will ignore the args.loss")
         reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
-        reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain), (Xval, Yval)])
+        reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
         dump_booster(reg.get_booster(), args)
         model = xgbwrapper(reg, Y_train[0].shape)
         from utils import print_metrics
