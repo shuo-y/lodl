@@ -81,6 +81,7 @@ def print_metrics(
         datasets = [(X_train, Y_train, Y_train_aux, 'train'), (X_val, Y_val, Y_val_aux, 'val')]
     # print(f"Current model parameters: {[param for param in model.parameters()]}")
     metrics = {}
+    print("metrics use loss function: %s" % loss_fn.__name__)
     print(prefix, end='')
     for Xs, Ys, Ys_aux, partition in datasets:
         # Choose whether we should use train or test 

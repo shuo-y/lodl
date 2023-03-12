@@ -207,7 +207,7 @@ def train_xgb_lodl(args, problem):
     model = treefromlodl(booster, Y_train[0].shape)
 
     from utils import print_metrics
-    metrics = print_metrics(model, problem, args.loss, loss_fn, "", isTrain=False)
+    metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "", isTrain=False)
     return model, metrics
 
 
