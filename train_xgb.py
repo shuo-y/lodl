@@ -195,8 +195,10 @@ def train_xgb_lodl(args, problem):
     Xyval = xgb.DMatrix(Xval, Yval)
 
     booster = xgb.train(
-            {"tree_method": "hist",
+            {"tree_method": args.tree_method,
              "num_target": Ytrain.shape[1],
+             "lambda": args.tree_lambda,
+             "alpha": args.alpha,
             },
         dtrain=Xy,
         num_boost_round = args.num_estimators,

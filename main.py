@@ -258,6 +258,9 @@ if __name__ == '__main__':
     parser.add_argument('--quadalpha', type=float, default=0)
     parser.add_argument('--num_estimators', type=int, default=10)
     parser.add_argument('--lodl_iter', type=int, default=10, help='if we want to train lodl multi rounds')
+    parser.add_argument('--tree_method', type=str, default='hist', choices=['hist', 'approx', 'auto', 'exact'])
+    parser.add_argument('--tree_lambda', type=float, default=1)
+    parser.add_argument('--alpha', type=float, default=0)
     args = parser.parse_args()
 
     # Load problem
