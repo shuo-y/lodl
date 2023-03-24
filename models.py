@@ -4,6 +4,7 @@ from math import sqrt
 from functools import reduce
 import operator
 import pdb
+import numpy as np
 
 from utils import View
 
@@ -115,7 +116,6 @@ class WeightedMSE(torch.nn.Module):
         return grad, hess
 
     def get_jnp_fun(self):
-        import numpy as np
         import jax.numpy as jnp
         """
         Use jnp based on https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.square.html
@@ -140,7 +140,6 @@ class WeightedMSEPlusPlus(torch.nn.Module):
     """
     A weighted version of MSE
     """
-    import numpy as np
     def __init__(self, Y, min_val=1e-3):
         super(WeightedMSEPlusPlus, self).__init__()
         # Save true labels
@@ -256,7 +255,6 @@ class WeightedMSESum(torch.nn.Module):
 
     def my_grad_hess(self, Yhat):
         assert Yhat.shape == self.Y.shape
-        import numpy as np
         y = self.Y.detach().numpy()
         diff = (Yhat - y).flatten()
         w = self.msesum_weights.detach().numpy().repeat(self.Y.shape[1])
@@ -400,9 +398,41 @@ class LowRankQuadratic(torch.nn.Module):
 
         return quad + self.alpha * mse
 
+    def my_grad_hess(self, yhat):
+        yhat = yhat.flatten()
+        basis = torch.tril(self.basis).clamp(-100, 100).detach().cpu().numpy()
+        y = self.Y.detach().cpu().numpy()
+        diff = y - yhat
+        hmat = basis @ basis.T
+        hmat = hmat + hmat.T
+        grad = - (hmat @ diff) - 2 * self.alpha * diff/len(y)
+        hess = np.diagonal(hmat) + 2 * self.alpha / len(y)
+
+        return grad, hess
+
+
+
+
+
+    def get_jnp_fun(self):
+        import jax.numpy as jnp
+        basis = jnp.array(torch.tril(self.basis).clamp(-100, 100).detach().cpu().numpy())
+        alpha = self.alpha
+        y = jnp.array(self.Y.detach().cpu().numpy())
+
+        def jnpforward(yhat):
+            diff = y - yhat
+            quad = ((diff @ basis) ** 2).sum()
+            mse = (diff ** 2).mean()
+            res = quad + alpha * mse
+            return res
+
+        return jnpforward
+
+
 
 ## for debug
-def test_weightedmse_jax(loss_model):
+def test_model_jax(loss_model):
     Y = torch.rand((2, 3))
     yn = Y.detach().numpy()
     print(loss_model.__name__)
@@ -434,7 +464,6 @@ def test_weightedmse_jax(loss_model):
 
 
 def test_jax():
-    import numpy as np
     import jax.numpy as jnp
     from jax import grad
     weights = jnp.array(np.random.rand(10))
@@ -450,10 +479,12 @@ def test_jax():
 
 def test():
     test_jax()
-    test_weightedmse_jax(WeightedMSE)
-    test_weightedmse_jax(WeightedMSESum)
-    test_weightedmse_jax(WeightedMSEPlusPlus)
+    test_model_jax(WeightedMSE)
+    test_model_jax(WeightedMSESum)
+    test_model_jax(WeightedMSEPlusPlus)
+    test_model_jax(LowRankQuadratic)
 
-#test()
+
+test()
 
 model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}
