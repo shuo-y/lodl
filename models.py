@@ -485,6 +485,6 @@ def test():
     test_model_jax(LowRankQuadratic)
 
 
-test()
+#test()
 
 model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}
