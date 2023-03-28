@@ -360,6 +360,61 @@ class QuadraticPlusPlus(torch.nn.Module):
         basis = bases.gather(-1, index).squeeze()
         return torch.tril(basis)
 
+    def my_grad_hess(self, yhat):
+        yhat = yhat.flatten()
+        # assume yhat and y are one dimensiona
+        y = self.Y.detach().cpu().numpy()
+        assert len(yhat.shape) == 1
+        assert y.shape == yhat.shape
+        direction = np.array((yhat > y), dtype=int)
+        # use expand_dims based on https://numpy.org/doc/stable/reference/generated/numpy.expand_dims.html
+        # and also see previous code
+        direction_col = np.expand_dims(direction, axis=1)
+        direction_row = np.expand_dims(direction, axis=0)
+        indices = np.expand_dims((direction_col + 2 * direction_row), axis=2)
+        # use numpy take https://numpy.org/doc/stable/reference/generated/numpy.take.html
+        # use take along axis similar to torch.gather https://numpy.org/doc/stable/reference/generated/numpy.take_along_axis.html
+        base = np.take_along_axis(self.bases.detach().numpy(), indices, axis=2).squeeze()
+        # use tril based on https://numpy.org/doc/stable/reference/generated/numpy.tril.html
+        base = np.tril(base)
+        base = np.clip(base, -10, 10)
+
+
+        diff = y - yhat
+        hmat = base @ base.T
+        hmat = hmat + hmat.T
+        grad = - (hmat @ diff) - 2 * self.alpha * diff/len(y)
+        hess = np.diagonal(hmat) + 2 * self.alpha / len(y)
+
+        return grad, hess
+
+
+    def get_jnp_fun(self):
+        import jax.numpy as jnp
+        basis = jnp.array(self.bases.detach().cpu().numpy())
+        alpha = self.alpha
+        y = jnp.array(self.Y.detach().cpu().numpy())
+        def jnpforward(yhat):
+            base = jnp.zeros((len(y), len(y)))
+            for i in range(len(y)):
+                for j in range(0, i + 1):
+                    if yhat[i] > y[i] and yhat[j] > y[j]:
+                        base = base.at[i, j].set(basis[i][j][3])
+                    elif yhat[i] > y[i] and yhat[j] <= y[j]:
+                        base = base.at[i, j].set(basis[i][j][1])
+                    elif yhat[i] <= y[i] and yhat[j] > y[j]:
+                        base = base.at[i, j].set(basis[i][j][2])
+                    else:
+                        base = base.at[i, j].set(basis[i][j][0])
+            base = base.clip(-10, 10)
+            diff = y - yhat
+            quad = ((diff @ base) ** 2).sum()
+            res = quad + alpha * ((diff ** 2).mean())
+            return res
+        return jnpforward
+
+
+
 class LowRankQuadratic(torch.nn.Module):
     """
     Model that copies the structure of MSE-Sum
@@ -410,10 +465,6 @@ class LowRankQuadratic(torch.nn.Module):
 
         return grad, hess
 
-
-
-
-
     def get_jnp_fun(self):
         import jax.numpy as jnp
         basis = jnp.array(torch.tril(self.basis).clamp(-100, 100).detach().cpu().numpy())
@@ -432,8 +483,9 @@ class LowRankQuadratic(torch.nn.Module):
 
 
 ## for debug
-def test_model_jax(loss_model):
-    Y = torch.rand((2, 3))
+def test_model_jax(loss_model, Y=None):
+    if Y == None:
+        Y = torch.rand((3, 2))
     yn = Y.detach().numpy()
     print(loss_model.__name__)
 
@@ -450,9 +502,9 @@ def test_model_jax(loss_model):
     jh = jnp.diagonal(jacfwd(grad(fn))(jnp.array((yn + offset).flatten())))
     diff = ((g - mygrad) ** 2).sum()
     hdiff = ((jh - myhess) ** 2).sum()
-    if diff > 0.00001:
+    if not np.isclose(diff, 0):
         print("error grad {}".format(diff))
-    if hdiff > 0.00001:
+    if not np.isclose(hdiff, 0):
         print("error hess {}".format(hdiff))
     print("mygrad ", mygrad)
     print("jax g ", g)
@@ -483,8 +535,12 @@ def test():
     test_model_jax(WeightedMSESum)
     test_model_jax(WeightedMSEPlusPlus)
     test_model_jax(LowRankQuadratic)
+    test_model_jax(LowRankQuadratic, torch.rand(50, 70))
+    test_model_jax(QuadraticPlusPlus)
+    test_model_jax(QuadraticPlusPlus, torch.rand(5, 7))
+    test_model_jax(QuadraticPlusPlus, torch.rand(50, 70))
 
 
-#test()
+test()
 
 model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}

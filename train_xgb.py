@@ -177,6 +177,7 @@ def train_xgb_lodl(args, problem):
         lr=args.losslr,
         serial=args.serial,
         dflalpha=args.dflalpha,
+        verbose=True,
         get_grad_hess=True,
     )
     import pdb

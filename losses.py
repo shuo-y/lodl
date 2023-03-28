@@ -426,7 +426,7 @@ def _get_learned_loss(
         return losses[partition][index](Yhats).flatten() - SL_dataset[partition][index][1]
 
 
-    def my_grad_hess(yhatnp, ynp, partition, index, **kwargs):
+    def jax_grad_hess(yhatnp, ynp, partition, index, **kwargs):
         from jax import grad, jacfwd
         import jax.numpy as jnp
         import numpy as np
@@ -438,6 +438,12 @@ def _get_learned_loss(
         g = np.array(g)
         h = np.array(h)
         return g, h
+
+    def my_grad_hess(yhatnp, ynp, partition, index, **kwargs):
+        yhatnp = yhatnp.flatten()
+        # The yhatnap and ynp should be np
+        return losses[partition][index].my_grad_hess(yhatnp)
+
     if (get_grad_hess == True):
         return surrogate_decision_quality, my_grad_hess
     return surrogate_decision_quality
