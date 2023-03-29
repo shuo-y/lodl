@@ -378,8 +378,7 @@ class QuadraticPlusPlus(torch.nn.Module):
         # use tril based on https://numpy.org/doc/stable/reference/generated/numpy.tril.html
         base = np.tril(base)
         base = np.clip(base, -10, 10)
-
-
+        
         diff = y - yhat
         hmat = base @ base.T
         hmat = hmat + hmat.T
@@ -389,7 +388,7 @@ class QuadraticPlusPlus(torch.nn.Module):
         return grad, hess
 
 
-    def get_jnp_fun(self):
+    def get_jnp_fun(self, ret_naive=False):
         import jax.numpy as jnp
         basis = jnp.array(self.bases.detach().cpu().numpy())
         alpha = self.alpha
@@ -411,7 +410,23 @@ class QuadraticPlusPlus(torch.nn.Module):
             quad = ((diff @ base) ** 2).sum()
             res = quad + alpha * ((diff ** 2).mean())
             return res
-        return jnpforward
+        
+        def jnp_nocond_forward(yhat):
+            dire = jnp.array((yhat > y), dtype=int)
+            dire_col = jnp.expand_dims(dire, axis=1)
+            dire_row = jnp.expand_dims(dire, axis=0)
+            indices = jnp.expand_dims((dire_col + 2 * dire_row), axis=2)
+            base = jnp.take_along_axis(basis, indices, axis=2).squeeze()
+            base = jnp.tril(base)
+            base = jnp.clip(base, -10, 10)
+            diff = y - yhat
+            quad = ((diff @ base) ** 2).sum()
+            res = quad + alpha * ((diff ** 2).mean())
+            return res
+        if ret_naive:
+            return jnpforward, jnp_nocond_forward
+        import jax    
+        return jax.jit(jnp_nocond_forward)
 
 
 
@@ -477,29 +492,32 @@ class LowRankQuadratic(torch.nn.Module):
             mse = (diff ** 2).mean()
             res = quad + alpha * mse
             return res
-
-        return jnpforward
+        import jax
+        return jax.jit(jnpforward)
 
 
 
 ## for debug
-def test_model_jax(loss_model, Y=None):
+def test_model_jax(loss_model, Y=None, check_naive=False):
     if Y == None:
         Y = torch.rand((3, 2))
-    yn = Y.detach().numpy()
+    Yhd = torch.rand_like(Y)
+    yh = Yhd.detach().numpy()
     print(loss_model.__name__)
 
     import jax.numpy as jnp
     loss = loss_model(Y)
-    offset = 0.134
-    print(loss(Y + offset).item())
-    fn = loss.get_jnp_fun()
-    print(fn(jnp.array((yn + offset).flatten())))
+    print(loss(Yhd).item())
+    if check_naive:
+        fn, fn2 = loss.get_jnp_fun(True)
+    else: 
+        fn =  loss.get_jnp_fun()
+    print(fn(jnp.array(yh.flatten())))
 
-    mygrad, myhess = loss.my_grad_hess((yn + offset))
+    mygrad, myhess = loss.my_grad_hess(yh)
     from jax import grad, jacfwd
-    g = grad(fn)(jnp.array((yn + offset).flatten()))
-    jh = jnp.diagonal(jacfwd(grad(fn))(jnp.array((yn + offset).flatten())))
+    g = grad(fn)(jnp.array(yh.flatten()))
+    jh = jnp.diagonal(jacfwd(grad(fn))(jnp.array(yh.flatten())))
     diff = ((g - mygrad) ** 2).sum()
     hdiff = ((jh - myhess) ** 2).sum()
     if not np.isclose(diff, 0):
@@ -510,6 +528,20 @@ def test_model_jax(loss_model, Y=None):
     print("jax g ", g)
     print("myhess ", myhess)
     print("jax h ", jh)
+
+    if check_naive:
+        g2 = grad(fn2)(jnp.array(yh.flatten()))
+        jh2 = jnp.diagonal(jacfwd(grad(fn2))(jnp.array(yh.flatten())))
+        diff = ((g2 - mygrad) ** 2).sum()
+        hdiff = ((jh2 - myhess) ** 2).sum()
+        if not np.isclose(diff, 0):
+            print("error grad {}".format(diff))
+        if not np.isclose(hdiff, 0):
+            print("error hess {}".format(hdiff))
+        print("mygrad ", mygrad)
+        print("jax g2 ", g2)
+        print("myhess ", myhess)
+        print("jax h2 ", jh2)
 
     #import pdb
     #pdb.set_trace()
@@ -537,7 +569,8 @@ def test():
     test_model_jax(LowRankQuadratic)
     test_model_jax(LowRankQuadratic, torch.rand(50, 70))
     test_model_jax(QuadraticPlusPlus)
-    test_model_jax(QuadraticPlusPlus, torch.rand(5, 7))
+    test_model_jax(QuadraticPlusPlus, check_naive=True)
+    test_model_jax(QuadraticPlusPlus, torch.rand(5, 7), check_naive=True)
     test_model_jax(QuadraticPlusPlus, torch.rand(50, 70))
 
 
