@@ -333,7 +333,7 @@ if __name__ == '__main__':
         # Document how well this trained model does
 
 
-    _, Y_train, Y_train_aux = problem.get_train_data()
+    X_train, Y_train, Y_train_aux = problem.get_train_data()
     print("X_train.shape {}".format(X_train.shape))
     print("Y_train.shape {}".format(Y_train.shape))
 
