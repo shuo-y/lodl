@@ -32,6 +32,9 @@ def train_xgb(args, problem):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_val, Y_val, Y_val_aux = problem.get_val_data()
 
+    print("X_train.shape {}".format(X_train.shape))
+    print("Y_train.shape {}".format(Y_train.shape))
+
     ## Squeeze to the last feature
     Xtrain = X_train.numpy().reshape(-1, X_train.shape[-1])
     Ytrain = Y_train.numpy().reshape(-1, Y_train.shape[-1])
@@ -149,6 +152,9 @@ def train_xgb_lodl(args, problem):
 
     Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
     Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
+
+    print("X_train.shape {}".format(X_train.shape))
+    print("Y_train.shape {}".format(Y_train.shape))
 
     if args.model == "xgb_coupled":
         # 2stage xgboost coupled version

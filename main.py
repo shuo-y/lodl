@@ -334,6 +334,9 @@ if __name__ == '__main__':
 
 
     _, Y_train, Y_train_aux = problem.get_train_data()
+    print("X_train.shape {}".format(X_train.shape))
+    print("Y_train.shape {}".format(Y_train.shape))
+
     print("train set")
     trainrandomdq, trainoptimaldq = get_random_optDQ(Y_train, Y_train_aux)
     trainnordq = (metrics['train']['objective'] - trainrandomdq)/(trainoptimaldq - trainrandomdq)
@@ -347,6 +350,8 @@ if __name__ == '__main__':
 
     print("test set")
     X_test, Y_test, Y_test_aux = problem.get_test_data()
+    print("X_test.shape {}".format(X_test.shape))
+    print("Y_test.shape {}".format(Y_test.shape))
     testrandomdq, testoptimaldq = get_random_optDQ(Y_test, Y_test_aux)
     testnordq = (metrics['test']['objective'] - testrandomdq)/(testoptimaldq - testrandomdq)
     print("(Only this run) Normalize DQ on test set: %.12f" % testnordq)
