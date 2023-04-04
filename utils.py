@@ -114,7 +114,7 @@ def print_metrics(
 
     print(metrics)
     import sys
-    sys.stdout.write("Fit")
+    sys.stdout.write(prefix)
     for key in metrics:
         for subkey in metrics[key]:
             sys.stdout.write(",%.12f" % metrics[key][subkey])

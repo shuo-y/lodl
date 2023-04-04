@@ -183,7 +183,7 @@ def train_dense(args, problem):
 
     print("\nBenchmarking Model...")
     # Print final metrics
-    metrics = print_metrics(model, problem, args.loss, loss_fn, "Final")
+    metrics = print_metrics(model, problem, args.loss, loss_fn, "Final_seed{}".format(args.seed))
 
     return model, metrics
 
@@ -356,7 +356,7 @@ if __name__ == '__main__':
     testnordq = (metrics['test']['objective'] - testrandomdq)/(testoptimaldq - testrandomdq)
     print("(Only this run) Normalize DQ on test set: %.12f" % testnordq)
 
-    print("DQ,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (trainnordq, trainrandomdq, trainoptimaldq, valnordq, valrandomdq, valoptimaldq, testnordq, testrandomdq, testoptimaldq))
+    print("DQ_seed%d,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (args.seed, trainnordq, trainrandomdq, trainoptimaldq, valnordq, valrandomdq, valoptimaldq, testnordq, testrandomdq, testoptimaldq))
 
     # pdb.set_trace()
 

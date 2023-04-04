@@ -49,7 +49,7 @@ def train_xgb(args, problem):
     model = custom_tree(reg, np.prod(X_train[0].shape), np.prod(Y_train[0].shape), Y_train[0].shape)
     from utils import print_metrics
     from losses import get_loss_fn
-    metrics = print_metrics(model, problem, args.loss, get_loss_fn('mse', problem), "", isTrain=False)
+    metrics = print_metrics(model, problem, args.loss, get_loss_fn('mse', problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 
 
@@ -165,7 +165,7 @@ def train_xgb_lodl(args, problem):
         dump_booster(reg.get_booster(), args)
         model = xgbwrapper(reg, Y_train[0].shape)
         from utils import print_metrics
-        metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "", isTrain=False)
+        metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
         return model, metrics
 
 
