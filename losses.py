@@ -330,6 +330,7 @@ def _get_learned_loss(
     num_samples_needed = num_extra_samples = num_samples
     if os.path.exists(samples_filename_read):
         with open(samples_filename_read, 'rb') as filehandle:
+            print(f"read sample data file {samples_filename_read}")
             num_existing_samples, SL_dataset_old = pickle.load(filehandle)
     else:
         num_existing_samples = 0
@@ -358,6 +359,7 @@ def _get_learned_loss(
         # Save dataset
         samples_filename_write = f"{problem_filename[:-4]}_{sampling}_{sampling_std}_{time.time()}.pkl"
         with open(samples_filename_write, 'wb') as filehandle:
+            print(f"write sample files {samples_filename_write}")
             pickle.dump((num_extra_samples, SL_dataset), filehandle)
 
         #   Augment with new data

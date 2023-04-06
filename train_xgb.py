@@ -205,7 +205,8 @@ def train_xgb_lodl(args, problem):
             {"tree_method": args.tree_method,
              "num_target": Ytrain.shape[1],
              "lambda": args.tree_lambda,
-             "alpha": args.alpha,
+             "alpha": args.tree_alpha,
+             "eta": args.tree_eta
             },
         dtrain=Xy,
         num_boost_round = args.num_estimators,

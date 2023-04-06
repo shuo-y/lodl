@@ -260,7 +260,8 @@ if __name__ == '__main__':
     parser.add_argument('--lodl_iter', type=int, default=10, help='if we want to train lodl multi rounds')
     parser.add_argument('--tree_method', type=str, default='hist', choices=['hist', 'approx', 'auto', 'exact'])
     parser.add_argument('--tree_lambda', type=float, default=1)
-    parser.add_argument('--alpha', type=float, default=0)
+    parser.add_argument('--tree_eta', type=float, default=0.3)
+    parser.add_argument('--tree_alpha', type=float, default=0)
     args = parser.parse_args()
 
     # Load problem
@@ -357,6 +358,7 @@ if __name__ == '__main__':
     print("(Only this run) Normalize DQ on test set: %.12f" % testnordq)
 
     print("DQ_seed%d,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (args.seed, trainnordq, trainrandomdq, trainoptimaldq, valnordq, valrandomdq, valoptimaldq, testnordq, testrandomdq, testoptimaldq))
+    print(args)
 
     # pdb.set_trace()
 
