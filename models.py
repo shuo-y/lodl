@@ -111,8 +111,8 @@ class WeightedMSE(torch.nn.Module):
         w = self.weights.clamp(min=self.min_val).detach().cpu().numpy()
         yhat = yhat.flatten()
         diff = (yhat - y)
-        grad = 2 * (diff * w)/(len(yhat))
-        hess = 2 * w/(len(yhat))
+        grad = 2 * (diff)/(len(yhat))
+        hess = 2 /(len(yhat))
         return grad, hess
 
     def get_jnp_fun(self):

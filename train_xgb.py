@@ -192,7 +192,7 @@ def train_xgb_lodl(args, problem):
     # Based on some code from https://xgboost.readthedocs.io/en/stable/python/examples/multioutput_regression.html
 
     cusloss = custom_loss(Y_train.detach().numpy(), grad_hess_fn, loss_fn)
-    obj_fun = cusloss.get_rmse_obj()
+    obj_fun = cusloss.get_obj_fn()
     eval_fun = cusloss.get_eval_fn()
 
 
