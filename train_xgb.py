@@ -124,6 +124,17 @@ class custom_loss():
             hes = hes.flatten()
             print("grad.sum() {}".format(grad.sum()))
             print("hes.sum() {}".format(hes.sum()))
+
+            """
+            print("grad() {}".format(grad))
+            print("hes() {}".format(hes))
+            y = dtrain.get_label().reshape(predt.shape)
+            print(f"predt.size {predt.size}")
+            check_grad = 2 * (predt - y).reshape(y.size)
+            print(f"grad should be {check_grad}")
+            if (all(np.isclose(check_grad, grad)) == False):
+                print("error not close")
+            """
             return grad, hes
         return obj
 

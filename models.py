@@ -111,7 +111,7 @@ class WeightedMSE(torch.nn.Module):
         w = self.weights.clamp(min=self.min_val).detach().cpu().numpy()
         yhat = yhat.flatten()
         diff = (yhat - y)
-        grad = 2 * w * (diff)
+        grad = 2 * (w * diff)
         hess = 2 * w
         return grad, hess
 
