@@ -138,7 +138,7 @@ class custom_loss():
             print(f"grad should be {check_grad}")
             if (all(np.isclose(check_grad, grad)) == False):
                 print("error not close")
-            """
+
             y = dtrain.get_label().reshape(predt.shape)
             
             manual_grad = (predt - y).reshape(y.size)
@@ -150,6 +150,7 @@ class custom_loss():
             print(grad[:10]) 
             print(manual_grad[-10:])
             print(grad[-10:])
+            """
             return grad, hes
         return obj
 
@@ -176,8 +177,6 @@ def train_xgb_lodl(args, problem):
     Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
     Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
 
-    import pdb
-    pdb.set_trace()
 
     Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
     Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
