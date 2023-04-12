@@ -99,7 +99,7 @@ class WeightedMSE(torch.nn.Module):
 
         # Compute MSE
         squared_error = (Yhat - self.Y).square()
-        weighted_mse = (squared_error * self.weights.clamp(min=self.min_val)).mean(dim=-1)
+        weighted_mse = (squared_error * self.weights.clamp(min=self.min_val)).sum()
 
         return weighted_mse
 
@@ -111,8 +111,8 @@ class WeightedMSE(torch.nn.Module):
         w = self.weights.clamp(min=self.min_val).detach().cpu().numpy()
         yhat = yhat.flatten()
         diff = (yhat - y)
-        grad = 2 * (diff)/(len(yhat))
-        hess = 2 /(len(yhat))
+        grad = 2 * w * (diff)
+        hess = 2 * w
         return grad, hess
 
     def get_jnp_fun(self):
@@ -129,7 +129,7 @@ class WeightedMSE(torch.nn.Module):
         y = jnp.array(self.Y.detach().cpu().numpy())
         def jnp_forward(yhat):
             diff = yhat - y
-            res = (w * (diff ** 2)).mean()
+            res = (w * (diff ** 2)).sum()
             return res
         return jnp_forward
 
