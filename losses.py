@@ -441,13 +441,13 @@ def _get_learned_loss(
         h = np.array(h)
         return g, h
 
-    def my_grad_hess(yhatnp, ynp, partition, index, **kwargs):
+    def my_grad_hess_model(yhatnp, ynp, partition, index, **kwargs):
         yhatnp = yhatnp.flatten()
         # The yhatnap and ynp should be np
-        return losses[partition][index].my_grad_hess(yhatnp)
+        return losses[partition][index] #.my_grad_hess(yhatnp)
 
     if (get_grad_hess == True):
-        return surrogate_decision_quality, my_grad_hess
+        return surrogate_decision_quality, my_grad_hess_model
     return surrogate_decision_quality
 
 

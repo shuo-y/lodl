@@ -103,11 +103,11 @@ class WeightedMSE(torch.nn.Module):
 
         return weighted_mse
 
-    def my_grad_hess(self, yhat: np.ndarray):
+    def my_grad_hess(self, yhat: np.ndarray, y: np.ndarray):
         """
         yhat should be a numpy array
         """
-        y = self.Y.detach().cpu().numpy()
+        #y = self.Y.detach().cpu().numpy()
         w = self.weights.clamp(min=self.min_val).detach().cpu().numpy()
         yhat = yhat.flatten()
         diff = (yhat - y)

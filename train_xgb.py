@@ -86,14 +86,14 @@ class custom_loss():
         self.ygold = ygold
         self.grad_hess_fn = grad_hess_fn
         self.loss_fn = loss_fn
-        g = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
-        h = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
-        for i in range(self.ygold.shape[0]):
-            g[i], h[i] = self.grad_hess_fn(self.ygold[i], self.ygold[i], "train", i)
+        #g = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
+        #h = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
+        #for i in range(self.ygold.shape[0]):
+        #    g[i], h[i] = self.grad_hess_fn(self.ygold[i], self.ygold[i], "train", i)
         #import pdb
         #pdb.set_trace()
-        print("check g sum {}".format(g.sum()))
-        print("check h sum {}".format(h.sum()))
+        #print("check g sum {}".format(g.sum()))
+        #print("check h sum {}".format(h.sum()))
 
         #print("initial custom_loss")
         #print(ygold[0])
@@ -114,12 +114,16 @@ class custom_loss():
         return eval_fn  
   
     def get_obj_fn(self):
+        
         def obj(predt: np.ndarray, dtrain: xgb.DMatrix):
             predt = predt.reshape(self.ygold.shape)
             grad = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
             hes = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
+            
+            
             for i in range(self.ygold.shape[0]):
-                 grad[i], hes[i] = self.grad_hess_fn(predt[i], self.ygold[i], "train", i)
+                 lo_model = self.grad_hess_fn(predt[i], self.ygold[i].flatten(), "train", i)
+                 grad[i], hes[i] = lo_model.my_grad_hess(predt[i], self.ygold[i].flatten())
             grad = grad.flatten()
             hes = hes.flatten()
             print("grad.sum() {}".format(grad.sum()))
@@ -135,6 +139,17 @@ class custom_loss():
             if (all(np.isclose(check_grad, grad)) == False):
                 print("error not close")
             """
+            y = dtrain.get_label().reshape(predt.shape)
+            
+            manual_grad = (predt - y).reshape(y.size)
+            if np.isclose(grad, manual_grad).all():
+                print("pass test")
+            else:
+                print("not pass test")
+            print(manual_grad[:10])
+            print(grad[:10]) 
+            print(manual_grad[-10:])
+            print(grad[-10:])
             return grad, hes
         return obj
 
@@ -160,6 +175,9 @@ def train_xgb_lodl(args, problem):
     X_val, Y_val, Y_val_aux = problem.get_val_data()
     Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
     Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
+
+    import pdb
+    pdb.set_trace()
 
     Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
     Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
@@ -194,7 +212,7 @@ def train_xgb_lodl(args, problem):
         lr=args.losslr,
         serial=args.serial,
         dflalpha=args.dflalpha,
-        verbose=True,
+        verbose=False,
         get_grad_hess=True,
     )
     import pdb
