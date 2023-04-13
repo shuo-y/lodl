@@ -262,6 +262,8 @@ if __name__ == '__main__':
     parser.add_argument('--tree_lambda', type=float, default=1)
     parser.add_argument('--tree_eta', type=float, default=0.3)
     parser.add_argument('--tree_alpha', type=float, default=0)
+    # Based on https://docs.python.org/3/library/argparse.html
+    parser.add_argument('--lodlverbose', action='store_true')
     args = parser.parse_args()
 
     # Load problem

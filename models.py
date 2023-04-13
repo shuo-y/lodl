@@ -87,7 +87,9 @@ class WeightedMSE(torch.nn.Module):
     def __init__(self, Y, min_val=1e-3):
         super(WeightedMSE, self).__init__()
         # Save true labels
+        # Maybe refer to https://stackoverflow.com/questions/55959918/in-pytorch-how-to-i-make-certain-module-parameters-static-during-training
         self.Y = torch.nn.Parameter(Y.detach().view((-1)))
+        self.Y.requires_grad = False
         self.min_val = min_val
 
         # Initialise paramters

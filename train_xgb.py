@@ -82,9 +82,9 @@ class xgbwrapper:
         return Y
 
 class custom_loss():
-    def __init__(self, ygold, grad_hess_fn, loss_fn):
+    def __init__(self, ygold, loss_model_fn, loss_fn):
         self.ygold = ygold
-        self.grad_hess_fn = grad_hess_fn
+        self.loss_model_fn = loss_model_fn
         self.loss_fn = loss_fn
         #g = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
         #h = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
@@ -122,7 +122,7 @@ class custom_loss():
             
             
             for i in range(self.ygold.shape[0]):
-                 lo_model = self.grad_hess_fn(predt[i], self.ygold[i].flatten(), "train", i)
+                 lo_model = self.loss_model_fn(predt[i], self.ygold[i].flatten(), "train", i)
                  grad[i], hes[i] = lo_model.my_grad_hess(predt[i], self.ygold[i].flatten())
             grad = grad.flatten()
             hes = hes.flatten()
@@ -200,7 +200,7 @@ def train_xgb_lodl(args, problem):
     print(f"Loading {args.loss} Loss Function...")
 
 
-    loss_fn, grad_hess_fn = get_loss_fn(
+    loss_fn, loss_model_fn = get_loss_fn(
         args.loss,
         problem,
         sampling=args.sampling,
@@ -211,15 +211,15 @@ def train_xgb_lodl(args, problem):
         lr=args.losslr,
         serial=args.serial,
         dflalpha=args.dflalpha,
-        verbose=False,
-        get_grad_hess=True,
+        verbose=args.lodlverbose,
+        get_loss_model=True,
     )
     import pdb
     #pdb.set_trace()
 
     # Based on some code from https://xgboost.readthedocs.io/en/stable/python/examples/multioutput_regression.html
 
-    cusloss = custom_loss(Y_train.detach().numpy(), grad_hess_fn, loss_fn)
+    cusloss = custom_loss(Y_train.detach().numpy(), loss_model_fn, loss_fn)
     obj_fun = cusloss.get_obj_fn()
     eval_fun = cusloss.get_eval_fn()
 
