@@ -101,7 +101,7 @@ class WeightedMSE(torch.nn.Module):
 
         # Compute MSE
         squared_error = (Yhat - self.Y).square()
-        weighted_mse = (squared_error * self.weights.clamp(min=self.min_val)).sum()
+        weighted_mse = (squared_error * self.weights.clamp(min=self.min_val)).mean(dim=-1)
 
         return weighted_mse
 
@@ -112,9 +112,10 @@ class WeightedMSE(torch.nn.Module):
         #y = self.Y.detach().cpu().numpy()
         w = self.weights.clamp(min=self.min_val).detach().cpu().numpy()
         yhat = yhat.flatten()
+        y = y.flatten()
         diff = (yhat - y)
-        grad = 2 * (w * diff)
-        hess = 2 * w
+        grad = 2 * (w * diff) / len(yhat)
+        hess = 2 * w / len(yhat)
         return grad, hess
 
     def get_jnp_fun(self):
@@ -131,7 +132,7 @@ class WeightedMSE(torch.nn.Module):
         y = jnp.array(self.Y.detach().cpu().numpy())
         def jnp_forward(yhat):
             diff = yhat - y
-            res = (w * (diff ** 2)).sum()
+            res = (w * (diff ** 2)).mean()
             return res
         return jnp_forward
 
@@ -243,6 +244,7 @@ class WeightedMSESum(torch.nn.Module):
         # Save true labels
         assert len(Y.shape) == 2  # make sure it's a multi-dimensional input
         self.Y = Y.detach()
+        self.Y.requires_grad = False
 
         # Initialise paramters
         self.msesum_weights = torch.nn.Parameter(torch.rand(Y.shape[0]))
@@ -255,13 +257,18 @@ class WeightedMSESum(torch.nn.Module):
 
         return weighted_mse_sum
 
-    def my_grad_hess(self, Yhat):
-        assert Yhat.shape == self.Y.shape
-        y = self.Y.detach().numpy()
-        diff = (Yhat - y).flatten()
-        w = self.msesum_weights.detach().numpy().repeat(self.Y.shape[1])
-        grad = (2 * (w * diff))/len(diff)
-        hess = (2 * w)/len(diff)
+    def my_grad_hess(self, yhat, y):
+        #raise Exception("Not implmented yet!")
+        #print(yhat - y)
+        diff = (yhat - y).mean(axis=-1)
+        w = self.msesum_weights.detach().numpy()
+        grad = 2 * diff * w
+        #print(diff)
+        #print(w)
+        grad = grad.repeat(self.Y.shape[1])
+        grad = grad / (self.Y.shape[1] * self.Y.shape[0])
+        hess = 2 * w
+        hess = hess.repeat(self.Y.shape[1]) / (self.Y.shape[0] * (self.Y.shape[1]**2))
         return grad, hess
 
     def get_jnp_fun(self):
@@ -270,10 +277,11 @@ class WeightedMSESum(torch.nn.Module):
         https://jax.readthedocs.io/en/latest/notebooks/autodiff_cookbook.html
         """
         import jax.numpy as jnp
-        yn = jnp.array(self.Y.numpy().flatten())
-        weights = jnp.array(self.msesum_weights.detach().numpy().repeat(self.Y.shape[1]))
+        yn = jnp.array(self.Y.numpy())
+        weights = jnp.array(self.msesum_weights.detach().numpy())
         def npforward(yhat):
-            diff = yhat - yn
+            yhat = yhat.reshape(*yn.shape)
+            diff = (yhat - yn).mean(axis=-1)
             res = (weights * (diff ** 2)).mean()
             return res
         return npforward
@@ -516,7 +524,7 @@ def test_model_jax(loss_model, Y=None, check_naive=False):
         fn =  loss.get_jnp_fun()
     print(fn(jnp.array(yh.flatten())))
 
-    mygrad, myhess = loss.my_grad_hess(yh)
+    mygrad, myhess = loss.my_grad_hess(yh, Y.detach().numpy())
     from jax import grad, jacfwd
     g = grad(fn)(jnp.array(yh.flatten()))
     jh = jnp.diagonal(jacfwd(grad(fn))(jnp.array(yh.flatten())))
@@ -566,7 +574,10 @@ def test_jax():
 def test():
     test_jax()
     test_model_jax(WeightedMSE)
-    test_model_jax(WeightedMSESum)
+    test_model_jax(WeightedMSESum, torch.rand(5, 3))
+    test_model_jax(WeightedMSESum, torch.rand(5, 2))
+    test_model_jax(WeightedMSESum, torch.rand(3, 2))
+    test_model_jax(WeightedMSESum, torch.rand(8, 3))
     test_model_jax(WeightedMSEPlusPlus)
     test_model_jax(LowRankQuadratic)
     test_model_jax(LowRankQuadratic, torch.rand(50, 70))
@@ -576,6 +587,6 @@ def test():
     test_model_jax(QuadraticPlusPlus, torch.rand(50, 70))
 
 
-#test()
+test()
 
 model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}
