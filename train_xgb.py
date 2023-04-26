@@ -82,10 +82,11 @@ class xgbwrapper:
         return Y
 
 class custom_loss():
-    def __init__(self, ygold, loss_model_fn, loss_fn):
+    def __init__(self, ygold, loss_model_fn, loss_fn, mag_factor):
         self.ygold = ygold
         self.loss_model_fn = loss_model_fn
         self.loss_fn = loss_fn
+        self.mag_factor = mag_factor
         #g = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
         #h = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
         #for i in range(self.ygold.shape[0]):
@@ -126,8 +127,10 @@ class custom_loss():
                  grad[i], hes[i] = lo_model.my_grad_hess(predt[i], self.ygold[i].flatten())
             grad = grad.flatten()
             hes = hes.flatten()
-            print("grad.sum() {}".format(grad.sum()))
-            print("hes.sum() {}".format(hes.sum()))
+            print("before mag grad.sum() {}".format(grad.sum()))
+            print("before mag hes.sum() {}".format(hes.sum()))
+            grad = grad * self.mag_factor
+            hes = hes * self.mag_factor
 
             """
             print("grad() {}".format(grad))
@@ -219,7 +222,7 @@ def train_xgb_lodl(args, problem):
 
     # Based on some code from https://xgboost.readthedocs.io/en/stable/python/examples/multioutput_regression.html
 
-    cusloss = custom_loss(Y_train.detach().numpy(), loss_model_fn, loss_fn)
+    cusloss = custom_loss(Y_train.detach().numpy(), loss_model_fn, loss_fn, args.mag_factor)
     obj_fun = cusloss.get_obj_fn()
     eval_fun = cusloss.get_eval_fn()
 
