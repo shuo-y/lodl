@@ -591,6 +591,6 @@ def test():
     test_model_jax(QuadraticPlusPlus, torch.rand(50, 70))
 
 
-test()
+#test()
 
 model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}
