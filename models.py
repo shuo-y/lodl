@@ -185,11 +185,12 @@ class WeightedMSEPlusPlus(torch.nn.Module):
         return jnp_forward
 
 
-    def my_grad_hess(self, yhat: np.ndarray):
+    def my_grad_hess(self, yhat: np.ndarray, y: np.ndarray):
         yhat = yhat.flatten()
         posw = self.weights_pos.clamp(min=self.min_val).detach().cpu().numpy()
         negw = self.weights_neg.clamp(min=self.min_val).detach().cpu().numpy()
-        y = self.Y.detach().cpu().numpy()
+
+        y = y.flatten()
 
         diff = (yhat - y)
         posdiff = (diff > 0) * diff
@@ -370,10 +371,10 @@ class QuadraticPlusPlus(torch.nn.Module):
         basis = bases.gather(-1, index).squeeze()
         return torch.tril(basis)
 
-    def my_grad_hess(self, yhat):
+    def my_grad_hess(self, yhat, y):
         yhat = yhat.flatten()
         # assume yhat and y are one dimensiona
-        y = self.Y.detach().cpu().numpy()
+        y = y.flatten()
         assert len(yhat.shape) == 1
         assert y.shape == yhat.shape
         direction = np.array((yhat > y), dtype=int)
@@ -478,10 +479,10 @@ class LowRankQuadratic(torch.nn.Module):
 
         return quad + self.alpha * mse
 
-    def my_grad_hess(self, yhat):
+    def my_grad_hess(self, yhat, y):
         yhat = yhat.flatten()
         basis = torch.tril(self.basis).clamp(-100, 100).detach().cpu().numpy()
-        y = self.Y.detach().cpu().numpy()
+        y = y.flatten()
         diff = y - yhat
         hmat = basis @ basis.T
         hmat = hmat + hmat.T
