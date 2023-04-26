@@ -147,6 +147,7 @@ class WeightedMSEPlusPlus(torch.nn.Module):
         super(WeightedMSEPlusPlus, self).__init__()
         # Save true labels
         self.Y = torch.nn.Parameter(Y.detach().view((-1)))
+        self.Y.requires_grad = False
         self.min_val = min_val
 
         # Initialise paramters
@@ -334,6 +335,7 @@ class QuadraticPlusPlus(torch.nn.Module):
         self.alpha = quadalpha
         self.Y_raw = Y.detach()
         self.Y = torch.nn.Parameter(self.Y_raw.view((-1)))
+        self.Y.requires_grad = False
         self.num_dims = self.Y.shape[0]
 
         # Create quadratic matrices
@@ -457,6 +459,7 @@ class LowRankQuadratic(torch.nn.Module):
         self.alpha = quadalpha
         self.Y_raw = Y.detach()
         self.Y = torch.nn.Parameter(self.Y_raw.view((-1)))
+        self.Y.requires_grad = False
 
         # Create a quadratic matrix
         basis = torch.tril(torch.rand((self.Y.shape[0], rank)) / (self.Y.shape[0] * self.Y.shape[0]))
@@ -588,6 +591,6 @@ def test():
     test_model_jax(QuadraticPlusPlus, torch.rand(50, 70))
 
 
-#test()
+test()
 
 model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}
