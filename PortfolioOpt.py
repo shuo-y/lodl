@@ -8,6 +8,7 @@ import random
 import pdb
 import cvxpy as cp
 import itertools
+import numpy as np
 from cvxpylayers.torch import CvxpyLayer
 quandl.ApiConfig.api_key = '3Uxzq4TZV5V9RghuRYsY'
 
@@ -328,6 +329,25 @@ class PortfolioOpt(PThenO):
 
         return CvxpyLayer(problem, parameters=[p_para, L_sqrt_para], variables=[x_var])
 
+    def _get_solution(self, yins: np.ndarray, lsqrtpara: np.ndarray):
+        # Here yins and ygold are single item
+        z_var = cp.Variable(self.num_stocks)
+        L_sqrt_para = cp.Parameter((self.num_stocks, self.num_stocks))
+        L_sqrt_para.value = lsqrtpara
+        p_para = cp.Parameter(self.num_stocks)
+        p_para.value = yins
+        constraints = [z_var >= 0, z_var <= 1, cp.sum(z_var) == 1]
+        objective = cp.Maximize(p_para.T @ z_var - self.alpha * cp.sum_squares(L_sqrt_para.T @ z_var))
+        problem = cp.Problem(objective, constraints)
+        sol = problem.solve()
+        #print("Solution check? {}".format(sol))
+        #manual_sol = p_para.value.T @ z_var.value - self.alpha * np.sum((L_sqrt_para.value.T @ z_var.value) ** 2)
+        #print("Manual compute? {}".format(manual_sol))
+        #import pdb
+        #pdb.set_trace()
+        return z_var.value, sol
+
+
     def get_train_data(self, **kwargs):
         return self.Xs[self.train_idxs], self.Ys[self.train_idxs], self.covar_mat[self.train_idxs]
 
@@ -346,7 +366,8 @@ class PortfolioOpt(PThenO):
     def _get_covar_mat(self, instance_idxs):
         return self.covar_mat.reshape((-1, *self.covar_mat.shape[2:]))[instance_idxs]
 
-    def get_decision(self, Y, aux_data, max_instances_per_batch=1500, **kwargs):
+    def get_decision_old(self, Y, aux_data, max_instances_per_batch=1500, **kwargs):
+        # The old get decision which is based on CvxpyLayer
         # Get the sqrt of the covariance matrix
         covar_mat = aux_data
         sqrt_covar = torch.linalg.cholesky(covar_mat)
@@ -364,10 +385,41 @@ class PortfolioOpt(PThenO):
         else:
             return self.opt(Y, sqrt_covar)[0]
 
+
+    def get_decision(self, Y, aux_data, max_instances_per_batch=1500, **kwargs):
+        # Get the sqrt of the covariance matrix
+        # Split Y into reasonably sized chunks so that we don't run into memory issues
+        # Assumption Y is only 2D at max
+        assert Y.ndim <= 2
+        if Y.ndim == 2:
+            results = []
+            sols = []
+            for ind in range(0, len(Y)):
+                sqrt_covar = torch.linalg.cholesky(aux_data[ind]).detach().numpy()
+                result, sol = self._get_solution(Y[ind].detach().numpy(), sqrt_covar)
+                results.append(torch.tensor(result))
+                sols.append(sol)
+            #print("The solutions?")
+            #print(sols)
+            #print(np.array(sols).mean())
+            return torch.stack(results, dim=0)
+
+            """
+            for start in range(0, Y.shape[0], max_instances_per_batch):
+                end = min(Y.shape[0], start + max_instances_per_batch)
+                result = self.opt(Y[start:end], sqrt_covar)[0]
+                results.append(result)
+            return torch.cat(results, dim=0)
+            """
+        else:
+            assert len(aux_data) == 1
+            sqrt_covar = torch.linalg.cholesky(aux_data[0]).detach().numpy()
+            return torch.tensor(self._get_solution(Y.detach().numpy(), sqrt_covar))[None]
+
     def get_objective(self, Y, Z, aux_data, **kwargs):
         # TODO: look at either torch.bmm or torch.matmul
         covar_mat = aux_data
-        covar_mat_Z_t = (torch.linalg.cholesky(covar_mat) * Z.unsqueeze(dim=-2)).sum(dim=-1)
+        covar_mat_Z_t = (torch.linalg.cholesky(covar_mat, upper=True) * Z.unsqueeze(dim=-2)).sum(dim=-1)
         quad_term = covar_mat_Z_t.square().sum(dim=-1)
         obj = (Y * Z).sum(dim=-1) - self.alpha * quad_term
         return obj
@@ -380,7 +432,9 @@ if __name__ == "__main__":
     problem = PortfolioOpt()
     X_train, Y_train, Y_train_aux = problem.get_train_data()
 
-    Z_train = problem.get_decision(Y_train, aux_data=Y_train_aux)
+    Z_train_old = problem.get_decision_old(Y_train, aux_data=Y_train_aux)
+    Z_train = problem.get_decision(Y_train, Y_train_aux)
+    pdb.set_trace()
     obj = problem.get_objective(Y_train, Z_train, aux_data=Y_train_aux)
 
-    pdb.set_trace()
+
