@@ -265,6 +265,7 @@ if __name__ == '__main__':
     # Based on https://docs.python.org/3/library/argparse.html
     parser.add_argument('--lodlverbose', action='store_true')
     parser.add_argument('--mag_factor', type=float, default=1.0)
+    parser.add_argument('--measure_eval', action='store_true')
     args = parser.parse_args()
 
     # Load problem
@@ -346,11 +347,6 @@ if __name__ == '__main__':
     trainnordq = (metrics['train']['objective'] - trainrandomdq)/(trainoptimaldq - trainrandomdq)
     print("(Only this run) Normalize DQ on train set: %.12f" % trainnordq)
 
-    _, Y_val, Y_val_aux = problem.get_val_data()
-    print("eval set")
-    valrandomdq, valoptimaldq = get_random_optDQ(Y_val, Y_val_aux)
-    valnordq = (metrics['val']['objective'] - valrandomdq)/(valoptimaldq - valrandomdq)
-    print("(Only this run) Normalize DQ on eval set: %.12f" % valnordq)
 
     print("test set")
     X_test, Y_test, Y_test_aux = problem.get_test_data()
@@ -360,8 +356,17 @@ if __name__ == '__main__':
     testnordq = (metrics['test']['objective'] - testrandomdq)/(testoptimaldq - testrandomdq)
     print("(Only this run) Normalize DQ on test set: %.12f" % testnordq)
 
-    print("DQ_seed%d,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (args.seed, trainnordq, trainrandomdq, trainoptimaldq, valnordq, valrandomdq, valoptimaldq, testnordq, testrandomdq, testoptimaldq))
-    print(args)
+    if args.measure_eval:
+        _, Y_val, Y_val_aux = problem.get_val_data()
+        print("eval set")
+        valrandomdq, valoptimaldq = get_random_optDQ(Y_val, Y_val_aux)
+        valnordq = (metrics['val']['objective'] - valrandomdq)/(valoptimaldq - valrandomdq)
+        print("(Only this run) Normalize DQ on eval set: %.12f" % valnordq)
+        print("DQ_seed%d,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (args.seed, trainnordq, trainrandomdq, trainoptimaldq, valnordq, valrandomdq, valoptimaldq, testnordq, testrandomdq, testoptimaldq))
+        print(args)
+    else:
+        print("DQ_seed%d,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (args.seed, trainnordq, trainrandomdq, trainoptimaldq, testnordq, testrandomdq, testoptimaldq))
+        print(args)
 
     # pdb.set_trace()
 
