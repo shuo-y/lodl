@@ -198,7 +198,7 @@ def _learn_loss(
     elif model_type == 'quad':
         model = LowRankQuadratic(Y, **kwargs)
     elif model_type == 'weightedmse':
-        model = WeightedMSE(Y)
+        model = WeightedMSE(Y, kwargs['input_args'].mag_factor)
     elif model_type == 'weightedmse++':
         model = WeightedMSEPlusPlus(Y)
     elif model_type == 'weightedce':

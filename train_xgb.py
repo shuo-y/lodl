@@ -127,10 +127,8 @@ class custom_loss():
                  grad[i], hes[i] = lo_model.my_grad_hess(predt[i], self.ygold[i].flatten())
             grad = grad.flatten()
             hes = hes.flatten()
-            print("before mag grad.sum() {}".format(grad.sum()))
-            print("before mag hes.sum() {}".format(hes.sum()))
-            grad = grad * self.mag_factor
-            hes = hes * self.mag_factor
+            print("grad.sum() {}".format(grad.sum()))
+            print("hes.sum() {}".format(hes.sum()))
 
             """
             print("grad() {}".format(grad))
@@ -216,6 +214,7 @@ def train_xgb_lodl(args, problem):
         dflalpha=args.dflalpha,
         verbose=args.lodlverbose,
         get_loss_model=True,
+        input_args=args
     )
     import pdb
     #pdb.set_trace()

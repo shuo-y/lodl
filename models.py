@@ -84,7 +84,7 @@ class WeightedMSE(torch.nn.Module):
     """
     import numpy as np
 
-    def __init__(self, Y, min_val=1e-3):
+    def __init__(self, Y, min_val=1e-3, magnify=100):
         super(WeightedMSE, self).__init__()
         # Save true labels
         # Maybe refer to https://stackoverflow.com/questions/55959918/in-pytorch-how-to-i-make-certain-module-parameters-static-during-training
@@ -92,6 +92,7 @@ class WeightedMSE(torch.nn.Module):
         self.Y.requires_grad = False
         self.min_val = min_val
 
+        self.magnify = magnify
         # Initialise paramters
         self.weights = torch.nn.Parameter(self.min_val + torch.rand_like(self.Y))
 
@@ -101,7 +102,7 @@ class WeightedMSE(torch.nn.Module):
 
         # Compute MSE
         squared_error = (Yhat - self.Y).square()
-        weighted_mse = (squared_error * self.weights.clamp(min=self.min_val)).mean(dim=-1)
+        weighted_mse = self.magnify * (squared_error * self.weights.clamp(min=self.min_val)).mean(dim=-1)
 
         return weighted_mse
 
@@ -114,8 +115,8 @@ class WeightedMSE(torch.nn.Module):
         yhat = yhat.flatten()
         y = y.flatten()
         diff = (yhat - y)
-        grad = 2 * (w * diff) / len(yhat)
-        hess = 2 * w / len(yhat)
+        grad = 2 * self.magnify * (w * diff) / len(yhat)
+        hess = 2 * self.magnify * w / len(yhat)
         return grad, hess
 
     def get_jnp_fun(self):
@@ -132,7 +133,7 @@ class WeightedMSE(torch.nn.Module):
         y = jnp.array(self.Y.detach().cpu().numpy())
         def jnp_forward(yhat):
             diff = yhat - y
-            res = (w * (diff ** 2)).mean()
+            res = self.magnify * ((w * (diff ** 2)).mean())
             return res
         return jnp_forward
 
@@ -591,6 +592,7 @@ def test():
     test_model_jax(QuadraticPlusPlus, torch.rand(50, 70))
 
 
-#test()
+if __name__ == "__main__":
+    test()
 
 model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}
