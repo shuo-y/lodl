@@ -412,8 +412,8 @@ class PortfolioOpt(PThenO):
             return torch.cat(results, dim=0)
             """
         else:
-            assert len(aux_data) == 1
-            sqrt_covar = torch.linalg.cholesky(aux_data[0]).detach().numpy()
+            assert aux_data.ndim == 2
+            sqrt_covar = torch.linalg.cholesky(aux_data).detach().numpy()
             return torch.tensor(self._get_solution(Y.detach().numpy(), sqrt_covar))[None]
 
     def get_objective(self, Y, Z, aux_data, **kwargs):
