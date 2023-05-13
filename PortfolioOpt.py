@@ -393,12 +393,12 @@ class PortfolioOpt(PThenO):
         assert Y.ndim <= 2
         if Y.ndim == 2:
             results = []
-            sols = []
+            #sols = []
             for ind in range(0, len(Y)):
                 sqrt_covar = torch.linalg.cholesky(aux_data[ind]).detach().numpy()
                 result, sol = self._get_solution(Y[ind].detach().numpy(), sqrt_covar)
                 results.append(torch.tensor(result))
-                sols.append(sol)
+                #sols.append(sol)
             #print("The solutions?")
             #print(sols)
             #print(np.array(sols).mean())
@@ -434,7 +434,7 @@ if __name__ == "__main__":
 
     Z_train_old = problem.get_decision_old(Y_train, aux_data=Y_train_aux)
     Z_train = problem.get_decision(Y_train, Y_train_aux)
-    pdb.set_trace()
     obj = problem.get_objective(Y_train, Z_train, aux_data=Y_train_aux)
+    pdb.set_trace()
 
 
