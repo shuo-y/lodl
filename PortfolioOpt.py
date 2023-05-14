@@ -391,7 +391,7 @@ class PortfolioOpt(PThenO):
         # Split Y into reasonably sized chunks so that we don't run into memory issues
         # Assumption Y is only 2D at max
         assert Y.ndim <= 2
-        if Y.ndim == 2:
+        if Y.ndim == 2 and aux_data.ndim == 3:
             results = []
             #sols = []
             for ind in range(0, len(Y)):
@@ -411,6 +411,15 @@ class PortfolioOpt(PThenO):
                 results.append(result)
             return torch.cat(results, dim=0)
             """
+        elif Y.ndim== 2 and aux_data.ndim == 2:
+            results = []
+            sqrt_covar = torch.linalg.cholesky(aux_data).detach().numpy()
+            for ind in range(0, len(Y)):
+                result, sol = self._get_solution(Y[ind].detach().numpy(), sqrt_covar)
+                results.append(torch.tensor(result))
+
+            return torch.stack(results, dim=0)
+
         else:
             assert aux_data.ndim == 2
             sqrt_covar = torch.linalg.cholesky(aux_data).detach().numpy()
