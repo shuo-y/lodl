@@ -414,7 +414,8 @@ class PortfolioOpt(PThenO):
         else:
             assert aux_data.ndim == 2
             sqrt_covar = torch.linalg.cholesky(aux_data).detach().numpy()
-            return torch.tensor(self._get_solution(Y.detach().numpy(), sqrt_covar))[None]
+            result, sol = self._get_solution(Y.detach().numpy(), sqrt_covar)
+            return torch.tensor(result)
 
     def get_objective(self, Y, Z, aux_data, **kwargs):
         # TODO: look at either torch.bmm or torch.matmul
