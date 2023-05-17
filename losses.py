@@ -140,7 +140,7 @@ def _sample_points(
         Yhats /= Yhats.sum(-1, keepdim=True)
 
     # Calculate decision-focused loss for points
-    opt = partial(problem.get_decision, isTrain=False, aux_data=Y_aux)
+    opt = partial(problem.get_decision, isTrain=True, aux_data=Y_aux)
     obj = partial(problem.get_objective, aux_data=Y_aux)
 
     #   Calculate for 'true label'
