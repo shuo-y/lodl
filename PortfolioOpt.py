@@ -386,11 +386,11 @@ class PortfolioOpt(PThenO):
             return self.opt(Y, sqrt_covar)[0]
 
 
-    def get_decision(self, Y, aux_data, max_instances_per_batch=1500, is_Train=True, **kwargs):
+    def get_decision(self, Y, aux_data, max_instances_per_batch=1500, isTrain=True, **kwargs):
         # Get the sqrt of the covariance matrix
         # Split Y into reasonably sized chunks so that we don't run into memory issues
         # Assumption Y is only 2D at max
-        if is_Train == True:
+        if isTrain == True:
             return self.get_decision_old(Y, aux_data, max_instances_per_batch)
 
         print("does not use CvxpyLayer for the decision")

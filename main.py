@@ -191,14 +191,14 @@ def get_random_optDQ(Y, Y_aux):
     #   Document the value of a random guess
     objs_rand = []
     for _ in range(10):
-        Z_rand = problem.get_decision(torch.rand_like(Y), aux_data=Y_aux, isTrain=False)
+        Z_rand = problem.get_decision(torch.rand_like(Y), aux_data=Y_aux, is_Train=False)
         objectives = problem.get_objective(Y, Z_rand, aux_data=Y_aux)
         objs_rand.append(objectives)
     randomdq = torch.stack(objs_rand).mean().item()
     print(f"Random Decision Quality: {randomdq}")
 
     #   Document the optimal value
-    Z_opt = problem.get_decision(Y, aux_data=Y_aux, isTrain=False)
+    Z_opt = problem.get_decision(Y, aux_data=Y_aux, is_Train=False)
     objectives = problem.get_objective(Y, Z_opt, aux_data=Y_aux)
     optimaldq = objectives.mean().item()
     print(f"Optimal Decision Quality: {optimaldq}")
