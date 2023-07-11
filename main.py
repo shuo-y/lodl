@@ -365,11 +365,15 @@ if __name__ == '__main__':
     X_val, Y_val, Y_val_aux = problem.get_val_data()
 
     if args.measure_eval:
-        zip_obj = zip([Y_train, Y_test, Y_val], [Y_train_aux, Y_test_aux, Y_val_aux], ['train', 'test', 'val'])
+        Y_data = [Y_train, Y_test, Y_val]
+        aux_data = [Y_train_aux, Y_test_aux, Y_val_aux]
+        parts = ['train', 'test', 'val']
     else:
-        zip_obj = zip([Y_train, Y_test], [Y_train_aux, Y_test_aux], ['train', 'test'])
+        Y_data = [Y_train, Y_test]
+        aux_data = [Y_train_aux, Y_test_aux]
+        parts = ['train', 'test']
 
-    for (Y, aux, par_name) in zip_obj:
+    for (Y, aux, par_name) in zip(Y_data, aux_data, parts):
         print(par_name)
         metrics[par_name]['randomopt'] = get_random_optDQ(Y, aux, args)
         if args.problem == 'vmscheduling':
@@ -378,15 +382,14 @@ if __name__ == '__main__':
             metrics[par_name]['nordq'] = (metrics[par_name]['objective'] - metrics[par_name]['randomopt'][0])/ (metrics[par_name]['randomopt'][1] - metrics[par_name]['randomopt'][0])
 
 
-    sys.stdout.write("DQ_seed%d," % args.seed)
-    for (Y, aux, par_name) in zip_obj:
+    sys.stdout.write("DQ_seed%d" % args.seed)
+    for par_name in parts:
         sys.stdout.write(",%.12f" % metrics[par_name]['nordq'])
         sys.stdout.write(",%.12f" % metrics[par_name]['objective'])
         for ite in metrics[par_name]['randomopt']:
             sys.stdout.write(",%.12f" % ite)
-    sys.stdout.write("\n")
-    sys.stdout.flush() # Otherwise not print anything?
-
+    sys.stdout.write('\n')
+    sys.stdout.flush()
     print(args)
 
 
