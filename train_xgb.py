@@ -182,8 +182,6 @@ def train_xgb_lodl(args, problem):
     Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
     Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
 
-    print("X_train.shape {}".format(X_train.shape))
-    print("Y_train.shape {}".format(Y_train.shape))
 
     if args.model == "xgb_coupled":
         # 2stage xgboost coupled version
@@ -199,8 +197,6 @@ def train_xgb_lodl(args, problem):
 
 
     print(f"Loading {args.loss} Loss Function...")
-
-
     loss_fn, loss_model_fn = get_loss_fn(
         args.loss,
         problem,
@@ -214,6 +210,7 @@ def train_xgb_lodl(args, problem):
         dflalpha=args.dflalpha,
         verbose=args.lodlverbose,
         get_loss_model=True,
+        samples_filename_read=args.samples_read,
         input_args=args
     )
     import pdb

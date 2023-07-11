@@ -311,6 +311,7 @@ def _get_learned_loss(
     sampling_std=None,
     serial=True,
     get_loss_model=False,
+    samples_filename_read='',
     **kwargs
 ):
     print("Learning Loss Functions...")
@@ -322,9 +323,14 @@ def _get_learned_loss(
 
     #   Get points in the neighbourhood of the Ys
     #       Try to load sampled points
-    master_filename = os.path.join(folder, f"{problem.__class__.__name__}.csv")
-    problem_filename, _ = find_saved_problem(master_filename, problem.__dict__)
-    samples_filename_read = f"{problem_filename[:-4]}_{sampling}_{sampling_std}.pkl"
+    #  If error here check if the problem domain is VMScheduling
+    if len(samples_filename_read) == 0:
+        master_filename = os.path.join(folder, f"{problem.__class__.__name__}.csv")
+        problem_filename, _ = find_saved_problem(master_filename, problem.__dict__)
+        samples_filename_read = f"{problem_filename[:-4]}_{sampling}_{sampling_std}.pkl"
+
+
+    samples_filename_write = f"{samples_filename_read[:-4]}_{time.time()}.pkl"
 
     # Check if there are enough stored samples
     num_samples_needed = num_extra_samples = num_samples
@@ -356,8 +362,7 @@ def _get_learned_loss(
             for idx, (Y, opt_objective, Yhats, objectives) in enumerate(sampled_points):
                 SL_dataset[partition][idx] = (Y, opt_objective, Yhats, objectives)
 
-        # Save dataset
-        samples_filename_write = f"{problem_filename[:-4]}_{sampling}_{sampling_std}_{time.time()}.pkl"
+
         with open(samples_filename_write, 'wb') as filehandle:
             print(f"write sample files {samples_filename_write}")
             pickle.dump((num_extra_samples, SL_dataset), filehandle)

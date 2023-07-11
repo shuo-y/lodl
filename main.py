@@ -21,6 +21,7 @@ from copy import deepcopy
 from BudgetAllocation import BudgetAllocation
 from BipartiteMatching import BipartiteMatching
 from PortfolioOpt import PortfolioOpt
+from VMScheduling import VMScheduling
 from RMAB import RMAB
 from CubicTopK import CubicTopK
 from models import model_dict
@@ -187,7 +188,7 @@ def train_dense(args, problem):
 
     return model, metrics
 
-def get_random_optDQ(Y, Y_aux):
+def get_random_optDQ(Y, Y_aux, args):
     #   Document the value of a random guess
     objs_rand = []
     for _ in range(10):
@@ -198,18 +199,27 @@ def get_random_optDQ(Y, Y_aux):
     print(f"Random Decision Quality: {randomdq}")
 
     #   Document the optimal value
-    Z_opt = problem.get_decision(Y, aux_data=Y_aux, is_Train=False)
-    objectives = problem.get_objective(Y, Z_opt, aux_data=Y_aux)
-    optimaldq = objectives.mean().item()
-    print(f"Optimal Decision Quality: {optimaldq}")
-    return randomdq, optimaldq
+    Z_fromtrue = problem.get_decision(Y, aux_data=Y_aux, is_Train=False)
+    objectives = problem.get_objective(Y, Z_fromtrue, aux_data=Y_aux)
+    obj = objectives.mean().item()
+
+    if args.problem == 'vmscheduling':
+        print(f"VMScheduling opt if just using true prediction", obj)
+        greedy_objs = problem.get_objective(Y, [None for _ in range(Y.shape[0])], Y_aux, dogreedy=True)
+        # just work around here to check greedy algorithm we don't need the Z
+        print("VMScheduling Greedy objs", greedy_objs.mean().item())
+        return [randomdq, obj, greedy_objs.mean().item()]
+
+    else:
+        print(f"Decision Quality with true Y: {obj}")
+        return [randomdq, obj]
 
 
 if __name__ == '__main__':
     # Get hyperparams from the command line
     # TODO: Separate main into folders per domain
     parser = argparse.ArgumentParser()
-    parser.add_argument('--problem', type=str, choices=['budgetalloc', 'bipartitematching', 'cubic', 'rmab', 'portfolio'], default='portfolio')
+    parser.add_argument('--problem', type=str, choices=['budgetalloc', 'bipartitematching', 'cubic', 'rmab', 'portfolio', 'vmscheduling'], default='portfolio')
     parser.add_argument('--loadnew', type=ast.literal_eval, default=False)
     parser.add_argument('--layers', type=int, default=2)
     parser.add_argument('--iters', type=int, default=5000)
@@ -231,6 +241,8 @@ if __name__ == '__main__':
     parser.add_argument('--numtargets', type=int, default=10)
     parser.add_argument('--fakefeatures', type=int, default=0)
     #   Domain-specific: RMAB
+    parser.add_argument('--itempertrace', type=int, default=1000)
+    #   Domain-specific: VMScheduling
     parser.add_argument('--rmabbudget', type=int, default=1)
     parser.add_argument('--numarms', type=int, default=5)
     parser.add_argument('--gamma', type=float, default=0.9)
@@ -266,6 +278,8 @@ if __name__ == '__main__':
     parser.add_argument('--lodlverbose', action='store_true')
     parser.add_argument('--mag_factor', type=float, default=1.0)
     parser.add_argument('--measure_eval', action='store_true')
+    parser.add_argument('--samples_read', type=str, default='')
+
     args = parser.parse_args()
 
     # Load problem
@@ -320,6 +334,12 @@ if __name__ == '__main__':
                             'val_frac': args.valfrac,
                             'rand_seed': args.seed,}
         problem = init_problem(PortfolioOpt, problem_kwargs)
+    elif args.problem == 'vmscheduling':
+        problem = VMScheduling(rand_seed=args.seed,
+                               num_train=args.instances - int(args.valfrac * args.instances),
+                               num_eval=int(args.valfrac * args.instances),
+                               num_test=args.testinstances,
+                               num_per_instance=args.itempertrace)
 
 
 
@@ -339,42 +359,34 @@ if __name__ == '__main__':
 
 
     X_train, Y_train, Y_train_aux = problem.get_train_data()
+    X_test, Y_test, Y_test_aux = problem.get_test_data()
     print("X_train.shape {}".format(X_train.shape))
     print("Y_train.shape {}".format(Y_train.shape))
-
-    print("train set")
-    trainrandomdq, trainoptimaldq = get_random_optDQ(Y_train, Y_train_aux)
-    trainnordq = (metrics['train']['objective'] - trainrandomdq)/(trainoptimaldq - trainrandomdq)
-    print("(Only this run) Normalize DQ on train set: %.12f" % trainnordq)
-
-
-    print("test set")
-    X_test, Y_test, Y_test_aux = problem.get_test_data()
-    print("X_test.shape {}".format(X_test.shape))
-    print("Y_test.shape {}".format(Y_test.shape))
-    testrandomdq, testoptimaldq = get_random_optDQ(Y_test, Y_test_aux)
-    testnordq = (metrics['test']['objective'] - testrandomdq)/(testoptimaldq - testrandomdq)
-    print("(Only this run) Normalize DQ on test set: %.12f" % testnordq)
+    X_val, Y_val, Y_val_aux = problem.get_val_data()
 
     if args.measure_eval:
-        _, Y_val, Y_val_aux = problem.get_val_data()
-        print("eval set")
-        valrandomdq, valoptimaldq = get_random_optDQ(Y_val, Y_val_aux)
-        valnordq = (metrics['val']['objective'] - valrandomdq)/(valoptimaldq - valrandomdq)
-        print("(Only this run) Normalize DQ on eval set: %.12f" % valnordq)
-        print("DQ_seed%d,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (args.seed, trainnordq, trainrandomdq, trainoptimaldq, valnordq, valrandomdq, valoptimaldq, testnordq, testrandomdq, testoptimaldq))
-        print(args)
+        zip_obj = zip([Y_train, Y_test, Y_val], [Y_train_aux, Y_test_aux, Y_val_aux], ['train', 'test', 'val'])
     else:
-        print("DQ_seed%d,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (args.seed, trainnordq, trainrandomdq, trainoptimaldq, testnordq, testrandomdq, testoptimaldq))
-        print(args)
+        zip_obj = zip([Y_train, Y_test], [Y_train_aux, Y_test_aux], ['train', 'test'])
 
-    # pdb.set_trace()
+    for (Y, aux, par_name) in zip_obj:
+        print(par_name)
+        metrics[par_name]['randomopt'] = get_random_optDQ(Y, aux, args)
+        if args.problem == 'vmscheduling':
+            metrics[par_name]['nordq'] = (metrics[par_name]['objective'] - metrics[par_name]['randomopt'][0])/ (metrics[par_name]['randomopt'][2] - metrics[par_name]['randomopt'][0])
+        else:
+            metrics[par_name]['nordq'] = (metrics[par_name]['objective'] - metrics[par_name]['randomopt'][0])/ (metrics[par_name]['randomopt'][1] - metrics[par_name]['randomopt'][0])
 
-    # #   Plot predictions on test data
-    # plt.scatter(Y_test.sum(dim=-1).flatten().detach().tolist(), pred.sum(dim=-1).flatten().detach().tolist(), )
-    # plt.title(args.loss)
-    # plt.xlabel("True")
-    # plt.ylabel("Predicted")
-    # plt.xlim([0, 0.5])
-    # plt.ylim([0, 0.5])
-    # plt.show()
+
+    sys.stdout.write("DQ_seed%d," % args.seed)
+    for (Y, aux, par_name) in zip_obj:
+        sys.stdout.write(",%.12f" % metrics[par_name]['nordq'])
+        sys.stdout.write(",%.12f" % metrics[par_name]['objective'])
+        for ite in metrics[par_name]['randomopt']:
+            sys.stdout.write(",%.12f" % ite)
+    sys.stdout.write("\n")
+    sys.stdout.flush() # Otherwise not print anything?
+
+    print(args)
+
+

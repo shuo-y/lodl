@@ -18,7 +18,10 @@ class VMScheduling(PThenO):
         num_history=100,
         num_host=10,
         rand_seed=0,
-        data_len=10000
+        num_train=200,
+        num_eval=10,
+        num_test=200,
+        num_per_instance=100
     ):
         super(VMScheduling, self).__init__()
         self.rand_seed = rand_seed
@@ -26,46 +29,9 @@ class VMScheduling(PThenO):
 
         con = sqlite3.connect("data/packing_trace_zone_a_v1.sqlite")
 
-        self.process_data()
-
-        """
-        vm_df = pd.read_sql_query("SELECT * from vm", con)
-        vmtype_df = pd.read_sql_query("SELECT * from vmType", con)
-
-        # drop nan
-        vm_df = vm_df.dropna()
-
-        self.num_feature = num_feature
-        self.num_history = num_history
-        self.num_host = num_host
-
-        start_time_col = torch.tensor(vm_df['starttime'].values.tolist()[:data_len])
-        end_time_col = torch.tensor(vm_df['endtime'].values.tolist()[:data_len])
-        dur_time_col = end_time_col - start_time_col
-        if data_len > len(vm_df['starttime'].values) or data_len == 0:
-           data_len = len(vm_df['starttime'].values)
-           print("ignore the input argument data_len use {} instead".format(data_len))
+        self.process_data(num_train, num_eval, num_test, num_per_instance)
 
 
-        core_col = torch.zeros(data_len)
-        mem_col = torch.zeros(data_len)
-        ssd_col = torch.zeros(data_len)
-        nic_col = torch.zeros(data_len)
-
-
-        for i in range(data_len):
-            # use iloc because we have already drop some nan data
-            type_id = vm_df['vmTypeId'].iloc[i]
-            core_col[i] = vmtype_df.loc[vmtype_df['vmTypeId'] == type_id]['core'].iloc[0]
-            mem_col[i] = vmtype_df.loc[vmtype_df['vmTypeId'] == type_id]['memory'].iloc[0]
-            #hdd_col[i] = vmtype_df.loc[vmtype_df['vmTypeId'] == type_id]['core'].values.tolist()[0]
-            ssd_col[i] = vmtype_df.loc[vmtype_df['vmTypeId'] == type_id]['ssd'].iloc[0]
-            nic_col[i] = vmtype_df.loc[vmtype_df['vmTypeId'] == type_id]['nic'].iloc[0]
-
-        self.Xs = [start_time_col, end_time_col, dur_time_col, core_col, mem_col, ssd_col, nic_col]
-        self.Xs = torch.stack(self.Xs)
-        self.Xs = torch.transpose(self.Xs, 0, 1)
-        """
 
     def draw_hist(self, data, filename):
         import matplotlib.pyplot as plt
@@ -111,10 +77,10 @@ class VMScheduling(PThenO):
 
     def process_data(
         self,
-        num_train=200,
-        num_eval=10,
-        num_test=200,
-        num_per_instance=1000,
+        num_train,
+        num_eval,
+        num_test,
+        num_per_instance,
         day_divide=96,
         num_startinterval=30,
         num_durinterval=50,
@@ -437,7 +403,13 @@ class VMScheduling(PThenO):
         bins = []
 
         timestamp = 0
-        vm_dist = Categorical(yi)
+        # What if here invalid avoid invalid input
+        # clamp is based on https://blog.csdn.net/qq_37388085/article/details/127251550
+        def clamp_probs(probs):
+            eps = torch.finfo(probs.dtype).eps
+            return probs.clamp(min=eps, max=1 - eps)
+
+        vm_dist = Categorical(clamp_probs(yi))
         cur_obj = 0
 
         # Suppose we only predict the work type , the arrival time and dur is known from the trace_id
@@ -564,21 +536,21 @@ class VMScheduling(PThenO):
                 select_act = -1
                 for p_act in range(len(bins)):
                     # Consider the possible allocate machine
-                    if bins[p_act][0] + pred_core_req < 1.0 and bins[p_act][1] + pred_mem_req < 1.0:
-                        pos_remain_cap = 1.0 - bins[p_act][0] - pred_core_req
+                    if bins[p_act][0] + core_req < 1.0 and bins[p_act][1] + mem_req < 1.0:
+                        pos_remain_cap = 1.0 - bins[p_act][0] - core_req
                         if pos_remain_cap < remain_cap:
                             select_act = p_act
                             remain_cap = pos_remain_cap
                     else:
                         continue
                 if select_act == -1:
-                    bins.append([pred_core_req, pred_mem_req])
-                    cur_active_job.append([arr, ter, pred_core_req, pred_mem_req, len(bins) - 1])
+                    bins.append([core_req, mem_req])
+                    cur_active_job.append([arr, ter, core_req, mem_req, len(bins) - 1])
                     bins_beg_timestamp[len(bins) - 1] = arr
                 else:
-                    bins[p_act][0] += pred_core_req
-                    bins[p_act][1] += pred_mem_req
-                    cur_active_job.append([arr, ter, pred_core_req, pred_mem_req, p_act])
+                    bins[p_act][0] += core_req
+                    bins[p_act][1] += mem_req
+                    cur_active_job.append([arr, ter, core_req, mem_req, p_act])
                     if p_act not in bins_beg_timestamp:
                         bins_beg_timestamp[p_act] = arr
             else:
@@ -602,12 +574,16 @@ class VMScheduling(PThenO):
             if bins[bins_id][0] == 0 and bins[bins_id][1] == 0:
                 ph_cum_time = ph_cum_time + end_time - bins_beg_timestamp[bins_id]
                 del bins_beg_timestamp[bins_id]
+            # how to properly compute packing density?
+            # May have issuesin this for loop
 
-        print("total used bins", len(bins))
-        print("vm_cum_time", vm_cum_time)
-        print("ph_cum_time", ph_cum_time)
-        print(decision[:5])
-        return vm_cum_time / ph_cum_time
+        #print("total used bins", len(bins))
+        #print("vm_cum_time", vm_cum_time)
+        #print("ph_cum_time", ph_cum_time)
+        #print(decision[:5])
+
+        # TODO temporarily using the total number of allocated physical machines as decision quality
+        return -float(len(bins))
 
 
     def get_decision(self, Y, aux_data, is_train=True, **kwargs):
@@ -616,32 +592,43 @@ class VMScheduling(PThenO):
         # features = [# start interval, # dur interval]
         # output Z [# instances, # |jobs| ]
 
-        if Y.ndim == 2:
+        if Y.ndim == 2 and isinstance(aux_data, list):
             decisions_list = []
             for (yi, trace_id) in zip(Y, aux_data):
                 decisions = self.get_single_bestfit(yi, trace_id)
                 decisions_list.append(decisions)
             return torch.stack(decisions_list)
+        elif Y.ndim == 2 and isinstance(aux_data, int):
+            decisions_list = []
+            for yi in Y:
+                decisions = self.get_single_bestfit(yi, aux_data)
+                decisions_list.append(decisions)
+            return torch.stack(decisions_list)
         elif Y.ndim == 1:
             decisions = self.get_single_bestfit(Y, aux_data)
-            return torch.tensor(decisions)
+            return decisions
         else:
             print("Y.shape", Y.shape)
-            raise ValueError("The dimensions of Y is not supported")
+            raise ValueError("The dimensions of Y or aux_data is not supported")
 
-    def get_objective(self, Y, Z, aux_data, **kwargs):
+    def get_objective(self, Y, Z, aux_data, dogreedy=False, **kwargs):
         """
         the aux_data is needed here for the trace inds
         """
-        if Y.ndim == 2 and Z.ndim == 2:
-            assert len(Y) == len(Z)
-            objs = []
-            for cnt in range(len(Y)):
-                objs.append(self.check_single_bestfit(Y[cnt], Z[cnt], aux_data[cnt]))
-            return torch.tensor(objs)
+        if Y.ndim == 2 and (dogreedy==True or (hasattr(Z, "ndim") and Z.ndim == 2 and (len(Y) == len(Z)))):
+            if isinstance(aux_data, list):
+                objs = []
+                for cnt in range(len(Y)):
+                    objs.append(self.check_single_bestfit(Y[cnt], Z[cnt], aux_data[cnt], dogreedy=dogreedy))
+                return torch.tensor(objs)
+            elif isinstance(aux_data, int):
+                objs = []
+                for cnt in range(len(Y)):
+                    objs.append(self.check_single_bestfit(Y[cnt], Z[cnt], aux_data, dogreedy=dogreedy))
+                return torch.tensor(objs)
         elif Y.ndim == 1:
             assert Z.ndim == 1
-            obj = self.check_single_bestfit(Y, Z, aux_data)
+            obj = self.check_single_bestfit(Y, Z, aux_data, dogreedy=dogreedy)
             return torch.tensor(obj)
         else:
             print("Y.shape", Y.shape)
@@ -660,7 +647,7 @@ class VMScheduling(PThenO):
 
 
 if __name__ == '__main__':
-    vm_prob = VMScheduling()
+    vm_prob = VMScheduling(rand_seed=0)
 
 
     # TODO packig density
