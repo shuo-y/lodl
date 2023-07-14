@@ -493,8 +493,6 @@ class VMScheduling(PThenO):
         vm_cum_time = 0
         ph_cum_time = 0
 
-        bins_beg_timestamp = dict()
-
         def compare(x, y):
             if x[4] != y[4]:
                 return x[4] < y[4]
@@ -517,9 +515,10 @@ class VMScheduling(PThenO):
                     vm_cum_time = vm_cum_time + (end_time - start_time) * core_cap
 
 
-                if bins[bins_id][0] == 0 and bins[bins_id][1] == 0:
-                    ph_cum_time = ph_cum_time + end_time - bins_beg_timestamp[bins_id]
-                    del bins_beg_timestamp[bins_id]
+                if bins[bins_id][0] <= 0 and bins[bins_id][1] <= 0:
+                    pass
+                    #ph_cum_time = ph_cum_time + end_time - bins_beg_timestamp[bins_id]
+                    #del bins_beg_timestamp[bins_id]
                     # How to make sure it deletes the latest one?
                 else:
                     new_cur_active_job.append([start_time, end_time, core_cap, mem_cap, bins_id])
@@ -546,34 +545,34 @@ class VMScheduling(PThenO):
                 if select_act == -1:
                     bins.append([core_req, mem_req])
                     cur_active_job.append([arr, ter, core_req, mem_req, len(bins) - 1])
-                    bins_beg_timestamp[len(bins) - 1] = arr
+                    #bins_beg_timestamp[len(bins) - 1] = arr
                 else:
                     bins[p_act][0] += core_req
                     bins[p_act][1] += mem_req
                     cur_active_job.append([arr, ter, core_req, mem_req, p_act])
-                    if p_act not in bins_beg_timestamp:
-                        bins_beg_timestamp[p_act] = arr
+                    #if p_act not in bins_beg_timestamp:
+                    #    bins_beg_timestamp[p_act] = arr
             else:
                 p_act = decision[i]
                 if p_act >= 0 and p_act < len(bins) and bins[p_act][0] + core_req < 1.0 and bins[p_act][1] + mem_req < 1.0:
                     bins[p_act][0] += core_req
                     bins[p_act][1] += mem_req
                     cur_active_job.append([arr, ter, core_req, mem_req, p_act])
-                    if p_act not in bins_beg_timestamp:
-                        bins_beg_timestamp[p_act] = arr
+                    #if p_act not in bins_beg_timestamp:
+                    #    bins_beg_timestamp[p_act] = arr
                 else:
                     bins.append([core_req, mem_req])
                     cur_active_job.append([arr, ter, core_req, mem_req, len(bins) - 1])
-                    bins_beg_timestamp[len(bins) - 1] = arr
+                    #bins_beg_timestamp[len(bins) - 1] = arr
 
         sorted(cur_active_job, key=cmp_to_key(compare))
         for cnt, (start_time, end_time, core_cap, mem_cap, bins_id) in enumerate(cur_active_job):
             bins[bins_id][0] -= core_cap
             bins[bins_id][1] -= mem_cap
             vm_cum_time = vm_cum_time + (end_time - start_time) * core_cap
-            if bins[bins_id][0] == 0 and bins[bins_id][1] == 0:
-                ph_cum_time = ph_cum_time + end_time - bins_beg_timestamp[bins_id]
-                del bins_beg_timestamp[bins_id]
+            #if bins[bins_id][0] == 0 and bins[bins_id][1] == 0:
+            #    ph_cum_time = ph_cum_time + end_time - bins_beg_timestamp[bins_id]
+            #    del bins_beg_timestamp[bins_id]
             # how to properly compute packing density?
             # May have issuesin this for loop
 
