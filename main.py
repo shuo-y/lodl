@@ -204,7 +204,7 @@ def get_random_optDQ(Y, Y_aux, args):
     objectives = problem.get_objective(Y, Z_fromtrue, aux_data=Y_aux)
     obj = objectives.mean().item()
 
-    if args.problem == 'vmscheduling':
+    if 'vmscheduling' in args.problem:
         print(f"VMScheduling opt if just using true prediction", obj)
         greedy_objs = problem.get_objective(Y, [None for _ in range(Y.shape[0])], Y_aux, dogreedy=True)
         # just work around here to check greedy algorithm we don't need the Z
