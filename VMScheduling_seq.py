@@ -10,7 +10,7 @@ import os
 import random
 from functools import cmp_to_key
 
-class VMScheduling(PThenO):
+class VMSchedulingSeq(PThenO):
 
     def __init__(
         self,
@@ -23,7 +23,7 @@ class VMScheduling(PThenO):
         num_test=200,
         num_per_instance=100
     ):
-        super(VMScheduling, self).__init__()
+        super(VMSchedulingSeq, self).__init__()
         self.rand_seed = rand_seed
         self._set_seed(self.rand_seed)
 
@@ -142,14 +142,14 @@ class VMScheduling(PThenO):
 
 
         total_ins = 2 * (num_train + num_eval + num_test)
-        self.feat = torch.zeros(total_ins, self.num_job_types)
+        self.feat = torch.zeros(total_ins, num_per_instance)
 
         vm_rows = self.vm_req_frames.shape[0]
         self.vm_offset = random.randint(0, vm_rows - total_ins * num_per_instance)
 
         for i in range(total_ins):
             type_list = self.vm_req_frames.iloc[(self.vm_offset + i * num_per_instance): (self.vm_offset + (i + 1) * num_per_instance)]['vmTypeId'].values.tolist()
-            self.feat[i] = torch.histogram(torch.tensor(type_list).float(), bins=max_type_id - min_type_id + 1, range=(min_type_id, max_type_id + 1), density=True)[0]
+            self.feat[i] = torch.tensor(type_list).float()
 
 
         self.trainxidx = [2 * i for i in range(0, num_train)]
@@ -185,231 +185,15 @@ class VMScheduling(PThenO):
         return self.testX, self.testY, self.testyidx
 
 
-    def interval2ind(self, feat: np.ndarray):
-        """
-        Given the input virtual machine feature convert it to output indicator
-        col 0 : start time
-        col 1 : end time
 
-        """
-
-        indi = []
-        timestamp = []
-        for i in range(len(feat)):
-            timestamp.append((feat[i][0], 2, [i])) # 2 represent start
-            timestamp.append((feat[i][1], 1, [i])) # 1 represent end
-
-        timestamp.sort()
-        timestamp_compress = []
-        timestamp_compress.append(timestamp[0])
-
-        for i in range(1, len(timestamp)):
-            prev = len(timestamp_compress) - 1
-            if (timestamp[i][0] == timestamp_compress[prev][0]
-                and timestamp[i][1] == timestamp_compress[prev][1]):
-                timestamp_compress[prev][2].append(timestamp[i][2][0])
-            else:
-                timestamp_compress.append(timestamp[i])
-
-        ind_mat = np.zeros((len(feat), len(timestamp_compress)))
-
-        for i in range(len(timestamp_compress)):
-            if timestamp_compress[i][1] == 2:
-                # If start set to 1
-                for idx in timestamp_compress[i][2]:
-                    ind_mat[idx][i:] = 1
-            if timestamp_compress[i][1] == 1:
-                # if end set to 1
-                for idx in timestamp_compress[i][2]:
-                    ind_mat[idx][i:] = 0
-
-        return ind_mat
-
-    def hist2int(
-        self,
-        time_probs: torch.Tensor,
-        arr_max: float,
-        dur_max: float,
-        num_jobs: int,
-
-    ):
-        """
-        probs is the probs of 2 dimensions array num of arrival bins X num of duration bins
-        output is a sampled feature with start time and end time
-        """
-
-        time_feat = np.zeros((num_jobs, 2))
-        arr_sampler = Categorical(probs=time_probs.sum(dim = 1))
-        dur_samplers = [Categorical(probs=time_probs[i]) for i in range(len(time_probs))]
-
-        num_arr_bin = len(time_probs)
-        num_dur_bin = len(time_probs[0])
-
-        output = np.zeros((num_jobs, 2))
-
-        for i in range(num_jobs):
-            arr_bin = arr_sampler.sample().item()
-            dur_bin = dur_samplers[arr_bin].sample().item()
-            arr_time = arr_max * (arr_bin / num_arr_bin)
-            dur_time = dur_max * (dur_bin / num_dur_bin)
-            output[i][0] = arr_time
-            output[i][1] = dur_time
-
-        return output
-
-
-    def pick_best_fit(self, job_cap, bins):
-        inds = [(bins[i], i) for i in range(len(bins))]
-
-        inds.sort()
-        for i in range(len(inds) - 1, -1, -1):
-            if inds[i][0] + job_cap <= 1:
-                bins[inds[i][1]] += job_cap
-                return inds[i][1]
-
-        return -1
-
-    def pick_best_fit_from2bins(self, job_cap_1, job_cap_2, bins1, bins2):
-        # Pick bins for best fit but for two types
-        inds = [(bins1[i], bins2[i], i) for i in range(len(bins1))]
-        inds.sort()
-
-        for i in range(len(inds)):
-            if inds[i][0] + job_cap_1 <= 1 and inds[i][1] + job_cap_2 <= 1:
-                bins1[inds[i][2]] += job_cap_1
-                bins2[inds[i][2]] += job_cap_2
-                return inds[i][2]
-        return -1
-
-
-    def get_best_fit(self, jobs, job_type, decision, num_machines):
-        """
-        Given jobs
-        return best fit decisions of a single types
-        col 0 is start time, col 1 is end time
-        """
-        inds = [(jobs[job_type][i][0], 1, i) for i in range(len(jobs[job_type])) if jobs[job_type][i] > 0] # 1 means start
-        inds.extend([(jobs[job_type][i][1], 2, i) for i in range(len(jobs[job_type])) if jobs[job_type][i] > 0]) # 2 means stop
-
-        bins1 = np.zeros(num_machines)
-        bins2 = np.zeros(num_machines)
-        cur_job_set = dict()
-
-        des_ind = 0
-        inds.sort()
-
-        for i in range(len(inds)):
-            job_ind = inds[i][2]
-            if inds[i][1] == 1:
-                # jobs[job_ind][2] means machine capacity
-                machine_ind = self.pick_best_fit_from2bins(self.core_cap[job_type], self.mem_cap[job_type], bins1, bins2)
-                ## return -1 means reject the job
-                decision[des_ind] = machine_ind
-                des_ind += 1
-                if machine_ind != -1:
-                    cur_job_set[job_ind] = machine_ind
-            elif inds[i][1] == 2:
-                # stop job
-                if job_ind in cur_job_set:
-                    pmachine_ind = cur_job_set[job_ind]
-                    del cur_job_set[job_ind]
-                    bins1[machine_ind] -= self.core_cap[job_type]
-                    bins2[machine_ind] -= self.mem_cap[job_type]
-                    # Calculate packing density
-        return
-
-    def get_obj_from_decision(self, jobs, job_type, decision, num_machines):
-        """
-        Given jobs and decisions
-        return how well the decisions work
-        """
-        inds = [(jobs[job_type][i][0], 1, i) for i in range(len(jobs[job_type])) if jobs[job_type][i] > 0] # 1 means start
-        inds.extend([(jobs[job_type][i][1], 2, i) for i in range(len(jobs[job_type])) if jobs[job_type][i] > 0]) # 2 means stop
-
-        bins1 = np.zeros(num_machines)
-        bins2 = np.zeros(num_machines)
-        cur_job_set = dict()
-
-        des_ind = 0
-        inds.sort()
-
-        obj = 0
-        for i in range(len(inds)):
-            job_ind = inds[i][2]
-            if inds[i][1] == 1:
-                # jobs[job_ind][2] means machine capacity
-                if decision[des_ind] != -2:
-                    machine_ind = decision[des_ind]
-                    bins1[machine_ind] += self.core_cap[job_type]
-                    bins2[machine_ind] += self.mem_cap[job_type]
-                    des_ind += 1
-                    if machine_ind != -1:
-                        cur_job_set[job_ind] = machine_ind
-                        obj -= 1
-                else:
-                    machine_ind = self.pick_best_fit_from2bins(self.core_cap[job_type], self.mem_cap[job_type], bins1, bins2)
-                    # if the decision does not give us any ideas use the best fit greedy algorithm
-                    if machine_ind != -1:
-                        cur_job_set[job_ind] = machine_ind
-                        obj -= 1
-            elif inds[i][1] == 2:
-                # stop job
-                if job_ind in cur_job_set:
-                    pmachine_ind = cur_job_set[job_ind]
-                    del cur_job_set[job_ind]
-                    bins1[machine_ind] -= self.core_cap[job_type]
-                    bins2[machine_ind] -= self.mem_cap[job_type]
-                    # Calculate packing density
-        return obj
-
-    def yi2decision(self, yi, num_machines):
-        """
-        Convert yi into [num_job_types, max_num_jobs, 2(beg time, end time)]
-        """
-        jobs = np.full((self.num_job_types, self.max_jobs_per_type, 2), fill_value=-1, dtype=int)
-        decisions = np.full((self.num_job_types, self.max_jobs_per_type), fill_value=-2, dtype=int)
-
-        for job_t in range(len(yi)):
-            feat_ind = 0
-            yfeat = yi[job_t].reshape(self.feat_shape[1], self.feat_shape[2])
-            for beg_bucket in range(self.feat_shape[1]):
-                for dur_bucket in range(self.feat_shape[2]):
-                    job_num = int(yi[beg_bucket][dur_bucket] * self.max_jobs_per_type)
-                    jobs[job_t][feat_ind][0] = beg_bucket
-                    jobs[job_t][feat_ind][1] = beg_bucket + dur_bucket
-                    feat_ind += 1
-                    #If thow error here check if feat_ind[job_t] >= self.max_jobs_per_type
-            self.get_best_fit(jobs[job_t], job_t, decisions[job_t], num_machines)
-
-        return decisions
-
-    def get_yi_obj(self, yi, zi, num_machines):
-        jobs = np.full((self.num_job_types, self.max_jobs_per_type, 2), fill_value=-1, dtype=int)
-
-        for job_t in range(len(yi)):
-            feat_ind = 0
-            yfeat = yi[job_t].reshape(self.feat_shape[1], self.feat_shape[2])
-            for beg_bucket in range(self.feat_shape[1]):
-                for dur_bucket in range(self.feat_shape[2]):
-                    job_num = int(yi[beg_bucket][dur_bucket] * self.max_jobs_per_type)
-                    jobs[job_t][feat_ind][0] = beg_bucket
-                    jobs[job_t][feat_ind][1] = beg_bucket + dur_bucket
-                    feat_ind += 1
-                    #If thow error here check if feat_ind[job_t] >= self.max_jobs_per_type
-            self.get_obj_from_decision(jobs[job_t], job_t, zi[job_t], num_machines)
-
-
-    def get_single_bestfit(self, yi, trace_id):
+    def get_single_bestfit(self, yi, trace_id, print_bins=False):
+        # print_bins for debug
         bins = []
 
         timestamp = 0
         # What if here invalid avoid invalid input
         # clamp is based on https://blog.csdn.net/qq_37388085/article/details/127251550
-        def clamp_probs(probs):
-            eps = torch.finfo(probs.dtype).eps
-            return probs.clamp(min=eps, max=1 - eps)
 
-        vm_dist = Categorical(clamp_probs(yi))
         cur_obj = 0
 
         # Suppose we only predict the work type , the arrival time and dur is known from the trace_id
@@ -452,7 +236,7 @@ class VMScheduling(PThenO):
 
             cur_active_job = new_cur_active_job
 
-            pred_vmt = vm_dist.sample()
+            pred_vmt = int(yi[i])
 
             pred_mem_req = self.mem_cap[pred_vmt]
             pred_core_req = self.core_cap[pred_vmt]
@@ -477,9 +261,14 @@ class VMScheduling(PThenO):
                 cur_active_job.append([arr, ter, pred_core_req, pred_mem_req, select_act])
             decisions.append(select_act)
 
+            if print_bins:
+                print(bins)
+                print(select_act)
+
+
         return torch.tensor(decisions)
 
-    def check_single_bestfit(self, yi, decision, trace_id, dogreedy=False):
+    def check_single_bestfit(self, yi, decision, trace_id, dogreedy=False, print_bins=False):
         """
         Given a yi and decision should return the objective
         if do greedy is true the decision will be ignored and do pure best fit algorithm
@@ -501,7 +290,7 @@ class VMScheduling(PThenO):
         # Sort based on comparator
         # https://stackoverflow.com/questions/12749398/using-a-comparator-function-to-sort
 
-
+        select_acts = []
         for i in range(self.num_per_instance):
             arr = sub_df['starttime'].iloc[i] - beg_time
             ter = sub_df['endtime'].iloc[i] - beg_time
@@ -512,15 +301,11 @@ class VMScheduling(PThenO):
                 if end_time < arr:
                     bins[bins_id][0] -= core_cap
                     bins[bins_id][1] -= mem_cap
-                    vm_cum_time = vm_cum_time + (end_time - start_time) * core_cap
 
-
-                if bins[bins_id][0] <= 0 and bins[bins_id][1] <= 0:
-                    pass
+                if not(bins[bins_id][0] == 0 and bins[bins_id][1] == 0):
                     #ph_cum_time = ph_cum_time + end_time - bins_beg_timestamp[bins_id]
                     #del bins_beg_timestamp[bins_id]
                     # How to make sure it deletes the latest one?
-                else:
                     new_cur_active_job.append([start_time, end_time, core_cap, mem_cap, bins_id])
             cur_active_job = new_cur_active_job
 
@@ -552,9 +337,10 @@ class VMScheduling(PThenO):
                     cur_active_job.append([arr, ter, core_req, mem_req, select_act])
                     #if p_act not in bins_beg_timestamp:
                     #    bins_beg_timestamp[p_act] = arr
+                select_acts.append(select_act)
             else:
                 p_act = decision[i]
-                if p_act >= 0 and p_act < len(bins) and bins[p_act][0] + core_req < 1.0 and bins[p_act][1] + mem_req < 1.0:
+                if (p_act >= 0 and p_act < len(bins) and bins[p_act][0] + core_req < 1.0 and bins[p_act][1] + mem_req < 1.0):
                     bins[p_act][0] += core_req
                     bins[p_act][1] += mem_req
                     cur_active_job.append([arr, ter, core_req, mem_req, p_act])
@@ -564,22 +350,10 @@ class VMScheduling(PThenO):
                     bins.append([core_req, mem_req])
                     cur_active_job.append([arr, ter, core_req, mem_req, len(bins) - 1])
                     #bins_beg_timestamp[len(bins) - 1] = arr
+            if print_bins:
+                print("check obj bins  ", bins)
 
-        sorted(cur_active_job, key=cmp_to_key(compare))
-        for cnt, (start_time, end_time, core_cap, mem_cap, bins_id) in enumerate(cur_active_job):
-            bins[bins_id][0] -= core_cap
-            bins[bins_id][1] -= mem_cap
-            vm_cum_time = vm_cum_time + (end_time - start_time) * core_cap
-            #if bins[bins_id][0] == 0 and bins[bins_id][1] == 0:
-            #    ph_cum_time = ph_cum_time + end_time - bins_beg_timestamp[bins_id]
-            #    del bins_beg_timestamp[bins_id]
-            # how to properly compute packing density?
-            # May have issuesin this for loop
 
-        #print("total used bins", len(bins))
-        #print("vm_cum_time", vm_cum_time)
-        #print("ph_cum_time", ph_cum_time)
-        #print(decision[:5])
 
         # TODO temporarily using the total number of allocated physical machines as decision quality
         return -float(len(bins))
@@ -626,7 +400,8 @@ class VMScheduling(PThenO):
                     objs.append(self.check_single_bestfit(Y[cnt], Z[cnt], aux_data, dogreedy=dogreedy))
                 return torch.tensor(objs)
         elif Y.ndim == 1:
-            assert Z.ndim == 1
+            if Z != None:
+                assert Z.ndim == 1
             obj = self.check_single_bestfit(Y, Z, aux_data, dogreedy=dogreedy)
             return torch.tensor(obj)
         else:
@@ -646,7 +421,7 @@ class VMScheduling(PThenO):
 
 
 if __name__ == '__main__':
-    vm_prob = VMScheduling(rand_seed=0)
+    vm_prob = VMSchedulingSeq(rand_seed=0)
 
 
     # TODO packig density
@@ -654,13 +429,26 @@ if __name__ == '__main__':
 
     trainX, trainY, Yaux = vm_prob.get_train_data()
 
+
+
     now1 = datetime.now()
     Zs = vm_prob.get_decision(trainY, aux_data=Yaux)
     now2 = datetime.now()
     print("get decision time", now2 - now1)
-    obj = vm_prob.get_objective(trainY, Zs, Yaux)
+    objs = vm_prob.get_objective(trainY, Zs, Yaux)
     now3 = datetime.now()
     print("get objective time", now3 - now2)
+    greedyobjs = vm_prob.get_objective(trainY, [None for _ in range(len(trainY))], aux_data=Yaux, dogreedy=True)
+
+
+    for i in range(10):
+        print("ind", i)
+        zi = vm_prob.get_decision(trainY[i], aux_data=Yaux[i])
+        #print("get decision,", zi)
+        obj = vm_prob.get_objective(trainY[i], zi, aux_data=Yaux[i])
+        print("pthenopt get obj", obj)
+        greedyobj = vm_prob.get_objective(trainY[i], None, aux_data=Yaux[i], dogreedy=True)
+        print("greedyobj", greedyobj)
     pdb.set_trace()
 
 
