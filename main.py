@@ -22,6 +22,7 @@ from BudgetAllocation import BudgetAllocation
 from BipartiteMatching import BipartiteMatching
 from PortfolioOpt import PortfolioOpt
 from VMScheduling import VMScheduling
+from VMScheduling_seq import VMSchedulingSeq
 from RMAB import RMAB
 from CubicTopK import CubicTopK
 from models import model_dict
@@ -219,7 +220,7 @@ if __name__ == '__main__':
     # Get hyperparams from the command line
     # TODO: Separate main into folders per domain
     parser = argparse.ArgumentParser()
-    parser.add_argument('--problem', type=str, choices=['budgetalloc', 'bipartitematching', 'cubic', 'rmab', 'portfolio', 'vmscheduling'], default='portfolio')
+    parser.add_argument('--problem', type=str, choices=['budgetalloc', 'bipartitematching', 'cubic', 'rmab', 'portfolio', 'vmscheduling', 'vmschedulingseq'], default='portfolio')
     parser.add_argument('--loadnew', type=ast.literal_eval, default=False)
     parser.add_argument('--layers', type=int, default=2)
     parser.add_argument('--iters', type=int, default=5000)
@@ -336,6 +337,12 @@ if __name__ == '__main__':
         problem = init_problem(PortfolioOpt, problem_kwargs)
     elif args.problem == 'vmscheduling':
         problem = VMScheduling(rand_seed=args.seed,
+                               num_train=args.instances - int(args.valfrac * args.instances),
+                               num_eval=int(args.valfrac * args.instances),
+                               num_test=args.testinstances,
+                               num_per_instance=args.itempertrace)
+    elif args.problem == 'vmschedulingseq'
+        problem = VMSchedulingSeq(rand_seed=args.seed,
                                num_train=args.instances - int(args.valfrac * args.instances),
                                num_eval=int(args.valfrac * args.instances),
                                num_test=args.testinstances,
