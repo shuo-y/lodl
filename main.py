@@ -341,7 +341,7 @@ if __name__ == '__main__':
                                num_eval=int(args.valfrac * args.instances),
                                num_test=args.testinstances,
                                num_per_instance=args.itempertrace)
-    elif args.problem == 'vmschedulingseq'
+    elif args.problem == 'vmschedulingseq':
         problem = VMSchedulingSeq(rand_seed=args.seed,
                                num_train=args.instances - int(args.valfrac * args.instances),
                                num_eval=int(args.valfrac * args.instances),
