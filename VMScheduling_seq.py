@@ -142,14 +142,16 @@ class VMSchedulingSeq(PThenO):
 
 
         total_ins = 2 * (num_train + num_eval + num_test)
-        self.feat = torch.zeros(total_ins, num_per_instance)
+        self.feat = torch.zeros(total_ins, num_per_instance, self.num_job_types)
 
         vm_rows = self.vm_req_frames.shape[0]
         self.vm_offset = random.randint(0, vm_rows - total_ins * num_per_instance)
 
         for i in range(total_ins):
             type_list = self.vm_req_frames.iloc[(self.vm_offset + i * num_per_instance): (self.vm_offset + (i + 1) * num_per_instance)]['vmTypeId'].values.tolist()
-            self.feat[i] = torch.tensor(type_list).float()
+            # one_hot needs to use int64 as index based on
+            # https://stackoverflow.com/questions/56513576/converting-tensor-to-one-hot-encoded-tensor-of-indices
+            self.feat[i] = torch.nn.functional.one_hot(torch.tensor(type_list), num_classes=self.num_job_types).float()
 
 
         self.trainxidx = [2 * i for i in range(0, num_train)]
@@ -173,6 +175,7 @@ class VMSchedulingSeq(PThenO):
 
         now2 = datetime.now()
         print("init data time", now2 - now1)
+
 
 
     def get_train_data(self, **kwargs):
@@ -236,7 +239,7 @@ class VMSchedulingSeq(PThenO):
 
             cur_active_job = new_cur_active_job
 
-            pred_vmt = int(yi[i])
+            pred_vmt = int(yi[i].argmax())
 
             pred_mem_req = self.mem_cap[pred_vmt]
             pred_core_req = self.core_cap[pred_vmt]
@@ -268,7 +271,7 @@ class VMSchedulingSeq(PThenO):
 
         return torch.tensor(decisions)
 
-    def check_single_bestfit(self, yi, decision, trace_id, dogreedy=False, print_bins=False):
+    def check_single_bestfit(self, decision, trace_id, dogreedy=False, print_bins=False):
         """
         Given a yi and decision should return the objective
         if do greedy is true the decision will be ignored and do pure best fit algorithm
@@ -365,19 +368,19 @@ class VMSchedulingSeq(PThenO):
         # features = [# start interval, # dur interval]
         # output Z [# instances, # |jobs| ]
 
-        if Y.ndim == 2 and isinstance(aux_data, list):
+        if Y.ndim == 3 and isinstance(aux_data, list) and len(Y) == len(aux_data):
             decisions_list = []
             for (yi, trace_id) in zip(Y, aux_data):
                 decisions = self.get_single_bestfit(yi, trace_id)
                 decisions_list.append(decisions)
             return torch.stack(decisions_list)
-        elif Y.ndim == 2 and isinstance(aux_data, int):
+        elif Y.ndim == 3 and isinstance(aux_data, int):
             decisions_list = []
             for yi in Y:
                 decisions = self.get_single_bestfit(yi, aux_data)
                 decisions_list.append(decisions)
             return torch.stack(decisions_list)
-        elif Y.ndim == 1:
+        elif Y.ndim == 2 and isinstance(aux_data, int):
             decisions = self.get_single_bestfit(Y, aux_data)
             return decisions
         else:
@@ -386,28 +389,31 @@ class VMSchedulingSeq(PThenO):
 
     def get_objective(self, Y, Z, aux_data, dogreedy=False, **kwargs):
         """
+        Currently Y is not used
         the aux_data is needed here for the trace inds
         """
-        if Y.ndim == 2 and (dogreedy==True or (hasattr(Z, "ndim") and Z.ndim == 2 and (len(Y) == len(Z)))):
-            if isinstance(aux_data, list):
-                objs = []
-                for cnt in range(len(Y)):
-                    objs.append(self.check_single_bestfit(Y[cnt], Z[cnt], aux_data[cnt], dogreedy=dogreedy))
-                return torch.tensor(objs)
-            elif isinstance(aux_data, int):
-                objs = []
-                for cnt in range(len(Y)):
-                    objs.append(self.check_single_bestfit(Y[cnt], Z[cnt], aux_data, dogreedy=dogreedy))
-                return torch.tensor(objs)
-        elif Y.ndim == 1:
-            if Z != None:
-                assert Z.ndim == 1
-            obj = self.check_single_bestfit(Y, Z, aux_data, dogreedy=dogreedy)
-            return torch.tensor(obj)
+
+        if dogreedy and isinstance(aux_data, list):
+            objs = []
+            for cnt in range(len(Z)):
+                objs.append(self.check_single_bestfit(None, aux_data[cnt], dogreedy=True))
+            return torch.tensor(objs)
+        elif dogreedy and isinstance(aux_data, int):
+            return torch.tensor(self.check_single_bestfit(None, aux_data, dogreedy=True))
+        elif Z.ndim == 2 and isinstance(aux_data, list):
+            objs = []
+            for cnt in range(len(Z)):
+                objs.append(self.check_single_bestfit(Z[cnt], aux_data[cnt], dogreedy=dogreedy))
+            return torch.tensor(objs)
+        elif Z.ndim == 2 and isinstance(aux_data, int):
+            objs = []
+            for cnt in range(len(Z)):
+                objs.append(self.check_single_bestfit(Z[cnt], aux_data, dogreedy=dogreedy))
+            return torch.tensor(objs)
+        elif Z.ndim == 1 and isinstance(aux_data, int):
+            return torch.tensor(self.check_single_bestfit(Z, aux_data, dogreedy=dogreedy))
         else:
-            print("Y.shape", Y.shape)
-            print("Z.shape", Z.shape)
-            raise ValueError("The dimensions of Y and Z is not supported")
+            raise ValueError("the input argument is not valid Please check the arguments...")
 
     def get_output_activation(self):
         pass
