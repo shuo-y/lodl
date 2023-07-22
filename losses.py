@@ -35,7 +35,7 @@ def MAE(Yhats, Ys, **kwargs):
 
 
 def CE(Yhats, Ys, **kwargs):
-    return torch.nn.BCELoss()(Yhats, Ys)
+    return torch.nn.BCELoss()(Yhats.float(), Ys.float())
 
 def MSE_Sum(
     Yhats,

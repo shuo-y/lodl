@@ -1,4 +1,3 @@
-from pip import main
 from PThenO import PThenO
 from itertools import product
 import random

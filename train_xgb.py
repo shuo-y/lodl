@@ -182,6 +182,7 @@ def train_xgb_lodl(args, problem):
     Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
     Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
 
+    from utils import print_metrics
 
     if args.model == "xgb_coupled":
         # 2stage xgboost coupled version
@@ -189,12 +190,21 @@ def train_xgb_lodl(args, problem):
         print("This option will ignore the args.loss")
         reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
         reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
-        dump_booster(reg.get_booster(), args)
+        if args.dumptree:
+            dump_booster(reg.get_booster(), args)
         model = xgbwrapper(reg, Y_train[0].shape)
-        from utils import print_metrics
         metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
         return model, metrics
-
+    elif args.model == "xgb_coupled_clf":
+        print("Use xgb.XGBClassifier")
+        print("Use ce loss no matter the input args.loss")
+        clf = xgb.XGBClassifier(tree_method=args.tree_method, n_estimators=args.num_estimators)
+        clf.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
+        model = xgbwrapper(clf, Y_train[0].shape)
+        if args.dumptree:
+            dump_booster(reg.get_booster(), args)
+        metrics = print_metrics(model, problem, args.loss, get_loss_fn("ce", problem), "seed{}".format(args.seed), isTrain=False)
+        return model, metrics
 
     print(f"Loading {args.loss} Loss Function...")
     loss_fn, loss_model_fn = get_loss_fn(
@@ -213,8 +223,6 @@ def train_xgb_lodl(args, problem):
         samples_filename_read=args.samples_read,
         input_args=args
     )
-    import pdb
-    #pdb.set_trace()
 
     # Based on some code from https://xgboost.readthedocs.io/en/stable/python/examples/multioutput_regression.html
 
@@ -240,10 +248,11 @@ def train_xgb_lodl(args, problem):
         obj = obj_fun,
         evals = [(Xy, "train")],
         custom_metric = eval_fun)
-    dump_booster(booster, args)
+
+    if args.dumptree:
+        dump_booster(booster, args)
     model = treefromlodl(booster, Y_train[0].shape)
 
-    from utils import print_metrics
     metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 

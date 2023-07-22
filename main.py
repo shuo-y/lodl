@@ -231,7 +231,7 @@ if __name__ == '__main__':
     parser.add_argument('--valfreq', type=int, default=5)
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--model', type=str, choices=['dense', 'xgb_decoupled', 'dense_multi', 'xgb_lodl', 'xgb_coupled'], default='dense')
+    parser.add_argument('--model', type=str, choices=['dense', 'xgb_decoupled', 'dense_multi', 'xgb_lodl', 'xgb_coupled', 'xgb_coupled_clf'], default='dense')
     parser.add_argument('--loss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--batchsize', type=int, default=1000)
@@ -271,7 +271,7 @@ if __name__ == '__main__':
     parser.add_argument('--quadalpha', type=float, default=0)
     parser.add_argument('--num_estimators', type=int, default=10)
     parser.add_argument('--lodl_iter', type=int, default=10, help='if we want to train lodl multi rounds')
-    parser.add_argument('--tree_method', type=str, default='hist', choices=['hist', 'approx', 'auto', 'exact'])
+    parser.add_argument('--tree_method', type=str, default='hist', choices=['hist', 'gpu_hist', 'approx', 'auto', 'exact'])
     parser.add_argument('--tree_lambda', type=float, default=1)
     parser.add_argument('--tree_eta', type=float, default=0.3)
     parser.add_argument('--tree_alpha', type=float, default=0)
@@ -280,6 +280,7 @@ if __name__ == '__main__':
     parser.add_argument('--mag_factor', type=float, default=1.0)
     parser.add_argument('--measure_eval', action='store_true')
     parser.add_argument('--samples_read', type=str, default='')
+    parser.add_argument('--dumptree', action='store_true')
 
     args = parser.parse_args()
 
@@ -355,7 +356,7 @@ if __name__ == '__main__':
     if args.model == "xgb_decoupled":
         from train_xgb import train_xgb
         model, metrics = train_xgb(args, problem)
-    elif args.model == "xgb_lodl" or args.model == "xgb_coupled":
+    elif args.model == "xgb_lodl" or args.model.startswith("xgb_coupled"):
         from train_xgb import train_xgb_lodl
         model, metrics = train_xgb_lodl(args, problem)
     elif args.model == "dense":
