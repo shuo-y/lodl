@@ -193,7 +193,7 @@ def train_xgb_lodl(args, problem):
         if args.dumptree:
             dump_booster(reg.get_booster(), args)
         model = xgbwrapper(reg, Y_train[0].shape)
-        metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
+        metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
         return model, metrics
     elif args.model == "xgb_coupled_clf":
         print("Use xgb.XGBClassifier")
@@ -203,7 +203,7 @@ def train_xgb_lodl(args, problem):
         model = xgbwrapper(clf, Y_train[0].shape)
         if args.dumptree:
             dump_booster(reg.get_booster(), args)
-        metrics = print_metrics(model, problem, args.loss, get_loss_fn("ce", problem), "seed{}".format(args.seed), isTrain=False)
+        metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
         return model, metrics
 
     print(f"Loading {args.loss} Loss Function...")
@@ -253,7 +253,7 @@ def train_xgb_lodl(args, problem):
         dump_booster(booster, args)
     model = treefromlodl(booster, Y_train[0].shape)
 
-    metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
+    metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 
 
