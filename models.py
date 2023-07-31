@@ -213,6 +213,7 @@ class WeightedCE(torch.nn.Module):
         # Save true labels
         self.Y_raw = Y.detach()
         self.Y = self.Y_raw.view((-1))
+        self.Y.requires_grad = False
         self.num_dims = self.Y.shape[0]
         self.min_val = min_val
 
@@ -234,7 +235,53 @@ class WeightedCE(torch.nn.Module):
         error = torch.nn.BCELoss(reduction='none')(Yhat, self.Y.expand(*Yhat.shape))
         weighted_ce = (error * weights).mean(dim=-1)
 
+
+        #weights_no_grad = torch.tensor(weights).flatten()
+        #weights_no_grad.require_grad = False
+        #error_2 = torch.nn.BCELoss(reduction='none', weight=weights_no_grad)(Yhat, self.Y.expand(*Yhat.shape))
+        #print("use torch api", error_2.mean().item())
+        #print("product", (error * weights_no_grad).mean())
+        # results are the same but weights cannot require grad
+        # print("debug wieghts", weights)
+
         return weighted_ce
+
+    def my_grad_hess(self, yhat: np.ndarray, y: np.ndarray):
+        import jax.numpy as jnp
+
+        posw = jnp.array(self.weights_pos.clamp(min=self.min_val).detach().cpu().numpy())
+        negw = jnp.array(self.weights_neg.clamp(min=self.min_val).detach().cpu().numpy())
+
+        yhat = yhat.flatten()
+        y = y.flatten()
+
+        cur_pos_w = (yhat > y) * posw
+        cur_neg_w = (yhat < y) * negw
+        w = cur_pos_w + cur_neg_w
+
+        grad = -(w * (y / yhat + (1 - y)/(yhat - 1)))/len(yhat)
+        hess = -(w * (-y/(yhat ** 2) + (y - 1) / ((yhat - 1) ** 2))) / len(yhat)
+
+        return grad, hess
+
+    def get_jnp_fun(self):
+        import jax.numpy as jnp
+
+        posw = jnp.array(self.weights_pos.clamp(min=self.min_val).detach().cpu().numpy())
+        negw = jnp.array(self.weights_neg.clamp(min=self.min_val).detach().cpu().numpy())
+        y = jnp.array(self.Y.detach().cpu().numpy())
+
+        def jnp_forward(yhat):
+            cur_pos_w = (yhat > y) * posw
+            cur_neg_w = (yhat < y) * negw
+            w = cur_pos_w + cur_neg_w
+
+            loss_val = - w * (y * jnp.clip(jnp.log(yhat), -100, 100)  + (1 - y) * jnp.clip(jnp.log(1 - yhat), -100, 100))
+            loss_val = loss_val.mean()
+            return loss_val
+
+        return jnp_forward
+
 
 
 class WeightedMSESum(torch.nn.Module):
@@ -536,9 +583,9 @@ def test_model_jax(loss_model, Y=None, check_naive=False):
     diff = ((g - mygrad) ** 2).sum()
     hdiff = ((jh - myhess) ** 2).sum()
     if not np.isclose(diff, 0):
-        print("error grad {}".format(diff))
+        print("error grad diff {}".format(diff))
     if not np.isclose(hdiff, 0):
-        print("error hess {}".format(hdiff))
+        print("error hess diff {}".format(hdiff))
     print("mygrad ", mygrad)
     print("jax g ", g)
     print("myhess ", myhess)
@@ -578,6 +625,8 @@ def test_jax():
 
 def test():
     test_jax()
+    test_model_jax(WeightedCE)
+    test_model_jax(WeightedCE, torch.rand(8, 7))
     test_model_jax(WeightedMSE)
     test_model_jax(WeightedMSESum, torch.rand(5, 3))
     test_model_jax(WeightedMSESum, torch.rand(5, 2))
