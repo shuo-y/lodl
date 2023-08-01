@@ -188,7 +188,8 @@ def train_xgb_lodl(args, problem):
         # 2stage xgboost coupled version
         print("Using native xgb.XGBRegressor")
         print("This option will ignore the args.loss")
-        reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
+        reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators, learning_rate=args.tree_eta
+                               reg_alpha=args.tree_alpha, reg_lambda=args.tree_lambda)
         reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
         if args.dumptree:
             dump_booster(reg.get_booster(), args)
@@ -198,7 +199,8 @@ def train_xgb_lodl(args, problem):
     elif args.model == "xgb_coupled_clf":
         print("Use xgb.XGBClassifier")
         print("Use ce loss no matter the input args.loss")
-        clf = xgb.XGBClassifier(tree_method=args.tree_method, n_estimators=args.num_estimators)
+        clf = xgb.XGBClassifier(tree_method=args.tree_method, n_estimators=args.num_estimators, learning_rate=args.tree_eta
+                               reg_alpha=args.tree_alpha, reg_lambda=args.tree_lambda)
         clf.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
         model = xgbwrapper(clf, Y_train[0].shape)
         if args.dumptree:
