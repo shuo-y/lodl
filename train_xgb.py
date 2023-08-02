@@ -204,7 +204,7 @@ def train_xgb_lodl(args, problem):
         clf.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
         model = xgbwrapper(clf, Y_train[0].shape)
         if args.dumptree:
-            dump_booster(reg.get_booster(), args)
+            dump_booster(clf.get_booster(), args)
         metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
         return model, metrics
 
