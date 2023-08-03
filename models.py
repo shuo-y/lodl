@@ -84,7 +84,7 @@ class WeightedMSE(torch.nn.Module):
     """
     import numpy as np
 
-    def __init__(self, Y, min_val=1e-3, magnify=100):
+    def __init__(self, Y, min_val=1e-3, magnify=100, weights=None):
         super(WeightedMSE, self).__init__()
         # Save true labels
         # Maybe refer to https://stackoverflow.com/questions/55959918/in-pytorch-how-to-i-make-certain-module-parameters-static-during-training
@@ -94,7 +94,10 @@ class WeightedMSE(torch.nn.Module):
 
         self.magnify = magnify
         # Initialise paramters
-        self.weights = torch.nn.Parameter(self.min_val + torch.rand_like(self.Y))
+        if weights != None:
+            self.weights = torch.nn.Parameter(weights * torch.ones(self.Y.shape))
+        else:
+            self.weights = torch.nn.Parameter(self.min_val + torch.rand_like(self.Y))
 
     def forward(self, Yhats):
         # Flatten inputs
@@ -225,6 +228,7 @@ class WeightedCE(torch.nn.Module):
         # Flatten inputs
         if len(self.Y_raw.shape) >= 2:
             Yhat = Yhat.view((*Yhat.shape[:-len(self.Y_raw.shape)], self.num_dims))
+
 
         # Get weights for positive and negative components separately
         pos_weights = (Yhat > self.Y.unsqueeze(0)).float() * self.weights_pos.clamp(min=self.min_val)

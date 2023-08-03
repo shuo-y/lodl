@@ -223,6 +223,7 @@ def train_xgb_lodl(args, problem):
         verbose=args.lodlverbose,
         get_loss_model=True,
         samples_filename_read=args.samples_read,
+        no_train=args.no_train,
         input_args=args
     )
 

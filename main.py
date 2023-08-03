@@ -281,6 +281,8 @@ if __name__ == '__main__':
     parser.add_argument('--measure_eval', action='store_true')
     parser.add_argument('--samples_read', type=str, default='')
     parser.add_argument('--dumptree', action='store_true')
+    parser.add_argument('--no_train', action='store_true')
+    parser.add_argument('--predefined_weights', type=float, default=1.0)
     parser.add_argument('--evalloss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse', help='use for evaluate the model with metrics')
 
     args = parser.parse_args()
