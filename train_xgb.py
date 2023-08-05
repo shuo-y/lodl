@@ -125,6 +125,9 @@ class custom_loss():
             for i in range(self.ygold.shape[0]):
                  lo_model = self.loss_model_fn(predt[i], self.ygold[i].flatten(), "train", i)
                  grad[i], hes[i] = lo_model.my_grad_hess(predt[i], self.ygold[i].flatten())
+
+            import pdb
+            pdb.set_trace()
             grad = grad.flatten()
             hes = hes.flatten()
             print("grad.sum() {}".format(grad.sum()))
@@ -303,7 +306,7 @@ def train_xgb_pre_weights(args, problem):
 
     for cnt, fac in enumerate(factor):
         weights_vec = np.ones(Ytrain.shape[0]) * fac
-        print("weights vec show as ," weights_vec)
+        print("weights vec show as", weights_vec)
         loss_fn, loss_model_fn = get_loss_fn(
             args.loss,
             problem,
