@@ -202,9 +202,9 @@ def _learn_loss(
     elif model_type == 'weightedmse':
         if 'no_train' in kwargs and kwargs['no_train'] == True:
             if 'weights_vec' in kwargs and 'no_train' in kwargs and kwargs['no_train'] == True:
-                model = WeightedMSE(Y, magnify=kwargs['input_args'], weights_vec=kwargs['weights_vec'])
+                model = WeightedMSE(Y, min_val=kwargs['input_args'].weights_min, magnify=kwargs['input_args'].mag_factor, weights_vec=kwargs['weights_vec'])
             else:
-                model = WeightedMSE(Y, magnify=kwargs['input_args'].mag_factor, weights=kwargs['input_args'].predefined_weights)
+                model = WeightedMSE(Y, min_val=kwargs['input_args'].weights_min, magnify=kwargs['input_args'].mag_factor, weights=kwargs['input_args'].predefined_weights)
             # Get final loss on train samples
             pred_train = model(Yhats_train).flatten()
             train_loss = torch.nn.L1Loss()(pred_train, objectives_train).item()
@@ -214,7 +214,7 @@ def _learn_loss(
             loss = torch.nn.L1Loss()(pred_test, objectives_test)
             test_loss = loss.item()
             return model, train_loss, test_loss
-        model = WeightedMSE(Y, magnify=kwargs['input_args'].mag_factor)
+        model = WeightedMSE(Y, min_val=kwargs['input_args'].weights_min, magnify=kwargs['input_args'].mag_factor)
     elif model_type == 'weightedmse++':
         model = WeightedMSEPlusPlus(Y)
     elif model_type == 'weightedce':
@@ -464,7 +464,7 @@ def _get_learned_loss(
         return g, h
 
     def my_loss_model(yhatnp, ynp, partition, index, **kwargs):
-        yhatnp = yhatnp.flatten()
+        # yhatnp = yhatnp.flatten()
         # The yhatnap and ynp should be np
         return losses[partition][index] #.my_grad_hess(yhatnp)
 

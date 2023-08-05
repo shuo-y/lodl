@@ -277,6 +277,7 @@ if __name__ == '__main__':
     parser.add_argument('--tree_alpha', type=float, default=0)
     # Based on https://docs.python.org/3/library/argparse.html
     parser.add_argument('--lodlverbose', action='store_true')
+    parser.add_argument('--weights_min', type=float, default=1e-3, help='minimum values of the weights')
     parser.add_argument('--mag_factor', type=float, default=1.0)
     parser.add_argument('--measure_eval', action='store_true')
     parser.add_argument('--samples_read', type=str, default='')
