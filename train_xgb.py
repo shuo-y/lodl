@@ -286,6 +286,40 @@ def dump_booster(booster, args):
         f.write(config)
 
 
+def train_xgb_pre_weights(args, problem):
+    X_train, Y_train, Y_train_aux = problem.get_train_data()
+    X_val, Y_val, Y_val_aux = problem.get_val_data()
+    Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
+    Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
+
+
+    Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
+    Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
+
+    weights_vec = np.random.randn(Ytrain.shape[0])
+
+    loss_fn, loss_model_fn = get_loss_fn(
+        args.loss,
+        problem,
+        sampling=args.sampling,
+        num_samples=args.numsamples,
+        rank=args.quadrank,
+        sampling_std=args.samplingstd,
+        quadalpha=args.quadalpha,
+        lr=args.losslr,
+        serial=args.serial,
+        dflalpha=args.dflalpha,
+        verbose=args.lodlverbose,
+        get_loss_model=True,
+        samples_filename_read=args.samples_read,
+        no_train=args.no_train,
+        weights_vec=weights_vec,
+        input_args=args
+    )
+
+    pass
+
+
 
 
 

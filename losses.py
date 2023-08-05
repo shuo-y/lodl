@@ -201,7 +201,10 @@ def _learn_loss(
         model = LowRankQuadratic(Y, **kwargs)
     elif model_type == 'weightedmse':
         if 'no_train' in kwargs and kwargs['no_train'] == True:
-            model = WeightedMSE(Y, kwargs['input_args'].mag_factor, kwargs['input_args'].predefined_weights)
+            if 'weights_vec' in kwargs and 'no_train' in kwargs and kwargs['no_train'] == True:
+                model = WeightedMSE(Y, magnify=kwargs['input_args'], weights_vec=kwargs['weights_vec'])
+            else:
+                model = WeightedMSE(Y, magnify=kwargs['input_args'].mag_factor, weights=kwargs['input_args'].predefined_weights)
             # Get final loss on train samples
             pred_train = model(Yhats_train).flatten()
             train_loss = torch.nn.L1Loss()(pred_train, objectives_train).item()
@@ -211,7 +214,7 @@ def _learn_loss(
             loss = torch.nn.L1Loss()(pred_test, objectives_test)
             test_loss = loss.item()
             return model, train_loss, test_loss
-        model = WeightedMSE(Y, kwargs['input_args'].mag_factor)
+        model = WeightedMSE(Y, magnify=kwargs['input_args'].mag_factor)
     elif model_type == 'weightedmse++':
         model = WeightedMSEPlusPlus(Y)
     elif model_type == 'weightedce':

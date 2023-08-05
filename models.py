@@ -84,7 +84,7 @@ class WeightedMSE(torch.nn.Module):
     """
     import numpy as np
 
-    def __init__(self, Y, min_val=1e-3, magnify=100, weights=None):
+    def __init__(self, Y, min_val=1e-3, magnify=100, weights=None, weights_vec=None):
         super(WeightedMSE, self).__init__()
         # Save true labels
         # Maybe refer to https://stackoverflow.com/questions/55959918/in-pytorch-how-to-i-make-certain-module-parameters-static-during-training
@@ -96,6 +96,8 @@ class WeightedMSE(torch.nn.Module):
         # Initialise paramters
         if weights != None:
             self.weights = torch.nn.Parameter(weights * torch.ones(self.Y.shape))
+        elif weights_vec != None:
+            self.weights = torch.nn.Parameter(torch.tensor(weights_vec))
         else:
             self.weights = torch.nn.Parameter(self.min_val + torch.rand_like(self.Y))
 
