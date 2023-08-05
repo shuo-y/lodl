@@ -296,28 +296,59 @@ def train_xgb_pre_weights(args, problem):
     Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
     Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
 
-    weights_vec = np.random.randn(Ytrain.shape[0])
+    eval_cnt = 10
 
-    loss_fn, loss_model_fn = get_loss_fn(
-        args.loss,
-        problem,
-        sampling=args.sampling,
-        num_samples=args.numsamples,
-        rank=args.quadrank,
-        sampling_std=args.samplingstd,
-        quadalpha=args.quadalpha,
-        lr=args.losslr,
-        serial=args.serial,
-        dflalpha=args.dflalpha,
-        verbose=args.lodlverbose,
-        get_loss_model=True,
-        samples_filename_read=args.samples_read,
-        no_train=args.no_train,
-        weights_vec=weights_vec,
-        input_args=args
-    )
+    results = []
+    factor = [math.pow(10, i) for i in range(1, 10, 2)]
 
-    pass
+    for cnt, fac in enumerate(factor):
+        weights_vec = np.ones(Ytrain.shape[0]) * fac
+        print("weights vec show as ," weights_vec)
+        loss_fn, loss_model_fn = get_loss_fn(
+            args.loss,
+            problem,
+            sampling=args.sampling,
+            num_samples=args.numsamples,
+            rank=args.quadrank,
+            sampling_std=args.samplingstd,
+            quadalpha=args.quadalpha,
+            lr=args.losslr,
+            serial=args.serial,
+            dflalpha=args.dflalpha,
+            verbose=args.lodlverbose,
+            get_loss_model=True,
+            samples_filename_read=args.samples_read,
+            no_train=args.no_train,
+            weights_vec=weights_vec,
+            input_args=args
+        )
+
+        cusloss = custom_loss(Y_train.detach().numpy(), loss_model_fn, loss_fn, args.mag_factor)
+        obj_fun = cusloss.get_obj_fn()
+        eval_fun = cusloss.get_eval_fn()
+
+        Xy = xgb.DMatrix(Xtrain, Ytrain)
+
+        booster = xgb.train(
+                {"tree_method": args.tree_method,
+                "num_target": Ytrain.shape[1],
+                "lambda": args.tree_lambda,
+                "alpha": args.tree_alpha,
+                "eta": args.tree_eta
+                },
+            dtrain=Xy,
+            num_boost_round = args.num_estimators,
+            obj = obj_fun,
+            evals = [(Xy, "train")],
+            custom_metric = eval_fun)
+
+        if args.dumptree:
+            dump_booster(booster, args)
+        model = treefromlodl(booster, Y_train[0].shape)
+        metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
+        results.append((model, metrics))
+
+    return results
 
 
 
