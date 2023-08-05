@@ -126,8 +126,6 @@ class custom_loss():
                  lo_model = self.loss_model_fn(predt[i], self.ygold[i].flatten(), "train", i)
                  grad[i], hes[i] = lo_model.my_grad_hess(predt[i], self.ygold[i].flatten())
 
-            import pdb
-            pdb.set_trace()
             grad = grad.flatten()
             hes = hes.flatten()
             print("grad.sum() {}".format(grad.sum()))
