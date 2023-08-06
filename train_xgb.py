@@ -209,6 +209,11 @@ def train_xgb_lodl(args, problem):
         metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
         return model, metrics
 
+    if args.weights_vec != '':
+        weights_vec = eval(args.weights_vec)
+    else:
+        weights_vec = []
+
     print(f"Loading {args.loss} Loss Function...")
     loss_fn, loss_model_fn = get_loss_fn(
         args.loss,
@@ -225,6 +230,7 @@ def train_xgb_lodl(args, problem):
         get_loss_model=True,
         samples_filename_read=args.samples_read,
         no_train=args.no_train,
+        weights_vec=weights_vec,
         input_args=args
     )
 

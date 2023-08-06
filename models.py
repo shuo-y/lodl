@@ -84,8 +84,9 @@ class WeightedMSE(torch.nn.Module):
     """
     import numpy as np
 
-    def __init__(self, Y, min_val=1e-3, magnify=100, weights=None, weights_vec=None):
+    def __init__(self, Y, min_val=1e-3, magnify=100, weights_vec=[]):
         super(WeightedMSE, self).__init__()
+        # Weights vec will ignore the min_val and magnify
         # Save true labels
         # Maybe refer to https://stackoverflow.com/questions/55959918/in-pytorch-how-to-i-make-certain-module-parameters-static-during-training
         self.Y = torch.nn.Parameter(Y.detach().view((-1)))
@@ -94,12 +95,12 @@ class WeightedMSE(torch.nn.Module):
 
         self.magnify = magnify
         # Initialise paramters
-        if weights != None:
-            self.weights = torch.nn.Parameter(weights * torch.ones(self.Y.shape))
-        elif weights_vec != None:
-            self.weights = torch.nn.Parameter(torch.tensor(weights_vec))
-        else:
+        if len(weights_vec) == 0:
             self.weights = torch.nn.Parameter(self.min_val + torch.rand_like(self.Y))
+        else:
+            self.weights = torch.nn.Parameter(torch.tensor(weights_vec))
+            self.min_val = self.weights.min().item()
+
 
     def forward(self, Yhats):
         # Flatten inputs
@@ -566,7 +567,7 @@ class LowRankQuadratic(torch.nn.Module):
 
 
 ## for debug
-def test_model_jax(loss_model, Y=None, check_naive=False):
+def test_model_jax(loss_model, Y=None, check_naive=False, **kwargs):
     if Y == None:
         Y = torch.rand((3, 2))
     Yhd = torch.rand_like(Y)
@@ -574,7 +575,7 @@ def test_model_jax(loss_model, Y=None, check_naive=False):
     print(loss_model.__name__)
 
     import jax.numpy as jnp
-    loss = loss_model(Y)
+    loss = loss_model(Y, **kwargs)
     print(loss(Yhd).item())
     if check_naive:
         fn, fn2 = loss.get_jnp_fun(True)
@@ -634,6 +635,8 @@ def test():
     test_model_jax(WeightedCE)
     test_model_jax(WeightedCE, torch.rand(8, 7))
     test_model_jax(WeightedMSE)
+    test_model_jax(WeightedMSE, torch.rand(3, 5), weights_vec=np.random.rand(15))
+    test_model_jax(WeightedMSE, torch.rand(3, 5), weights_vec=np.ones(15) * 100)
     test_model_jax(WeightedMSESum, torch.rand(5, 3))
     test_model_jax(WeightedMSESum, torch.rand(5, 2))
     test_model_jax(WeightedMSESum, torch.rand(3, 2))
