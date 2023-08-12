@@ -299,7 +299,7 @@ if __name__ == '__main__':
     parser.add_argument('--problem', type=str, choices=['budgetalloc', 'bipartitematching', 'cubic', 'rmab', 'portfolio', 'vmscheduling', 'vmschedulingseq'], default='portfolio')
     parser.add_argument('--loadnew', type=ast.literal_eval, default=False)
     parser.add_argument('--layers', type=int, default=2)
-    parser.add_argument('--iters', type=int, default=5000)
+    parser.add_argument('--iters', type=int, default=5000, help='used for original NN also search weights')
     parser.add_argument('--earlystopping', type=ast.literal_eval, default=True)
     parser.add_argument('--instances', type=int, default=400)
     parser.add_argument('--testinstances', type=int, default=200)
@@ -307,7 +307,7 @@ if __name__ == '__main__':
     parser.add_argument('--valfreq', type=int, default=5)
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--model', type=str, choices=['dense', 'xgb_decoupled', 'dense_multi', 'xgb_lodl', 'xgb_coupled', 'xgb_coupled_clf'], default='dense')
+    parser.add_argument('--model', type=str, choices=['dense', 'xgb_decoupled', 'dense_multi', 'xgb_lodl', 'xgb_coupled', 'xgb_coupled_clf', 'xgb_search'], default='dense')
     parser.add_argument('--loss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--batchsize', type=int, default=1000)
@@ -345,6 +345,9 @@ if __name__ == '__main__':
     #       Approach-Specific: Quadratic
     parser.add_argument('--quadrank', type=int, default=20)
     parser.add_argument('--quadalpha', type=float, default=0)
+    parser.add_argument('--search_estimators', type=int, default=10, help='use for cross entropy method search')
+    parser.add_argument('--search_numsamples', type=int, default=100, help='use for cross entropy method search')
+    parser.add_argument('--search_subsamples', type=int, default=10, help='use for cross entropy method search')
     parser.add_argument('--num_estimators', type=int, default=10)
     parser.add_argument('--lodl_iter', type=int, default=10, help='if we want to train lodl multi rounds')
     parser.add_argument('--tree_method', type=str, default='hist', choices=['hist', 'gpu_hist', 'approx', 'auto', 'exact'])
@@ -444,6 +447,9 @@ if __name__ == '__main__':
     elif args.model == "dense_multi":
         model, metrics = train_dense_multi(args, problem)
         # Document how well this trained model does
+    elif args.model == "xgb_search":
+        from train_xgb import train_xgb_search_weights
+        model, metrics = train_xgb_search_weights(args, problem)
 
     perf_metrics(problem, metrics)
 
