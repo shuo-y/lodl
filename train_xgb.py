@@ -413,6 +413,8 @@ def train_xgb_search_weights(args, problem):
         custom_metric = eval_fun)
 
     model = treefromlodl(booster, Y_train[0].shape)
+
+    from utils import print_metrics
     metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
 
     return model, metrics
