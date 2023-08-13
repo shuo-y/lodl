@@ -295,6 +295,33 @@ def dump_booster(booster, args):
         f.write(config)
 
 
+def search_weights_loss():
+    def __init__(self, num_item, ypred_dim, weights_vec, verbose=True):
+        self.num_item = num_item
+        self.ypred_dim = ypred_dim
+        assert len(weights_vec) == self.ypred_dim
+        self.weights_vec = weights_vec
+
+
+    def get_obj_fn(self):
+        def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+
+            diff = (predt - y) / self.ypred_dim
+            grad = 2 * self.weights_vec * diff
+            hess = (2 * self.weights_vec) / self.ypred_dim
+            return grad, hess
+        return grad_fn
+
+    def get_eval_fn(self):
+        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+            diff = self.weights_vec * ((predt - y) ** 2)
+            loss = diff.mean()
+            return "eval loss", loss
+        return eval_fn
+
+
 def train_xgb_search_weights(args, problem):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_val, Y_val, Y_val_aux = problem.get_val_data()
@@ -323,28 +350,8 @@ def train_xgb_search_weights(args, problem):
         weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
         print(f"Iter {it}: means {means}  covs {covs}")
         for cnt in range(Nsamples):
-            loss_fn, loss_model_fn = get_loss_fn(
-                args.loss,
-                problem,
-                sampling=args.sampling,
-                num_samples=args.numsamples,
-                rank=args.quadrank,
-                sampling_std=args.samplingstd,
-                quadalpha=args.quadalpha,
-                lr=args.losslr,
-                serial=args.serial,
-                dflalpha=args.dflalpha,
-                verbose=args.lodlverbose,
-                get_loss_model=True,
-                samples_filename_read=args.samples_read,
-                no_train=True,
-                weights_vec=weight_samples[cnt],
-                input_args=args
-            )
-
-            cusloss = custom_loss(Y_train.detach().numpy(), loss_model_fn, loss_fn, args.mag_factor, verbose=False)
+            cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[cnt])
             obj_fun = cusloss.get_obj_fn()
-            eval_fun = cusloss.get_eval_fn()
 
             Xy = xgb.DMatrix(Xtrain, Ytrain)
 
@@ -357,8 +364,7 @@ def train_xgb_search_weights(args, problem):
                     },
                 dtrain=Xy,
                 num_boost_round = args.search_estimators,
-                obj = obj_fun,
-                custom_metric = eval_fun)
+                obj = obj_fun)
 
             model = treefromlodl(booster, Y_train[0].shape)
             pred = model(X_train).squeeze()
@@ -374,26 +380,8 @@ def train_xgb_search_weights(args, problem):
         means = np.mean(sub_weights, axis=0)
         covs = np.cov(sub_weights.T)
 
-    weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
-    loss_fn, loss_model_fn = get_loss_fn(
-                args.loss,
-                problem,
-                sampling=args.sampling,
-                num_samples=args.numsamples,
-                rank=args.quadrank,
-                sampling_std=args.samplingstd,
-                quadalpha=args.quadalpha,
-                lr=args.losslr,
-                serial=args.serial,
-                dflalpha=args.dflalpha,
-                verbose=args.lodlverbose,
-                get_loss_model=True,
-                samples_filename_read=args.samples_read,
-                no_train=True,
-                weights_vec=weight_samples[cnt],
-                input_args=args)
-
-    cusloss = custom_loss(Y_train.detach().numpy(), loss_model_fn, loss_fn, args.mag_factor)
+    weight_samples = np.random.multivariate_normal(means, covs, 1)
+    cusloss = custom_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[0])
     obj_fun = cusloss.get_obj_fn()
     eval_fun = cusloss.get_eval_fn()
 
