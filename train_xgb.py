@@ -295,7 +295,7 @@ def dump_booster(booster, args):
         f.write(config)
 
 
-def search_weights_loss():
+class search_weights_loss():
     def __init__(self, num_item, ypred_dim, weights_vec, verbose=True):
         self.num_item = num_item
         self.ypred_dim = ypred_dim
