@@ -310,6 +310,7 @@ class search_weights_loss():
             diff = (predt - y) / self.ypred_dim
             grad = 2 * self.weights_vec * diff
             hess = (2 * self.weights_vec) / self.ypred_dim
+            hess = np.tile(hess, self.num_item).reshape(self.num_item, self.ypred_dim)
             return grad, hess
         return grad_fn
 
