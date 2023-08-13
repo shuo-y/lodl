@@ -242,8 +242,6 @@ def train_xgb_lodl(args, problem):
     obj_fun = cusloss.get_obj_fn()
     eval_fun = cusloss.get_eval_fn()
 
-
-
     #reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
     Xy = xgb.DMatrix(Xtrain, Ytrain)
     Xyval = xgb.DMatrix(Xval, Yval)
@@ -311,7 +309,7 @@ class search_weights_loss():
             grad = 2 * self.weights_vec * diff
             hess = (2 * self.weights_vec) / self.ypred_dim
             hess = np.tile(hess, self.num_item).reshape(self.num_item, self.ypred_dim)
-            return grad, hess
+            return grad.reshape(y.size), hess.reshape(y.size)
         return grad_fn
 
     def get_eval_fn(self):
@@ -319,7 +317,7 @@ class search_weights_loss():
             y = dtrain.get_label().reshape(predt.shape)
             diff = self.weights_vec * ((predt - y) ** 2)
             loss = diff.mean()
-            return "eval loss", loss
+            return "evalloss", loss
         return eval_fn
 
 
@@ -382,12 +380,11 @@ def train_xgb_search_weights(args, problem):
         covs = np.cov(sub_weights.T)
 
     weight_samples = np.random.multivariate_normal(means, covs, 1)
-    cusloss = custom_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[0])
+    cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[0])
     obj_fun = cusloss.get_obj_fn()
     eval_fun = cusloss.get_eval_fn()
 
     Xy = xgb.DMatrix(Xtrain, Ytrain)
-
     booster = xgb.train(
             {"tree_method": args.tree_method,
             "num_target": Ytrain.shape[1],
