@@ -342,9 +342,7 @@ def _get_learned_loss(
     #       Try to load sampled points
     #  If error here check if the problem domain is VMScheduling
     if len(samples_filename_read) == 0:
-        master_filename = os.path.join(folder, f"{problem.__class__.__name__}.csv")
-        problem_filename, _ = find_saved_problem(master_filename, problem.__dict__)
-        samples_filename_read = f"{problem_filename[:-4]}_{sampling}_{sampling_std}.pkl"
+        samples_filename_read = f"{problem.__class__.__name__}_{sampling}_{sampling_std}.pkl"
 
 
     samples_filename_write = f"{samples_filename_read[:-4]}_{time.time()}.pkl"

@@ -29,88 +29,6 @@ from models import model_dict
 from losses import MSE, get_loss_fn
 from utils import print_metrics, init_if_not_saved, move_to_gpu
 
-def train_dense_multi(args, problem):
-    # Load a loss function to train the ML model on
-    #   TODO: Figure out loss function "type" for mypy type checking. Define class/interface?
-    # Get data
-    X_train, Y_train, Y_train_aux = problem.get_train_data()
-    X_val, Y_val, Y_val_aux = problem.get_val_data()
-    X_test, Y_test, Y_test_aux = problem.get_test_data()
-
-    ipdim, opdim = problem.get_modelio_shape()
-    model_builder = model_dict[args.model]
-    model = model_builder(
-        num_features=ipdim,
-        num_targets=opdim,
-        num_layers=args.layers,
-        intermediate_size=500,
-        output_activation=problem.get_output_activation(),
-    )
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
-    print(f"Loading {args.loss} Loss Function...")
-    for i in range(args.lodl_iter):
-        model.eval()
-        loss_fn = get_loss_fn(
-            args.loss,
-            problem,
-            sampling=args.sampling,
-            num_samples=args.numsamples,
-            rank=args.quadrank,
-            sampling_std=args.samplingstd,
-            quadalpha=args.quadalpha,
-            lr=args.losslr,
-            serial=args.serial,
-            dflalpha=args.dflalpha,
-            train_model=model,
-        )
-        model.train()
-
-        # Train neural network with a given loss function
-        print(f"Training {args.model} model on {args.loss} loss...")
-        #   Move everything to GPU, if available
-        #if torch.cuda.is_available():
-        #    move_to_gpu(problem)
-        #    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        #    model = model.to(device)
-
-
-        best = (float("inf"), None)
-        time_since_best = 0
-        for iter_idx in range(args.iters):
-            # Check metrics on val set
-            if iter_idx % args.valfreq == 0:
-                # Compute metrics
-                metrics = print_metrics(model, problem, args.loss, loss_fn, f"Iter {iter_idx},", isTrain=True)
-
-                # Save model if it's the best one
-                if best[1] is None or metrics['val']['loss'] < best[0]:
-                    best = (metrics['val']['loss'], deepcopy(model))
-                    time_since_best = 0
-
-                # Stop if model hasn't improved for patience steps
-                if args.earlystopping and time_since_best > args.patience:
-                    break
-
-            # Learn
-            losses = []
-            for i in random.sample(range(len(X_train)), min(args.batchsize, len(X_train))):
-                pred = model(X_train[i]).squeeze()
-                losses.append(loss_fn(pred, Y_train[i], aux_data=Y_train_aux[i], partition='train', index=i))
-            loss = torch.stack(losses).mean()
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            time_since_best += 1
-
-        if args.earlystopping:
-            model = best[1]
-
-    metrics = print_metrics(model, problem, args.loss, loss_fn, "final", skiptestloss=True)
-    return model, metrics
-
-
-
 def train_dense(args, problem):
     # Load a loss function to train the ML model on
     #   TODO: Figure out loss function "type" for mypy type checking. Define class/interface?
@@ -126,6 +44,7 @@ def train_dense(args, problem):
         lr=args.losslr,
         serial=args.serial,
         dflalpha=args.dflalpha,
+        samples_filename_read=args.samples_read
     )
     # Get data
     X_train, Y_train, Y_train_aux = problem.get_train_data()
@@ -371,55 +290,50 @@ if __name__ == '__main__':
     # Load problem
     print(f"Hyperparameters: {args}\n")
     print(f"Loading {args.problem} Problem...")
-    init_problem = partial(init_if_not_saved, load_new=args.loadnew)
+
     if args.problem == 'budgetalloc':
-        problem_kwargs =    {'num_train_instances': args.instances,
-                            'num_test_instances': args.testinstances,
-                            'num_targets': args.numtargets,
-                            'num_items': args.numitems,
-                            'budget': args.budget,
-                            'num_fake_targets': args.fakefeatures,
-                            'rand_seed': args.seed,
-                            'val_frac': args.valfrac,}
-        problem = init_problem(BudgetAllocation, problem_kwargs)
+        problem = BudgetAllocation(num_train_instances = args.instances,
+                                   num_test_instances = args.testinstances,
+                                   num_targets = args.numtargets,
+                                   num_items = args.numitems,
+                                   budget = args.budget,
+                                   num_fake_targets = args.fakefeatures,
+                                   rand_seed = args.seed,
+                                   val_frac = args.valfrac)
     elif args.problem == 'cubic':
-        problem_kwargs =    {'num_train_instances': args.instances,
-                            'num_test_instances': args.testinstances,
-                            'num_items': args.numitems,
-                            'budget': args.budget,
-                            'rand_seed': args.seed,
-                            'val_frac': args.valfrac,}
-        problem = init_problem(CubicTopK, problem_kwargs)
+        problem = CubicTopK(num_train_instances = args.instances,
+                            num_test_instances = args.testinstances,
+                            num_items = args.numitems,
+                            budget = args.budget,
+                            rand_seed = args.seed,
+                            val_frac = args.valfrac)
     elif args.problem == 'bipartitematching':
-        problem_kwargs =    {'num_train_instances': args.instances,
-                            'num_test_instances': args.testinstances,
-                            'num_nodes': args.nodes,
-                            'val_frac': args.valfrac,
-                            'rand_seed': args.seed,}
-        problem = init_problem(BipartiteMatching, problem_kwargs)
+        problem = BipartiteMatching(num_train_instances = args.instances,
+                                    num_test_instances = args.testinstances,
+                                    num_nodes = args.nodes,
+                                    val_frac = args.valfrac,
+                                    rand_seed = args.seed)
     elif args.problem == 'rmab':
-        problem_kwargs =    {'num_train_instances': args.instances,
-                            'num_test_instances': args.testinstances,
-                            'num_arms': args.numarms,
-                            'eval_method': args.eval,
-                            'min_lift': args.minlift,
-                            'budget': args.rmabbudget,
-                            'gamma': args.gamma,
-                            'num_features': args.numfeatures,
-                            'num_intermediate': args.scramblingsize,
-                            'num_layers': args.scramblinglayers,
-                            'noise_std': args.noisestd,
-                            'val_frac': args.valfrac,
-                            'rand_seed': args.seed,}
-        problem = init_problem(RMAB, problem_kwargs)
+        problem = RMAB(num_train_instances = args.instances,
+                       num_test_instances = args.testinstances,
+                       num_arms = args.numarms,
+                       eval_method = args.eval,
+                       min_lift = args.minlift,
+                       budget = args.rmabbudget,
+                       gamma = args.gamma,
+                       num_features = args.numfeatures,
+                       num_intermediate = args.scramblingsize,
+                       num_layers = args.scramblinglayers,
+                       noise_std = args.noisestd,
+                       val_frac = args.valfrac,
+                       rand_seed = args.seed)
     elif args.problem == 'portfolio':
-        problem_kwargs =    {'num_train_instances': args.instances,
-                            'num_test_instances': args.testinstances,
-                            'num_stocks': args.stocks,
-                            'alpha': args.stockalpha,
-                            'val_frac': args.valfrac,
-                            'rand_seed': args.seed,}
-        problem = init_problem(PortfolioOpt, problem_kwargs)
+        problem = PortfolioOpt(num_train_instances = args.instances,
+                               num_test_instances = args.testinstances,
+                               num_stocks = args.stocks,
+                               alpha = args.stockalpha,
+                               val_frac = args.valfrac,
+                               rand_seed = args.seed)
     elif args.problem == 'vmscheduling':
         problem = VMScheduling(rand_seed=args.seed,
                                num_train=args.instances - int(args.valfrac * args.instances),
