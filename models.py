@@ -541,10 +541,10 @@ class LowRankQuadratic(torch.nn.Module):
         yhat = yhat.flatten()
         basis = torch.tril(self.basis).clamp(-100, 100).detach().cpu().numpy()
         y = y.flatten()
-        diff = y - yhat
+        diff = yhat - y
         hmat = basis @ basis.T
         hmat = hmat + hmat.T
-        grad = - (hmat @ diff) - 2 * self.alpha * diff/len(y)
+        grad = (hmat @ diff) + 2 * self.alpha * diff/len(y)
         hess = np.diagonal(hmat) + 2 * self.alpha / len(y)
 
         return grad, hess

@@ -246,18 +246,13 @@ def train_xgb_lodl(args, problem):
     Xy = xgb.DMatrix(Xtrain, Ytrain)
     Xyval = xgb.DMatrix(Xval, Yval)
 
-    booster = xgb.train(
-            {"tree_method": args.tree_method,
-             "num_target": Ytrain.shape[1],
-             "lambda": args.tree_lambda,
-             "alpha": args.tree_alpha,
-             "eta": args.tree_eta
-            },
-        dtrain=Xy,
-        num_boost_round = args.num_estimators,
-        obj = obj_fun,
-        evals = [(Xy, "train")],
-        custom_metric = eval_fun)
+    booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1], "lambda": args.tree_lambda,
+                         "alpha": args.tree_alpha, "eta": args.tree_eta},
+                        dtrain=Xy,
+                        num_boost_round = args.num_estimators,
+                        obj = obj_fun,
+                        evals = [(Xy, "train")],
+                        custom_metric = eval_fun)
 
     if args.dumptree:
         dump_booster(booster, args)
@@ -321,6 +316,7 @@ class search_weights_loss():
         return eval_fn
 
 
+
 class search_quadratic_loss():
     def __init__(self, num_item, ypred_dim, basis, alpha):
         self.num_item = num_item
@@ -332,10 +328,10 @@ class search_quadratic_loss():
         def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
             y = dtrain.get_label().reshape(predt.shape)
 
-            diff = (y - predt)
+            diff = predt - y
             base = self.basis
             hmat = (base @ base.T)
-            grad = (diff @ hmat) - 2 * self.alpha * (diff/y.shape[1])
+            grad = (diff @ hmat) + 2 * self.alpha * (diff/y.shape[1])
             grad = grad.reshape(y.size)
             hess = np.diagonal(hmat) + (2 * self.alpha/y.shape[1])
             hess = np.tile(hess, self.num_item)
@@ -344,6 +340,19 @@ class search_quadratic_loss():
             return grad, hess
         return grad_fn
 
+    def get_eval_fn(self):
+        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+
+            diff = y - predt
+            ## (100, 2)  (2)
+            #print(diff.shape)
+            #print(self.basis.shape)
+            quad = ((diff @ self.basis) ** 2).sum()
+            mse = (diff ** 2).mean()
+            res = quad + self.alpha * mse
+            return "quadloss4", res
+        return eval_fn
 
 
 
@@ -376,23 +385,18 @@ def train_xgb_search_weights(args, problem):
         print(f"Iter {it}: means {means}  covs {covs}")
         for cnt in range(Nsamples):
             if args.search_rank > 1:
-                cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[cnt].reshape(Ytrain.shape[1], args.search_rank), args.quadalpha)
+                cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], np.ones((Ytrain.shape[1], args.search_rank)).reshape(Ytrain.shape[1], args.search_rank), args.quadalpha)
             else:
                 cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[cnt])
-            obj_fun = cusloss.get_obj_fn()
 
             Xy = xgb.DMatrix(Xtrain, Ytrain)
-
-            booster = xgb.train(
-                    {"tree_method": args.tree_method,
-                    "num_target": Ytrain.shape[1],
-                    "lambda": args.tree_lambda,
-                    "alpha": args.tree_alpha,
-                    "eta": args.tree_eta
-                    },
-                dtrain=Xy,
-                num_boost_round = args.search_estimators,
-                obj = obj_fun)
+            booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
+                                 "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta},
+                                dtrain = Xy,
+                                num_boost_round = args.search_estimators,
+                                obj = cusloss.get_obj_fn(),
+                                evals = [(Xy, "train")],
+                                custom_metric = cusloss.get_eval_fn())
 
             model = treefromlodl(booster, Y_train[0].shape)
             pred = model(X_train).squeeze()
@@ -414,20 +418,15 @@ def train_xgb_search_weights(args, problem):
         cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[0].reshape(Ytrain.shape[1], args.search_rank), args.quadalpha)
     else:
         cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[0])
-    obj_fun = cusloss.get_obj_fn()
 
     Xy = xgb.DMatrix(Xtrain, Ytrain)
-    booster = xgb.train(
-            {"tree_method": args.tree_method,
-            "num_target": Ytrain.shape[1],
-            "lambda": args.tree_lambda,
-            "alpha": args.tree_alpha,
-            "eta": args.tree_eta
-            },
-        dtrain=Xy,
-        num_boost_round = args.num_estimators,
-        obj = obj_fun,
-        evals = [(Xy, "train")])
+    booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
+                         "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta},
+                        dtrain = Xy,
+                        num_boost_round = args.num_estimators,
+                        obj = cusloss.get_obj_fn(),
+                        evals = [(Xy, "train")],
+                        custom_metric = cusloss.get_eval_fn())
 
     model = treefromlodl(booster, Y_train[0].shape)
 
