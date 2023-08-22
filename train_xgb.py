@@ -372,7 +372,7 @@ def train_xgb_search_weights(args, problem):
     Nsub = args.search_subsamples
     # Select the sub part
     ndim = Ytrain.shape[1] * args.search_rank
-    means = np.ones(ndim) * args.mag_factor
+    means = np.ones(ndim) * args.search_means
     covs = np.eye(ndim)
     print(f"The dimensiona is {ndim}")
     global_step = 0
@@ -385,9 +385,9 @@ def train_xgb_search_weights(args, problem):
         print(f"Iter {it}: means {means}  covs {covs}")
         for cnt in range(Nsamples):
             if args.search_rank > 1:
-                cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], np.ones((Ytrain.shape[1], args.search_rank)).reshape(Ytrain.shape[1], args.search_rank), args.quadalpha)
+                cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt].reshape(Ytrain.shape[1], args.search_rank), args.quadalpha)
             else:
-                cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[cnt])
+                cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt])
 
             Xy = xgb.DMatrix(Xtrain, Ytrain)
             booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
@@ -395,7 +395,7 @@ def train_xgb_search_weights(args, problem):
                                 dtrain = Xy,
                                 num_boost_round = args.search_estimators,
                                 obj = cusloss.get_obj_fn(),
-                                evals = [(Xy, "train")],
+                                evals = eval(args.search_eval),
                                 custom_metric = cusloss.get_eval_fn())
 
             model = treefromlodl(booster, Y_train[0].shape)
@@ -413,11 +413,11 @@ def train_xgb_search_weights(args, problem):
         covs = np.cov(sub_weights.T)
 
     weight_samples = np.random.multivariate_normal(means, covs, 1)
-
+    print(f"Final: means {means} covs {covs} weights {weight_samples[0]}")
     if args.search_rank > 1:
-        cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[0].reshape(Ytrain.shape[1], args.search_rank), args.quadalpha)
+        cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0].reshape(Ytrain.shape[1], args.search_rank), args.quadalpha)
     else:
-        cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], weight_samples[0])
+        cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0])
 
     Xy = xgb.DMatrix(Xtrain, Ytrain)
     booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
