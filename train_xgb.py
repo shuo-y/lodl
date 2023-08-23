@@ -371,7 +371,7 @@ def train_xgb_search_weights(args, problem):
     # Sample a lot of N
     Nsub = args.search_subsamples
     # Select the sub part
-    ndim = Ytrain.shape[1] * args.search_rank
+    ndim = Ytrain.shape[1] * args.quadrank
     means = np.ones(ndim) * args.search_means
     covs = np.eye(ndim)
     print(f"The dimensiona is {ndim}")
@@ -384,8 +384,8 @@ def train_xgb_search_weights(args, problem):
         weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
         print(f"Iter {it}: means {means}  covs {covs}")
         for cnt in range(Nsamples):
-            if args.search_rank > 1:
-                cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt].reshape(Ytrain.shape[1], args.search_rank), args.quadalpha)
+            if args.quadrank > 1:
+                cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt].reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
             else:
                 cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt])
 
@@ -414,8 +414,8 @@ def train_xgb_search_weights(args, problem):
 
     weight_samples = np.random.multivariate_normal(means, covs, 1)
     print(f"Final: means {means} covs {covs} weights {weight_samples[0]}")
-    if args.search_rank > 1:
-        cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0].reshape(Ytrain.shape[1], args.search_rank), args.quadalpha)
+    if args.quadrank > 1:
+        cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0].reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
     else:
         cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0])
 

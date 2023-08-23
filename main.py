@@ -263,7 +263,6 @@ if __name__ == '__main__':
     parser.add_argument('--losslr', type=float, default=0.01)
     #       Approach-Specific: Quadratic
     parser.add_argument('--quadrank', type=int, default=20)
-    parser.add_argument('--search_rank', type=int, default=1)
     parser.add_argument('--quadalpha', type=float, default=0)
     parser.add_argument('--search_estimators', type=int, default=10, help='use for cross entropy method search')
     parser.add_argument('--search_numsamples', type=int, default=100, help='use for cross entropy method search')
