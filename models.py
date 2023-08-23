@@ -516,8 +516,14 @@ class LowRankQuadratic(torch.nn.Module):
         self.Y = torch.nn.Parameter(self.Y_raw.view((-1)))
         self.Y.requires_grad = False
 
-        # Create a quadratic matrix
-        basis = torch.tril(torch.rand((self.Y.shape[0], rank)) / (self.Y.shape[0] * self.Y.shape[0]))
+        if "weights_vec" in kwargs:
+            assert len(kwargs["weights_vec"].shape) == 2
+            assert (kwargs["weights_vec"].shape[0] == self.Y.shape[0])
+            assert (kwargs["weights_vec"].shape[1] == rank)
+            basis = torch.tril(torch.tensor(kwargs["weights_vec"]) / (self.Y.shape[0] * self.Y.shape[0])).float()
+        else:
+            # Create a quadratic matrix
+            basis = torch.tril(torch.rand((self.Y.shape[0], rank)) / (self.Y.shape[0] * self.Y.shape[0]))
         self.basis = torch.nn.Parameter(basis)  
 
     def forward(self, Yhat):
