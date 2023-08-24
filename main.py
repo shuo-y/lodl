@@ -268,6 +268,8 @@ if __name__ == '__main__':
     parser.add_argument('--search_numsamples', type=int, default=100, help='use for cross entropy method search')
     parser.add_argument('--search_subsamples', type=int, default=10, help='use for cross entropy method search')
     parser.add_argument('--search_means', type=float, default=1, help='use for cross entropy method search the mean of the weights')
+    parser.add_argument('--search_obj', type=str, default='cem_get_objective(problem, model, X_val, Y_val, Y_val_aux)', help='use for cross entropy method search the mean of the weights')
+    parser.add_argument('--search_eval', type=str, default='[]')
     parser.add_argument('--num_estimators', type=int, default=10)
     parser.add_argument('--lodl_iter', type=int, default=10, help='if we want to train lodl multi rounds')
     parser.add_argument('--tree_method', type=str, default='hist', choices=['hist', 'gpu_hist', 'approx', 'auto', 'exact'])
@@ -283,7 +285,6 @@ if __name__ == '__main__':
     parser.add_argument('--dumptree', action='store_true')
     parser.add_argument('--no_train', action='store_true')
     parser.add_argument('--weights_vec', type=str, default='')
-    parser.add_argument('--search_eval', type=str, default='[]')
     parser.add_argument('--evalloss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse', help='use for evaluate the model with metrics')
 
     args = parser.parse_args()

@@ -354,6 +354,11 @@ class search_quadratic_loss():
             return "quadloss4", res
         return eval_fn
 
+def cem_get_objective(problem, model, X, Y, Yaux):
+    pred = model(X).squeeze()
+    Zs_pred = problem.get_decision(pred, aux_data=Yaux, isTrain=True)
+    objectives = problem.get_objective(Y, Zs_pred, aux_data=Yaux)
+    return objectives.mean().item() * (-1)
 
 
 def train_xgb_search_weights(args, problem):
@@ -399,10 +404,7 @@ def train_xgb_search_weights(args, problem):
                                 custom_metric = cusloss.get_eval_fn())
 
             model = treefromlodl(booster, Y_train[0].shape)
-            pred = model(X_train).squeeze()
-            Zs_pred = problem.get_decision(pred, aux_data=Y_train_aux, isTrain=True)
-            objectives = problem.get_objective(Y_train, Zs_pred, aux_data=Y_train_aux)
-            objective = objectives.mean().item() * (-1)
+            objective = eval(args.search_obj)
             obj_list.append(objective)
         ## Sort obj updates means and covs
         obj_list = np.array(obj_list)
