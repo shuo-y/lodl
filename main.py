@@ -135,7 +135,7 @@ def get_random_optDQ(Y, Y_aux, args):
         return [randomdq, obj]
 
 
-def perf_metrics(problem, metrics):
+def perf_metrics(args, problem, metrics):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_test, Y_test, Y_test_aux = problem.get_test_data()
     print("X_train.shape {}".format(X_train.shape))
@@ -170,7 +170,7 @@ def perf_metrics(problem, metrics):
     sys.stdout.flush()
 
 
-def perf_multi_metrics(problem, metrics_list):
+def perf_multi_metrics(args, problem, metrics_list):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_test, Y_test, Y_test_aux = problem.get_test_data()
     print("X_train.shape {}".format(X_train.shape))
@@ -368,7 +368,7 @@ if __name__ == '__main__':
         from train_xgb import train_xgb_search_weights
         model, metrics = train_xgb_search_weights(args, problem)
 
-    perf_metrics(problem, metrics)
+    perf_metrics(args, problem, metrics)
 
     print(args)
 
