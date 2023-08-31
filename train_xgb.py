@@ -246,8 +246,12 @@ def train_xgb_lodl(args, problem):
     Xy = xgb.DMatrix(Xtrain, Ytrain)
     Xyval = xgb.DMatrix(Xval, Yval)
 
-    booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1], "lambda": args.tree_lambda,
-                         "alpha": args.tree_alpha, "eta": args.tree_eta},
+    booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
+                         "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
+                         "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
+                         "min_child_weight": args.tree_min_child_weight,
+                         "max_delta_step": args.tree_max_delta_step, "subsample": args.tree_subsample,
+                         "scale_pos_weight": args.tree_scale_pos_weight},
                         dtrain=Xy,
                         num_boost_round = args.num_estimators,
                         obj = obj_fun,
@@ -396,7 +400,11 @@ def train_xgb_search_weights(args, problem):
 
             Xy = xgb.DMatrix(Xtrain, Ytrain)
             booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
-                                 "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta},
+                                 "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
+                                 "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
+                                 "min_child_weight": args.tree_min_child_weight,
+                                 "max_delta_step": args.tree_max_delta_step, "subsample": args.tree_subsample,
+                                 "scale_pos_weight": args.tree_scale_pos_weight},
                                 dtrain = Xy,
                                 num_boost_round = args.search_estimators,
                                 obj = cusloss.get_obj_fn(),
@@ -423,7 +431,11 @@ def train_xgb_search_weights(args, problem):
 
     Xy = xgb.DMatrix(Xtrain, Ytrain)
     booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
-                         "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta},
+                         "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
+                         "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
+                         "min_child_weight": args.tree_min_child_weight,
+                         "max_delta_step": args.tree_max_delta_step, "subsample": args.tree_subsample,
+                         "scale_pos_weight": args.tree_scale_pos_weight},
                         dtrain = Xy,
                         num_boost_round = args.num_estimators,
                         obj = cusloss.get_obj_fn(),
