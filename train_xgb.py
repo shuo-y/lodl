@@ -335,6 +335,7 @@ class search_quadratic_loss():
             diff = predt - y
             base = self.basis
             hmat = (base @ base.T)
+            hmat = hmat + hmat.T
             grad = (diff @ hmat) + 2 * self.alpha * (diff/y.shape[1])
             grad = grad.reshape(y.size)
             hess = np.diagonal(hmat) + (2 * self.alpha/y.shape[1])
@@ -358,6 +359,61 @@ class search_quadratic_loss():
             return "quadloss4", res
         return eval_fn
 
+class search_direct_quadratic_loss():
+    def __init__(self, num_item, ypred_dim, basis, alpha):
+        self.num_item = num_item
+        self.ypred_dim = ypred_dim
+        self.basis = np.tril(basis)
+        assert len(self.basis.shape) == 3
+        assert self.basis.shape[-1] == 4
+        # basis should be ypred_dim * ypred_dim * 4
+        self.alpha = alpha
+
+    def get_obj_fn(self):
+        def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+
+            grad = np.zeros(y.shape)
+            hess = np.zeros(y.shape)
+
+            for i in range(y.shape[0]):
+                diff = predt[i] - y[i]
+                base = self.basis
+
+                direction = (predt[i] > y[i]).astype(int)
+                direction_col = np.expand_dims(direction, axis=1)
+                direction_row = np.expand_dims(direction, axis=0)
+                indices = direction_col  + 2 * direction_row
+                indices = np.expand_dims(indices, axis=2)
+
+                base = np.squeeze(np.take_along_axis(self.basis, indices, axis=2))
+
+                hmat = (base @ base.T)
+                hmat = hmat + hmat.T
+                grad = (hmat @ diff) + 2 * self.alpha * (diff/y.shape[1])
+                hess = np.diagonal(hmat) + (2 * self.alpha/y.shape[1])
+
+            grad = grad.flatten()
+            hess = hess.flatten()
+
+            return grad, hess
+        return grad_fn
+
+    def get_eval_fn(self):
+        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+
+            diff = y - predt
+            ## (100, 2)  (2)
+            #print(diff.shape)
+            #print(self.basis.shape)
+            quad = ((diff @ self.basis) ** 2).sum()
+            mse = (diff ** 2).mean()
+            res = quad + self.alpha * mse
+            return "directquadloss4", res
+        return eval_fn
+
+
 def cem_get_objective(problem, model, X, Y, Yaux):
     pred = model(X).squeeze()
     Zs_pred = problem.get_decision(pred, aux_data=Yaux, isTrain=True)
@@ -380,7 +436,15 @@ def train_xgb_search_weights(args, problem):
     # Sample a lot of N
     Nsub = args.search_subsamples
     # Select the sub part
-    ndim = Ytrain.shape[1] * args.quadrank
+    if args.loss == "weightedmse":
+        ndim = Ytrain.shape[1]
+    elif args.loss == "quad":
+        ndim = Ytrain.shape[1] * args.quadrank
+    elif args.loss == "quad++":
+        ndim = Ytrain.shape[1] * Ytrain.shape[1] * 4
+    else:
+        assert "Not supported loss"
+
     means = np.ones(ndim) * args.search_means
     covs = np.eye(ndim)
     print(f"The dimensiona is {ndim}")
@@ -391,12 +455,14 @@ def train_xgb_search_weights(args, problem):
     for it in range(args.iters):
         obj_list = []
         weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
-        print(f"Iter {it}: means {means}  covs {covs}")
+        print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
         for cnt in range(Nsamples):
-            if args.quadrank > 1:
-                cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt].reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
-            else:
+            if args.loss == "weightedmse":
                 cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt])
+            elif args.loss == "quad":
+                cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt].reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
+            elif args.loss == "quad++":
+                cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt].reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
 
             Xy = xgb.DMatrix(Xtrain, Ytrain)
             booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
@@ -427,10 +493,14 @@ def train_xgb_search_weights(args, problem):
 
     weight_samples = np.random.multivariate_normal(means, covs, 1)
     print(f"Final: means {means} covs {covs} weights {weight_samples[0]}")
-    if args.quadrank > 1:
-        cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0].reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
-    else:
+
+    if args.loss == "weightedmse":
         cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0])
+    elif args.loss == "quad":
+        cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0].reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
+    elif args.loss == "quad++":
+        cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0].reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
+
 
     Xy = xgb.DMatrix(Xtrain, Ytrain)
     booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
