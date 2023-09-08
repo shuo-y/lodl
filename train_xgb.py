@@ -390,8 +390,8 @@ class search_direct_quadratic_loss():
 
                 hmat = (base @ base.T)
                 hmat = hmat + hmat.T
-                grad = (hmat @ diff) + 2 * self.alpha * (diff/y.shape[1])
-                hess = np.diagonal(hmat) + (2 * self.alpha/y.shape[1])
+                grad[i] = (hmat @ diff) + 2 * self.alpha * (diff/y.shape[1])
+                hess[i] = np.diagonal(hmat) + (2 * self.alpha/y.shape[1])
 
             grad = grad.flatten()
             hess = hess.flatten()
