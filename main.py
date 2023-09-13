@@ -285,6 +285,7 @@ if __name__ == '__main__':
     parser.add_argument('--tree_colsample_bytree', type=float, default=1, help='ratio of subsample (0, 1]')
     parser.add_argument('--tree_colsample_bylevel', type=float, default=1, help='ratio of subsample (0, 1]')
     parser.add_argument('--tree_colsample_bynode', type=float, default=1, help='ratio of subsample (0, 1]')
+    parser.add_argument('--tree_check_logger', action='store_true', help='check the logger for tree')
     # Based on https://docs.python.org/3/library/argparse.html
     parser.add_argument('--lodlverbose', action='store_true')
     parser.add_argument('--weights_min', type=float, default=1e-3, help='minimum values of the weights')
