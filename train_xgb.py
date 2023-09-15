@@ -88,6 +88,7 @@ class custom_loss():
         self.loss_fn = loss_fn
         self.mag_factor = mag_factor
         self.verbose = verbose
+        self.logger = []
         #g = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
         #h = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
         #for i in range(self.ygold.shape[0]):
@@ -155,6 +156,7 @@ class custom_loss():
             print(manual_grad[-10:])
             print(grad[-10:])
             """
+            self.logger.append([predt, grad, hes])
             return grad, hes
         return obj
 
@@ -298,6 +300,7 @@ class search_weights_loss():
         self.ypred_dim = ypred_dim
         assert len(weights_vec) == self.ypred_dim
         self.weights_vec = weights_vec
+        self.logger = []
 
 
     def get_obj_fn(self):
@@ -308,7 +311,10 @@ class search_weights_loss():
             grad = 2 * self.weights_vec * diff
             hess = (2 * self.weights_vec) / self.ypred_dim
             hess = np.tile(hess, self.num_item).reshape(self.num_item, self.ypred_dim)
-            return grad.reshape(y.size), hess.reshape(y.size)
+            grad = grad.reshape(y.size)
+            hess = hess.reshape(y.size)
+            self.logger.append([predt, grad, hess])
+            return grad, hess
         return grad_fn
 
     def get_eval_fn(self):
@@ -327,6 +333,7 @@ class search_quadratic_loss():
         self.ypred_dim = ypred_dim
         self.basis = np.tril(basis)
         self.alpha = alpha
+        self.logger = []
 
     def get_obj_fn(self):
         def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
@@ -342,6 +349,7 @@ class search_quadratic_loss():
             hess = np.tile(hess, self.num_item)
             #print(grad.sum())
             #print(hess.sum())
+            self.logger.append([predt, grad, hess])
             return grad, hess
         return grad_fn
 
@@ -367,6 +375,7 @@ class search_direct_quadratic_loss():
         assert len(self.basis.shape) == 3
         assert self.basis.shape[-1] == 4
         # basis should be ypred_dim * ypred_dim * 4
+        self.logger = []
         self.alpha = alpha
 
     def get_obj_fn(self):
@@ -396,6 +405,8 @@ class search_direct_quadratic_loss():
             grad = grad.flatten()
             hess = hess.flatten()
 
+            self.logger.append([predt, grad, hess])
+
             return grad, hess
         return grad_fn
 
@@ -419,6 +430,20 @@ def cem_get_objective(problem, model, X, Y, Yaux):
     Zs_pred = problem.get_decision(pred, aux_data=Yaux, isTrain=True)
     objectives = problem.get_objective(Y, Zs_pred, aux_data=Yaux)
     return objectives.mean().item() * (-1)
+
+def check_logger(logger, args):
+
+    for i in range(0, len(logger) - 1):
+        # Each entry in logger: predt, grad, hess
+        ftx = ((logger[i + 1][0] - logger[i][0]).flatten()) / args.tree_eta   # where t = i
+        step = - logger[i][1] / logger[i][2] #  - g_i / h_i
+        if not all(np.isclose(ftx, step)):
+            print("xgboost fit not close")
+        meanabs = np.absolute(ftx - step).mean()
+        relabs = meanabs / np.absolute(step).mean()
+        print(f"At estimators {i} differences {meanabs} {relabs}")
+
+
 
 
 def train_xgb_search_weights(args, problem):
@@ -501,7 +526,6 @@ def train_xgb_search_weights(args, problem):
     elif args.loss == "quad++":
         cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0].reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
 
-
     Xy = xgb.DMatrix(Xtrain, Ytrain)
     booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
                          "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
@@ -519,6 +543,9 @@ def train_xgb_search_weights(args, problem):
                         custom_metric = cusloss.get_eval_fn())
 
     model = treefromlodl(booster, Y_train[0].shape)
+
+    if args.tree_check_logger:
+        check_logger(cusloss.logger, args)
 
     from utils import print_metrics
     metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)

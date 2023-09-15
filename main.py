@@ -104,7 +104,7 @@ def train_dense(args, problem):
 
     print("\nBenchmarking Model...")
     # Print final metrics
-    metrics = print_metrics(model, problem, args.loss, loss_fn, "Final_seed{}".format(args.seed))
+    metrics = print_metrics(model, problem, args.loss, loss_fn if args.loss == args.evalloss else get_loss_fn(args.evalloss, problem), "Final_seed{}".format(args.seed))
 
     return model, metrics
 
