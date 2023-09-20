@@ -1,4 +1,3 @@
-from functools import partial
 import os
 import sys
 
@@ -44,7 +43,8 @@ def train_dense(args, problem):
         lr=args.losslr,
         serial=args.serial,
         dflalpha=args.dflalpha,
-        samples_filename_read=args.samples_read
+        samples_filename_read=args.samples_read,
+        input_args=args
     )
     # Get data
     X_train, Y_train, Y_train_aux = problem.get_train_data()
@@ -226,7 +226,7 @@ if __name__ == '__main__':
     parser.add_argument('--valfreq', type=int, default=5)
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--model', type=str, choices=['dense', 'xgb_decoupled', 'dense_multi', 'xgb_lodl', 'xgb_coupled', 'xgb_coupled_clf', 'xgb_search'], default='dense')
+    parser.add_argument('--model', type=str, choices=['dense', 'dense_coupled', 'xgb_decoupled', 'xgb_lodl', 'xgb_coupled', 'xgb_coupled_clf', 'xgb_search'], default='dense')
     parser.add_argument('--loss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--batchsize', type=int, default=1000)
@@ -289,7 +289,7 @@ if __name__ == '__main__':
     # Based on https://docs.python.org/3/library/argparse.html
     parser.add_argument('--lodlverbose', action='store_true')
     parser.add_argument('--weights_min', type=float, default=1e-3, help='minimum values of the weights')
-    parser.add_argument('--mag_factor', type=float, default=1.0)
+    parser.add_argument('--mag_factor', type=float, default=1.0, help='this is for magnifier the weights')
     parser.add_argument('--measure_eval', action='store_true')
     parser.add_argument('--samples_read', type=str, default='')
     parser.add_argument('--dumptree', action='store_true')
@@ -369,11 +369,8 @@ if __name__ == '__main__':
     elif args.model == "xgb_lodl" or args.model.startswith("xgb_coupled"):
         from train_xgb import train_xgb_lodl
         model, metrics = train_xgb_lodl(args, problem)
-    elif args.model == "dense":
+    elif args.model.startswith("dense"):
         model, metrics = train_dense(args, problem)
-    elif args.model == "dense_multi":
-        model, metrics = train_dense_multi(args, problem)
-        # Document how well this trained model does
     elif args.model == "xgb_search":
         from train_xgb import train_xgb_search_weights
         model, metrics = train_xgb_search_weights(args, problem)

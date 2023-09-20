@@ -53,6 +53,68 @@ def dense_nn(
 
     return torch.nn.Sequential(*net_layers)
 
+class NNCoupled(torch.nn.Module):
+    def __init__(
+        self,
+        num_features,
+        num_targets,
+        num_layers=3,
+        intermediate_size=10,
+        activation='relu',
+        output_activation='sigmoid'
+    ):
+        """
+        Here the num_features and num_targets should be tuple
+        """
+        super(NNCoupled, self).__init__()
+
+        if activation == 'relu':
+            activation_fn = torch.nn.ReLU
+        elif activation == 'sigmoid':
+            activation_fn = torch.nn.Sigmoid
+        else:
+            raise Exception('Invalid activation function: ' + str(activation))
+
+        if (num_layers==1) :
+            net_layers = [torch.nn.Linear(num_features, reduce(operator.mul, num_targets, 1))]
+        else:
+            input_dim = reduce(operator.mul, num_targets, 1)
+            output_dim = reduce(operator.mul, num_targets, 1)
+
+            net_layers = [torch.nn.Linear(input_dim, intermediate_size)]
+
+            for i in range(num_layers - 2):
+                net_layers.append(activation_fn())
+                net_layers.append(torch.nn.Linear(intermediate_size, intermediate_size))
+
+            net_layers.append(activation_fn())
+            net_layers.append(torch.nn.Linear(intermediate_size, output_dim))
+
+        if output_activation == 'relu':
+            net_layers.append(torch.nn.ReLU())
+        elif output_activation == 'sigmoid':
+            net_layers.append(torch.nn.Sigmoid())
+        elif output_activation == 'tanh':
+            net_layers.append(torch.nn.Tanh())
+        elif output_activation == 'softmax':
+            net_layers.append(torch.nn.Softmax(dim=-1))
+
+        self.net = torch.nn.Sequential(*net_layers)
+        self.output_shape = num_targets
+
+    def forward(self, inp):
+        if inp.ndim == 2:
+            # This is one single item
+            x = inp.flatten()
+            y = self.net(x)
+            output = y.reshape(self.output_shape)
+        elif inp.ndim == 3:
+            # First dim is batch size
+            x = inp.flatten(start_dim=1)
+            y = self.net(x)
+            output = y.reshape(inp.shape[0], *self.output_shape)
+        return output
+
 class DenseLoss(torch.nn.Module):
     """
     A Neural Network-based loss function
@@ -84,7 +146,7 @@ class WeightedMSE(torch.nn.Module):
     """
     import numpy as np
 
-    def __init__(self, Y, min_val=1e-3, magnify=100, weights_vec=[]):
+    def __init__(self, Y, min_val=1e-3, magnify=1.0, weights_vec=[]):
         super(WeightedMSE, self).__init__()
         # Weights vec will ignore the min_val and magnify
         # Save true labels
@@ -659,4 +721,4 @@ def test():
 if __name__ == "__main__":
     test()
 
-model_dict = {'dense': dense_nn, 'dense_multi': dense_nn}
+model_dict = {"dense": dense_nn, "dense_coupled": NNCoupled}
