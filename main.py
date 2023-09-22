@@ -54,8 +54,8 @@ def train_dense(args, problem):
     ipdim, opdim = problem.get_modelio_shape()
     model_builder = model_dict[args.model]
     model = model_builder(
-        num_features = (X_train.shape[1:] if args.model == "dense_coupled" ? else X_xtrain.shape[-1]),
-        num_targets = (Y_train.shape[1:] if args.model == "dense_coupled" ? else Y_xtrain.shape[-1]),
+        num_features = X_train.shape[1:] if args.model == "dense_coupled" else X_xtrain.shape[-1],
+        num_targets = Y_train.shape[1:] if args.model == "dense_coupled"  else Y_xtrain.shape[-1],
         num_layers = args.layers,
         intermediate_size=500,
         output_activation=problem.get_output_activation(),
