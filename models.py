@@ -78,7 +78,7 @@ class NNCoupled(torch.nn.Module):
         if (num_layers==1) :
             net_layers = [torch.nn.Linear(num_features, reduce(operator.mul, num_targets, 1))]
         else:
-            input_dim = reduce(operator.mul, num_targets, 1)
+            input_dim = reduce(operator.mul, num_features, 1)
             output_dim = reduce(operator.mul, num_targets, 1)
 
             net_layers = [torch.nn.Linear(input_dim, intermediate_size)]

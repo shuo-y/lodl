@@ -419,7 +419,8 @@ class VMSchedulingSeq(PThenO):
         pass
 
     def get_modelio_shape(self):
-        return self.trainX.shape[1:], self.trainY.shape[1:]
+        # Assume only for decoupled model
+        return self.trainX.shape[-1], self.trainY.shape[-1]
 
     def get_twostageloss(self):
         return 'mse'
