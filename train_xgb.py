@@ -213,29 +213,29 @@ def train_xgb_lodl(args, problem):
         metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
         return model, metrics
 
-    if args.weights_vec != '':
-        weights_vec = eval(args.weights_vec)
-    else:
-        weights_vec = []
-
     print(f"Loading {args.loss} Loss Function...")
+    # See https://stackoverflow.com/questions/27892356/add-a-parameter-into-kwargs-during-function-call also for appending an argument
+    loss_kwargs = {"sampling": args.samples,
+                   "sampling": args.sampling,
+                   "num_samples": args.numsamples,
+                   "rank": args.quadrank,
+                   "sampling_std" : args.samplingstd,
+                   "quadalpha": args.quadalpha,
+                   "lr": args.losslr,
+                   "serial": args.serial,
+                   "dflalpha": args.dflalpha,
+                   "verbose": args.lodlverbose,
+                   "get_loss_model": True,
+                   "samples_filename_read": args.samples_read,
+                   "no_train": args.no_train,
+                   "input_args": args}
+    if args.weights_vec != "":
+        weights_vec = eval(args.weights_vec)
+        loss_kwargs["weights_vec"] = weights_vec
     loss_fn, loss_model_fn = get_loss_fn(
         args.loss,
         problem,
-        sampling=args.sampling,
-        num_samples=args.numsamples,
-        rank=args.quadrank,
-        sampling_std=args.samplingstd,
-        quadalpha=args.quadalpha,
-        lr=args.losslr,
-        serial=args.serial,
-        dflalpha=args.dflalpha,
-        verbose=args.lodlverbose,
-        get_loss_model=True,
-        samples_filename_read=args.samples_read,
-        no_train=args.no_train,
-        weights_vec=weights_vec,
-        input_args=args
+        **loss_kwargs
     )
 
     # Based on some code from https://xgboost.readthedocs.io/en/stable/python/examples/multioutput_regression.html
