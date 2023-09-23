@@ -215,8 +215,7 @@ def train_xgb_lodl(args, problem):
 
     print(f"Loading {args.loss} Loss Function...")
     # See https://stackoverflow.com/questions/27892356/add-a-parameter-into-kwargs-during-function-call also for appending an argument
-    loss_kwargs = {"sampling": args.samples,
-                   "sampling": args.sampling,
+    loss_kwargs = {"sampling": args.sampling,
                    "num_samples": args.numsamples,
                    "rank": args.quadrank,
                    "sampling_std" : args.samplingstd,
@@ -227,7 +226,6 @@ def train_xgb_lodl(args, problem):
                    "verbose": args.lodlverbose,
                    "get_loss_model": True,
                    "samples_filename_read": args.samples_read,
-                   "no_train": args.no_train,
                    "input_args": args}
     if args.weights_vec != "":
         weights_vec = eval(args.weights_vec)
