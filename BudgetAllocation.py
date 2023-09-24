@@ -29,18 +29,8 @@ class BudgetAllocation(PThenO):
         # Load train and test labels
         self.num_train_instances = num_train_instances
         self.num_test_instances = num_test_instances
-        Ys_train_test = []
-        for seed, num_instances in zip([train_seed, test_seed], [num_train_instances, num_test_instances]):
-            # Set seed for reproducibility
-            self._set_seed(seed)
 
-            # Load the relevant data (Ys)
-            Ys = self._load_instances(num_instances, num_items, num_targets)  # labels
-            assert not torch.isnan(Ys).any()
-
-            # Save Xs and Ys
-            Ys_train_test.append(Ys)
-        self.Ys_train, self.Ys_test = (*Ys_train_test,)
+        self.Ys_train, self.Ys_test = self._load_instances(num_train_instances, num_test_instances, num_items, num_targets)
 
         # Generate features based on the labels
         self.num_targets = num_targets
@@ -64,7 +54,7 @@ class BudgetAllocation(PThenO):
         # Undo random seed setting
         self._set_seed()
 
-    def _load_instances(self, num_instances, num_items, num_targets):
+    def _load_instances(self, num_train, num_test, num_items, num_targets):
         """
         Loads the labels (Ys) of the prediction from a file, and returns a subset of it parameterised by instances.
         """
@@ -73,16 +63,34 @@ class BudgetAllocation(PThenO):
             Yfull, _ = pickle.load(f, encoding='bytes')
         Yfull = np.array(Yfull)
 
+        N = len(Yfull)
+        indices = list(range(N))
+        random.shuffle(indices)
+
+        assert (num_train + num_test) <= N
+        traininds = indices[:num_train]
+        testinds = indices[num_train:(num_train + num_test)]
+
         # Whittle the dataset down to the right size
         def whittle(matrix, size, dim):
             assert size <= matrix.shape[dim]
             elements = np.random.choice(matrix.shape[dim], size)
             return np.take(matrix, elements, axis=dim)
-        Ys = whittle(Yfull, num_instances, 0)
-        Ys = whittle(Ys, num_items, 1)
-        Ys = whittle(Ys, num_targets, 2)
 
-        return torch.from_numpy(Ys).float().detach()
+        Ytrains = Yfull[traininds]
+        Ytrains = whittle(Ytrains, num_items, 1)
+        Ytrains = whittle(Ytrains, num_targets, 2)
+        Ytrains = torch.from_numpy(Ytrains).float().detach()
+
+        Ytests = Yfull[testinds]
+        Ytests = whittle(Ytests, num_items, 1)
+        Ytests = whittle(Ytests, num_targets, 2)
+        Ytests = torch.from_numpy(Ytests).float().detach()
+
+        assert not torch.isnan(Ytrains).any()
+        assert not torch.isnan(Ytests).any()
+
+        return Ytrains, Ytests
 
     def _generate_features(self, Ysets, num_fake_targets):
         """
