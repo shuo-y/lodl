@@ -3,6 +3,7 @@ import torch
 import numpy as np
 
 class custom_tree:
+    # This one is for decoupled tree
     # First version flatten all dimensions of Y
     # Make instance callable based on https://medium.com/swlh/callables-in-python-how-to-make-custom-instance-objects-callable-too-516d6eaf0c8d
     def __init__(self, reg, num_inp, num_out, Yishape):
@@ -52,11 +53,25 @@ def train_xgb(args, problem):
     metrics = print_metrics(model, problem, args.loss, get_loss_fn('mse', problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 
-
 #class ext_model:
+
+class decoupledboosterwrapper:
+    # This class to be called by torch data type
+    # This one use inplace_predict which is used by booster
+    def __init__(self, tree, Yishape):
+        self.tree = tree
+        self.Yishape = Yishape
+
+    def __call__(self, X: torch.Tensor):
+        xn = X.numpy().reshape(-1, X.shape[-1])
+        yhatn = self.tree.inplace_predict(xn)
+        Y = torch.tensor(yhatn)
+        Y = torch.reshape(Y, [X.shape[0]] + list(self.Yishape))
+        return Y
 
 class treefromlodl:
     # This class to be called by torch data type
+    # This one use inplace_predict which is used by booster
     def __init__(self, tree, Yishape):
         self.tree = tree
         self.Yishape = Yishape
@@ -70,6 +85,7 @@ class treefromlodl:
 
 class xgbwrapper:
     # This class to be called by torch data type
+    # This one use predict which is used by XGBRegressor
     def __init__(self, tree, Yishape):
         self.tree = tree
         self.Yishape = Yishape
@@ -179,13 +195,13 @@ class custom_loss():
 def train_xgb_lodl(args, problem):
     from losses import get_loss_fn
     X_train, Y_train, Y_train_aux = problem.get_train_data()
-    X_val, Y_val, Y_val_aux = problem.get_val_data()
+
     Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
     Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
 
-
-    Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
-    Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
+    if args.model == "xgb_lodl_decoupled":
+        Xtrain = Xtrain.reshape(-1, X_train.shape[-1])
+        Ytrain = Ytrain.reshape(-1, Y_train.shape[-1])
 
     from utils import print_metrics
 
@@ -243,8 +259,8 @@ def train_xgb_lodl(args, problem):
     eval_fun = cusloss.get_eval_fn()
 
     #reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
+    print(f"Data shape used for XGB input {Xtrain.shape} output {Ytrain.shape}")
     Xy = xgb.DMatrix(Xtrain, Ytrain)
-    Xyval = xgb.DMatrix(Xval, Yval)
 
     booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
                          "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
@@ -261,6 +277,8 @@ def train_xgb_lodl(args, problem):
     if args.dumptree:
         dump_booster(booster, args)
     model = treefromlodl(booster, Y_train[0].shape)
+    if args.model == "xgb_lodl_decoupled":
+        model = decoupledboosterwrapper(booster, Y_train[0].shape)
 
     metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
@@ -446,14 +464,14 @@ def check_logger(logger, args):
 
 def train_xgb_search_weights(args, problem):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
-    X_val, Y_val, Y_val_aux = problem.get_val_data()
     Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
     Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
 
+    if args.model == "xgb_search_decoupled":
+        Xtrain = Xtrain.reshape(-1, X_train.shape[-1])
+        Ytrain = Ytrain.reshape(-1, Y_train.shape[-1])
 
-    Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
-    Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
-
+    print(f"Data shape used for XGB input {Xtrain.shape} output {Ytrain.shape}")
 
     Nsamples = args.search_numsamples
     # Sample a lot of N
@@ -475,6 +493,8 @@ def train_xgb_search_weights(args, problem):
 
     from losses import get_loss_fn
 
+    Xy = xgb.DMatrix(Xtrain, Ytrain)
+
     for it in range(args.iters):
         obj_list = []
         weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
@@ -487,7 +507,6 @@ def train_xgb_search_weights(args, problem):
             elif args.loss == "quad++":
                 cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt].reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
 
-            Xy = xgb.DMatrix(Xtrain, Ytrain)
             booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
                                  "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
                                  "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
@@ -503,7 +522,12 @@ def train_xgb_search_weights(args, problem):
                                 evals = eval(args.search_eval),
                                 custom_metric = cusloss.get_eval_fn())
 
-            model = treefromlodl(booster, Y_train[0].shape)
+            if args.model == "xgb_search_decoupled":
+                model = decoupledboosterwrapper(booster, Y_train[0].shape)
+            else:
+                model = treefromlodl(booster, Y_train[0].shape)
+
+
             objective = eval(args.search_obj)
             obj_list.append(objective)
         ## Sort obj updates means and covs
@@ -524,7 +548,6 @@ def train_xgb_search_weights(args, problem):
     elif args.loss == "quad++":
         cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[0].reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
 
-    Xy = xgb.DMatrix(Xtrain, Ytrain)
     booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
                          "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
                          "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
@@ -540,7 +563,10 @@ def train_xgb_search_weights(args, problem):
                         evals = [(Xy, "train")],
                         custom_metric = cusloss.get_eval_fn())
 
-    model = treefromlodl(booster, Y_train[0].shape)
+    if args.model == "xgb_search_decoupled":
+        model = decoupledboosterwrapper(booster, Y_train[0].shape)
+    else:
+        model = treefromlodl(booster, Y_train[0].shape)
 
     if args.tree_check_logger:
         check_logger(cusloss.logger, args)

@@ -191,7 +191,7 @@ if __name__ == '__main__':
     parser.add_argument('--valfreq', type=int, default=5)
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--model', type=str, choices=['dense', 'dense_coupled', 'xgb_decoupled', 'xgb_lodl', 'xgb_coupled', 'xgb_coupled_clf', 'xgb_search'], default='dense')
+    parser.add_argument('--model', type=str, choices=['dense', 'dense_coupled', 'xgb_decoupled', 'xgb_lodl', 'xgb_lodl_decoupled', 'xgb_coupled', 'xgb_coupled_clf', 'xgb_search', 'xgb_search_decoupled'], default='dense')
     parser.add_argument('--loss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--batchsize', type=int, default=1000)
@@ -331,12 +331,12 @@ if __name__ == '__main__':
     if args.model == "xgb_decoupled":
         from train_xgb import train_xgb
         model, metrics = train_xgb(args, problem)
-    elif args.model == "xgb_lodl" or args.model.startswith("xgb_coupled"):
+    elif args.model.startswith("xgb_lodl") or args.model.startswith("xgb_coupled"):
         from train_xgb import train_xgb_lodl
         model, metrics = train_xgb_lodl(args, problem)
     elif args.model.startswith("dense"):
         model, metrics = train_dense(args, problem)
-    elif args.model == "xgb_search":
+    elif args.model.startswith("xgb_search"):
         from train_xgb import train_xgb_search_weights
         model, metrics = train_xgb_search_weights(args, problem)
 
