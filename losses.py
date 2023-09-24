@@ -377,10 +377,10 @@ def _get_learned_loss(
             for idx, (Y, opt_objective, Yhats, objectives) in enumerate(sampled_points):
                 SL_dataset[partition][idx] = (Y, opt_objective, Yhats, objectives)
 
-
-        with open(samples_filename_write, 'wb') as filehandle:
-            print(f"write sample files {samples_filename_write}")
-            pickle.dump((num_extra_samples, SL_dataset), filehandle)
+        if "input_args" in kwargs and kwargs["input_args"].dumpsample == True:
+            with open(samples_filename_write, 'wb') as filehandle:
+                print(f"write sample files {samples_filename_write}")
+                pickle.dump((num_extra_samples, SL_dataset), filehandle)
 
         #   Augment with new data
         for Ys, Ys_aux, partition in datasets:
