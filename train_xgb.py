@@ -464,6 +464,8 @@ def check_logger(logger, args):
 
 def train_xgb_search_weights(args, problem):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
+    X_val, Y_val, Y_val_aux = problem.get_val_data()  # Xval is still needed for CEM
+
     Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
     Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
 
