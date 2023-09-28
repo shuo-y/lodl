@@ -8,22 +8,13 @@ if not hashseed:
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
 import argparse
-import matplotlib.pyplot as plt
 import ast
 import torch
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 import random
-import pdb
 from copy import deepcopy
 
-from BudgetAllocation import BudgetAllocation
-from BipartiteMatching import BipartiteMatching
-from PortfolioOpt import PortfolioOpt
-from VMScheduling import VMScheduling
-from VMScheduling_seq import VMSchedulingSeq
-from RMAB import RMAB
-from CubicTopK import CubicTopK
 from models import model_dict
 from losses import MSE, get_loss_fn
 from utils import print_metrics, init_if_not_saved, move_to_gpu
@@ -180,7 +171,7 @@ if __name__ == '__main__':
     # Get hyperparams from the command line
     # TODO: Separate main into folders per domain
     parser = argparse.ArgumentParser()
-    parser.add_argument('--problem', type=str, choices=['budgetalloc', 'bipartitematching', 'cubic', 'rmab', 'portfolio', 'vmscheduling', 'vmschedulingseq'], default='portfolio')
+    parser.add_argument('--problem', type=str, choices=['budgetalloc', 'bipartitematching', 'cubic', 'rmab', 'portfolio', 'vmscheduling', 'vmschedulingseq', 'shortestpath'], default='portfolio')
     parser.add_argument('--loadnew', type=ast.literal_eval, default=False)
     parser.add_argument('--layers', type=int, default=2)
     parser.add_argument('--iters', type=int, default=5000, help='used for original NN also search weights')
@@ -261,6 +252,8 @@ if __name__ == '__main__':
     parser.add_argument('--no_train', action='store_true')
     parser.add_argument('--weights_vec', type=str, default='')
     parser.add_argument('--evalloss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse', help='use for evaluate the model with metrics')
+    parser.add_argument('--spgrid', type=str, default='(5, 5)', help='the grid of the shortest path')
+    parser.add_argument('--solver', type=str, choices=["scip", "gurobi", "glpk"], default="scip", help="optimization solver to use")
 
     args = parser.parse_args()
 
@@ -269,6 +262,7 @@ if __name__ == '__main__':
     print(f"Loading {args.problem} Problem...")
 
     if args.problem == 'budgetalloc':
+        from BudgetAllocation import BudgetAllocation
         problem = BudgetAllocation(num_train_instances = args.instances,
                                    num_test_instances = args.testinstances,
                                    num_targets = args.numtargets,
@@ -278,6 +272,7 @@ if __name__ == '__main__':
                                    rand_seed = args.seed,
                                    val_frac = args.valfrac)
     elif args.problem == 'cubic':
+        from CubicTopK import CubicTopK
         problem = CubicTopK(num_train_instances = args.instances,
                             num_test_instances = args.testinstances,
                             num_items = args.numitems,
@@ -285,12 +280,14 @@ if __name__ == '__main__':
                             rand_seed = args.seed,
                             val_frac = args.valfrac)
     elif args.problem == 'bipartitematching':
+        from BipartiteMatching import BipartiteMatching
         problem = BipartiteMatching(num_train_instances = args.instances,
                                     num_test_instances = args.testinstances,
                                     num_nodes = args.nodes,
                                     val_frac = args.valfrac,
                                     rand_seed = args.seed)
     elif args.problem == 'rmab':
+        from RMAB import RMAB
         problem = RMAB(num_train_instances = args.instances,
                        num_test_instances = args.testinstances,
                        num_arms = args.numarms,
@@ -305,6 +302,7 @@ if __name__ == '__main__':
                        val_frac = args.valfrac,
                        rand_seed = args.seed)
     elif args.problem == 'portfolio':
+        from PortfolioOpt import PortfolioOpt
         problem = PortfolioOpt(num_train_instances = args.instances,
                                num_test_instances = args.testinstances,
                                num_stocks = args.stocks,
@@ -312,17 +310,28 @@ if __name__ == '__main__':
                                val_frac = args.valfrac,
                                rand_seed = args.seed)
     elif args.problem == 'vmscheduling':
+        from VMScheduling import VMScheduling
         problem = VMScheduling(rand_seed=args.seed,
                                num_train=args.instances - int(args.valfrac * args.instances),
                                num_eval=int(args.valfrac * args.instances),
                                num_test=args.testinstances,
                                num_per_instance=args.itempertrace)
     elif args.problem == 'vmschedulingseq':
+        from VMScheduling_seq import VMSchedulingSeq
         problem = VMSchedulingSeq(rand_seed=args.seed,
                                num_train=args.instances - int(args.valfrac * args.instances),
                                num_eval=int(args.valfrac * args.instances),
                                num_test=args.testinstances,
                                num_per_instance=args.itempertrace)
+    elif args.problem == 'shortestpath':
+        from ShortestPath import ShortestPath
+        problem = ShortestPath(num_feats=args.numfeatures,
+                               grid=eval(args.spgrid),
+                               num_train=args.instances - int(args.valfrac * args.instances),
+                               num_val=int(args.valfrac * args.instances),
+                               num_test=args.testinstances,
+                               seed=args.seed,
+                               solver=args.solver)
 
 
 
