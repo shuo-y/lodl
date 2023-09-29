@@ -1,5 +1,4 @@
 from PThenO import PThenO
-import quandl
 import datetime as dt
 import pandas as pd
 import os
@@ -10,7 +9,6 @@ import cvxpy as cp
 import itertools
 import numpy as np
 from cvxpylayers.torch import CvxpyLayer
-quandl.ApiConfig.api_key = '3Uxzq4TZV5V9RghuRYsY'
 
 
 class PortfolioOpt(PThenO):
@@ -221,7 +219,9 @@ class PortfolioOpt(PThenO):
         return raw_symbol_df
 
     def _download_prices(self, symbol_df):
+        import quandl
         print("Downloading data from quandl...")
+        quandl.ApiConfig.api_key = '3Uxzq4TZV5V9RghuRYsY'
 
         raw_tickers = symbol_df.Symbol
         tickers = "WIKI/" + raw_tickers.str.replace(".", "_", regex=False)
