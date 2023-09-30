@@ -38,7 +38,11 @@ def train_xgb(args, problem):
 
     ## Squeeze to the last feature
     Xtrain = X_train.numpy().reshape(-1, X_train.shape[-1])
-    Ytrain = Y_train.numpy().reshape(-1, Y_train.shape[-1])
+    batch_sz = Xtrain.shape[0]
+    assert batch_sz * np.prod(Y_train.shape) // batch_sz == np.prod(Y_train.shape)
+    # If error check if the dimensions of the shapes is appropriate
+    Ytrain = Y_train.numpy().reshape(batch_sz, np.prod(Y_train.shape) // batch_sz)
+    print(f"Data shape used for XGB input {Xtrain.shape} output {Ytrain.shape}")
 
     Xval = X_val.numpy().reshape(-1, X_val.shape[-1])
     Yval = Y_val.numpy().reshape(-1, Y_val.shape[-1])
@@ -201,10 +205,14 @@ def train_xgb_lodl(args, problem):
 
     if args.model == "xgb_lodl_decoupled":
         Xtrain = Xtrain.reshape(-1, X_train.shape[-1])
-        Ytrain = Ytrain.reshape(-1, Y_train.shape[-1])
+        batch_sz = Xtrain.shape[0]
+        assert batch_sz * np.prod(Y_train.shape) // batch_sz == np.prod(Y_train.shape)
+        # If error check if the dimensions of the shapes is appropriate
+        Ytrain = Y_train.numpy().reshape(batch_sz, np.prod(Y_train.shape) // batch_sz)
+
+    print(f"Data shape used for XGB input {Xtrain.shape} output {Ytrain.shape}")
 
     from utils import print_metrics
-
     if args.model == "xgb_coupled":
         # 2stage xgboost coupled version
         print("Using native xgb.XGBRegressor")
@@ -471,7 +479,10 @@ def train_xgb_search_weights(args, problem):
 
     if args.model == "xgb_search_decoupled":
         Xtrain = Xtrain.reshape(-1, X_train.shape[-1])
-        Ytrain = Ytrain.reshape(-1, Y_train.shape[-1])
+        batch_sz = Xtrain.shape[0]
+        assert batch_sz * np.prod(Y_train.shape) // batch_sz == np.prod(Y_train.shape)
+        # If error check if the dimensions of the shapes is appropriate
+        Ytrain = Y_train.numpy().reshape(batch_sz, np.prod(Y_train.shape) // batch_sz)
 
     print(f"Data shape used for XGB input {Xtrain.shape} output {Ytrain.shape}")
 
