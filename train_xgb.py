@@ -549,7 +549,7 @@ def train_xgb_search_weights(args, problem):
         sub_weights = weight_samples[inds[:Nsub]]
 
         means = np.mean(sub_weights, axis=0)
-        covs = np.cov(sub_weights.T)
+        covs = np.cov(sub_weights.T).reshape(ndim, ndim)
 
     weight_samples = np.random.multivariate_normal(means, covs, 1)
     print(f"Final: means {means} covs {covs} weights {weight_samples[0]}")
