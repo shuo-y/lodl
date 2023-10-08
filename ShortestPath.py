@@ -97,14 +97,14 @@ class ShortestPath(PThenO):
         m.obj = pe.Objective(sense=pe.minimize, expr=0)
         return m, x
 
-    def predeval(self, z_pred: np.ndarray, z_true: np.ndarray, **kwargs) -> np.ndarray:
+    def predeval(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
         # Z in lancer paper means y in lodl
         assert z_pred.shape == z_true.shape
         N = z_true.shape[0]
         f_hat_list = []
         # TODO: run this loop in parallel
         for i in range(N):
-            if i%100 == 0:
+            if i%100 == 0 and verbose:
                 print("Solving LP:", i, " out of ", N)
             self._model.del_component(self._model.obj)
             obj = sum(z_pred[i, j] * self._vars[k] for j, k in enumerate(self._vars))

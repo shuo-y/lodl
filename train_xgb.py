@@ -254,6 +254,7 @@ def train_xgb_lodl(args, problem):
     if args.weights_vec != "":
         weights_vec = eval(args.weights_vec)
         loss_kwargs["weights_vec"] = weights_vec
+
     loss_fn, loss_model_fn = get_loss_fn(
         args.loss,
         problem,
@@ -468,7 +469,67 @@ def check_logger(logger, args):
         print(f"At estimators {i} differences {meanabs} {relabs}")
 
 
+def train_xgb_ngopt(args, problem):
+    import nevergrad as ng
+    X_train, Y_train, Y_train_aux = problem.get_train_data()
+    X_val, Y_val, Y_val_aux = problem.get_val_data()  # Xval is still needed for CEM
 
+    Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
+    Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
+
+    Xval = X_val.numpy().reshape(X_val.shape[0], np.prod(X_val.shape[1:]))
+    Yval = Y_val.numpy().reshape(Y_val.shape[0], np.prod(Y_val.shape[1:]))
+
+    Xy = xgb.DMatrix(Xtrain, Ytrain)
+
+    def train_tree(weights_vec: np.ndarray) -> float:
+        cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], weights_vec)
+        booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
+                                 "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
+                                 "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
+                                 "min_child_weight": args.tree_min_child_weight,
+                                 "max_delta_step": args.tree_max_delta_step, "subsample": args.tree_subsample,
+                                 "colsample_bytree": args.tree_colsample_bytree,
+                                 "colsample_bylevel": args.tree_colsample_bylevel,
+                                 "colsample_bynode": args.tree_colsample_bynode,
+                                 "scale_pos_weight": args.tree_scale_pos_weight},
+                                dtrain = Xy,
+                                num_boost_round = args.search_estimators,
+                                obj = cusloss.get_obj_fn())
+        ypred = booster.inplace_predict(Xval)
+        dq = problem.predeval(ypred, Yval)
+        return dq.mean()
+
+    # Running in parallel https://facebookresearch.github.io/nevergrad/optimization.html#using-several-workers
+    parametrization = ng.p.Instrumentation(weights_vec=ng.p.Array(shape=(Ytrain.shape[1],)))
+
+    optimizer = ng.optimizers.NGOpt(parametrization=parametrization, budget=100)
+    recommendation = optimizer.minimize(train_tree)
+
+
+    choose_weights = np.array(recommendation.value[1]['weights_vec'])
+    print(f"Choose weights is {choose_weights}")
+
+    cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], choose_weights)
+
+    booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
+                         "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
+                         "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
+                         "min_child_weight": args.tree_min_child_weight,
+                         "max_delta_step": args.tree_max_delta_step, "subsample": args.tree_subsample,
+                         "colsample_bytree": args.tree_colsample_bytree,
+                         "colsample_bylevel": args.tree_colsample_bylevel,
+                         "colsample_bynode": args.tree_colsample_bynode,
+                         "scale_pos_weight": args.tree_scale_pos_weight},
+                        dtrain = Xy,
+                        num_boost_round = args.num_estimators,
+                        obj = cusloss.get_obj_fn(),
+                        evals = [(Xy, "train")],
+                        custom_metric = cusloss.get_eval_fn())
+
+    model = treefromlodl(booster, Y_train[0].shape)
+    metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
+    return model, metrics
 
 def train_xgb_search_weights(args, problem):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
