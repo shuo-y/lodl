@@ -97,7 +97,7 @@ class ShortestPath(PThenO):
         m.obj = pe.Objective(sense=pe.minimize, expr=0)
         return m, x
 
-    def predeval(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
+    def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
         # Z in lancer paper means y in lodl
         assert z_pred.shape == z_true.shape
         N = z_true.shape[0]
@@ -206,6 +206,6 @@ if __name__ == "__main__":
     zs = sp.get_decision(Y_val)
 
     zobjs = sp.get_objective(Y_val, zs)
-    zobjs_eval = sp.predeval(Y_val.detach().numpy(), Y_val.detach().numpy())
+    zobjs_eval = sp.dec_loss(Y_val.detach().numpy(), Y_val.detach().numpy())
     pdb.set_trace()
 

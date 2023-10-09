@@ -497,8 +497,8 @@ def train_xgb_ngopt(args, problem):
                                 num_boost_round = args.search_estimators,
                                 obj = cusloss.get_obj_fn())
         ypred = booster.inplace_predict(Xval)
-        dq = problem.predeval(ypred, Yval)
-        return -1.0 * dq.mean()
+        dq = problem.dev_loss(ypred, Yval).mean()
+        return dq
 
     # Running in parallel https://facebookresearch.github.io/nevergrad/optimization.html#using-several-workers
     parametrization = ng.p.Instrumentation(weights_vec=ng.p.Array(shape=(Ytrain.shape[1],)))
