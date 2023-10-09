@@ -503,7 +503,7 @@ def train_xgb_ngopt(args, problem):
     # Running in parallel https://facebookresearch.github.io/nevergrad/optimization.html#using-several-workers
     parametrization = ng.p.Instrumentation(weights_vec=ng.p.Array(shape=(Ytrain.shape[1],)))
 
-    optimizer = ng.optimizers.NGOpt(parametrization=parametrization, budget=100)
+    optimizer = ng.optimizers.NGOpt(parametrization=parametrization, budget=args.ng_budget)
     recommendation = optimizer.minimize(train_tree)
 
 

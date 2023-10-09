@@ -160,6 +160,7 @@ if __name__ == '__main__':
     parser.add_argument('--evalloss', type=str, choices=['mse', 'msesum', 'dense', 'weightedmse', 'weightedmse++', 'weightedce', 'weightedmsesum', 'dfl', 'quad', 'quad++', 'ce'], default='mse', help='use for evaluate the model with metrics')
     parser.add_argument('--spgrid', type=str, default='(5, 5)', help='the grid of the shortest path')
     parser.add_argument('--solver', type=str, choices=["scip", "gurobi", "glpk"], default="scip", help="optimization solver to use")
+    parser.add_argument('--ng_budget', type=int, default=100, help='budget for never grad search')
 
     args = parser.parse_args()
 
