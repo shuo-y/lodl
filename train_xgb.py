@@ -528,6 +528,7 @@ def train_xgb_ngopt(args, problem):
                         custom_metric = cusloss.get_eval_fn())
 
     model = treefromlodl(booster, Y_train[0].shape)
+    from utils import print_metrics
     metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 
