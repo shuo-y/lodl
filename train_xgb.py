@@ -563,7 +563,7 @@ def train_xgb_search_weights(args, problem):
         assert "Not supported loss"
 
     means = np.ones(ndim) * args.search_means
-    covs = np.eye(ndim)
+    covs = np.eye(ndim) * args.search_covs
     print(f"The dimensiona is {ndim}")
     global_step = 0
 
