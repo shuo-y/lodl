@@ -247,7 +247,7 @@ def train_xgb_lodl(args, problem):
                    "lr": args.losslr,
                    "serial": args.serial,
                    "dflalpha": args.dflalpha,
-                   "verbose": args.lodlverbose,
+                   "verbose": args.verbose,
                    "get_loss_model": True,
                    "samples_filename_read": args.samples_read,
                    "input_args": args}
@@ -573,6 +573,7 @@ def train_xgb_search_weights(args, problem):
 
     for it in range(args.iters):
         obj_list = []
+        model_list = []
         weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
         print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
         for cnt in range(Nsamples):
@@ -606,10 +607,16 @@ def train_xgb_search_weights(args, problem):
 
             objective = eval(args.search_obj)
             obj_list.append(objective)
+            model_list.append(model)
+
         ## Sort obj updates means and covs
         obj_list = np.array(obj_list)
         inds = np.argsort(obj_list)
         sub_weights = weight_samples[inds[:Nsub]]
+
+        if args.verbose:
+            select_model = model_list[inds[0]]
+            print_metrics(select_model, problem, args.loss, get_loss_fn(args.evalloss, problem), f"seed{args.seed}iter{it}", isTrain=False)
 
         means = np.mean(sub_weights, axis=0)
         covs = np.cov(sub_weights.T).reshape(ndim, ndim)
