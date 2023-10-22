@@ -568,6 +568,7 @@ def train_xgb_search_weights(args, problem):
     global_step = 0
 
     from losses import get_loss_fn
+    from utils import print_metrics
 
     Xy = xgb.DMatrix(Xtrain, Ytrain)
 
@@ -654,7 +655,7 @@ def train_xgb_search_weights(args, problem):
     if args.tree_check_logger:
         check_logger(cusloss.logger, args)
 
-    from utils import print_metrics
+
     metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
 
     return model, metrics
