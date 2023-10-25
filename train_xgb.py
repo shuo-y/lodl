@@ -533,6 +533,43 @@ def train_xgb_ngopt(args, problem):
     metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 
+def evaluate_one_search(args, problem, Xtrain, Ytrain, weights_vec, ygoldshape):
+    if args.loss == "weightedmse":
+        cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec)
+    elif args.loss == "quad":
+        cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec.reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
+    elif args.loss == "quad++":
+        cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec.reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
+
+    Xy = xgb.DMatrix(Xtrain, Ytrain)
+
+    booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
+                            "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
+                            "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
+                            "min_child_weight": args.tree_min_child_weight,
+                            "max_delta_step": args.tree_max_delta_step, "subsample": args.tree_subsample,
+                            "colsample_bytree": args.tree_colsample_bytree,
+                            "colsample_bylevel": args.tree_colsample_bylevel,
+                            "colsample_bynode": args.tree_colsample_bynode,
+                            "scale_pos_weight": args.tree_scale_pos_weight},
+                        dtrain = Xy,
+                        num_boost_round = args.search_estimators,
+                        obj = cusloss.get_obj_fn(),
+                        evals = eval(args.search_eval),
+                        custom_metric = cusloss.get_eval_fn())
+
+    if args.model == "xgb_search_decoupled":
+        model = decoupledboosterwrapper(booster, ygoldshape)
+    else:
+        model = treefromlodl(booster, ygoldshape)
+
+    X_val, Y_val, Y_val_aux = problem.get_val_data()
+    objective = eval(args.search_obj)
+    #if returnmodel == True:
+    return objective, model
+    #return objective
+
+
 def train_xgb_search_weights(args, problem):
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_val, Y_val, Y_val_aux = problem.get_val_data()  # Xval is still needed for CEM
@@ -569,46 +606,26 @@ def train_xgb_search_weights(args, problem):
 
     from losses import get_loss_fn
     from utils import print_metrics
-
-    Xy = xgb.DMatrix(Xtrain, Ytrain)
+    from torch.multiprocessing import Pool
+    import os
 
     for it in range(args.iters):
         obj_list = []
         model_list = []
         weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
         print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
-        for cnt in range(Nsamples):
-            if args.loss == "weightedmse":
-                cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt])
-            elif args.loss == "quad":
-                cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt].reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
-            elif args.loss == "quad++":
-                cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_samples[cnt].reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
 
-            booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
-                                 "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
-                                 "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
-                                 "min_child_weight": args.tree_min_child_weight,
-                                 "max_delta_step": args.tree_max_delta_step, "subsample": args.tree_subsample,
-                                 "colsample_bytree": args.tree_colsample_bytree,
-                                 "colsample_bylevel": args.tree_colsample_bylevel,
-                                 "colsample_bynode": args.tree_colsample_bynode,
-                                 "scale_pos_weight": args.tree_scale_pos_weight},
-                                dtrain = Xy,
-                                num_boost_round = args.search_estimators,
-                                obj = cusloss.get_obj_fn(),
-                                evals = eval(args.search_eval),
-                                custom_metric = cusloss.get_eval_fn())
-
-            if args.model == "xgb_search_decoupled":
-                model = decoupledboosterwrapper(booster, Y_train[0].shape)
-            else:
-                model = treefromlodl(booster, Y_train[0].shape)
-
-
-            objective = eval(args.search_obj)
-            obj_list.append(objective)
-            model_list.append(model)
+        if args.serial == True:
+            for cnt in range(Nsamples):
+                objective, model = evaluate_one_search(args, problem, Xtrain, Ytrain, weight_samples[cnt], Y_train[0].shape)
+                obj_list.append(objective)
+                model_list.append(model)
+        else:
+            with Pool(os.cpu_count()) as p:
+                results = p.starmap(evaluate_one_search, [(args, problem, Xtrain, Ytrain, weight_vec, Y_train[0].shape) for weight_vec in weight_samples])
+                for obj, model in results:
+                    obj_list.append(obj)
+                    model_list.append(model)
 
         ## Sort obj updates means and covs
         obj_list = np.array(obj_list)
@@ -616,8 +633,11 @@ def train_xgb_search_weights(args, problem):
         sub_weights = weight_samples[inds[:Nsub]]
 
         if args.verbose:
+            #if args.serial == True:
             select_model = model_list[inds[0]]
-            print_metrics(select_model, problem, args.loss, get_loss_fn(args.evalloss, problem), f"seed{args.seed}iter{it}", isTrain=False)
+            #else:
+            #    obj, select_model = evaluate_one_search(args, problem, Xy, Ytrain, weight_vec, True)
+            print_metrics(select_model, problem, args.loss, get_loss_fn(args.evalloss, problem), f"seed{args.seed}iter{it}best", isTrain=False)
 
         means = np.mean(sub_weights, axis=0)
         covs = np.cov(sub_weights.T).reshape(ndim, ndim)
