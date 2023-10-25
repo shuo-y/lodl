@@ -608,13 +608,16 @@ def train_xgb_search_weights(args, problem):
     from utils import print_metrics
     from torch.multiprocessing import Pool
     import os
+    import time
 
     for it in range(args.iters):
         obj_list = []
         model_list = []
-        weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
-        print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
+        if args.verbose:
+            start_time = time.time()
+            print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
 
+        weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
         if args.serial == True:
             for cnt in range(Nsamples):
                 objective, model = evaluate_one_search(args, problem, Xtrain, Ytrain, weight_samples[cnt], Y_train[0].shape)
@@ -633,11 +636,9 @@ def train_xgb_search_weights(args, problem):
         sub_weights = weight_samples[inds[:Nsub]]
 
         if args.verbose:
-            #if args.serial == True:
             select_model = model_list[inds[0]]
-            #else:
-            #    obj, select_model = evaluate_one_search(args, problem, Xy, Ytrain, weight_vec, True)
             print_metrics(select_model, problem, args.loss, get_loss_fn(args.evalloss, problem), f"seed{args.seed}iter{it}best", isTrain=False)
+            print(f"Time of one iteration CEM is {time.time() - start_time}")
 
         means = np.mean(sub_weights, axis=0)
         covs = np.cov(sub_weights.T).reshape(ndim, ndim)
