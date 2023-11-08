@@ -7,62 +7,6 @@ import torch
 import inspect
 from itertools import repeat
 
-def init_if_not_saved(
-    problem_cls,
-    kwargs,
-    folder='models',
-    load_new=True,
-):
-    # Find the filename if a saved version of the problem with the same kwargs exists
-    master_filename = os.path.join(folder, f"{problem_cls.__name__}.csv")
-    filename, saved_probs = find_saved_problem(master_filename, kwargs)
- 
-    if not load_new and filename is not None:
-        # Load the model
-        with open(filename, 'rb') as file:
-            problem = pickle.load(file)
-    else:
-        # Initialise model from scratch
-        problem = problem_cls(**kwargs)
-
-        # Save model for the future
-        print("Saving the problem")
-        filename = os.path.join(folder, f"{problem_cls.__name__}_{len(saved_probs)}.pkl")
-        with open(filename, 'wb') as file:
-            pickle.dump(problem, file)
-
-        # Add its details to the master file
-        kwargs['filename'] = filename
-        pd.concat([saved_probs, pd.DataFrame([kwargs])], ignore_index=True)
-        with open(master_filename, 'w') as file:
-            saved_probs.to_csv(file, index=False)
-
-    return problem
-
-def find_saved_problem(
-    master_filename: str,
-    kwargs: Dict,
-):
-    # Open the master file with details about saved models
-    if os.path.exists(master_filename):
-        with open(master_filename, 'r') as file:
-            saved_probs = pd.read_csv(file)
-    else:
-        saved_probs = pd.DataFrame(columns=('filename', *kwargs.keys(),))
-    
-    # Check if the problem has been saved before
-    relevant_models = saved_probs
-    for col, val in kwargs.items():
-        if col in relevant_models.columns:
-            relevant_models = relevant_models.loc[relevant_models[col] == val]  # filtering models by parameters
-
-    # If it has, find the relevant filename
-    filename = None
-    if not relevant_models.empty:
-        filename = relevant_models['filename'].values[0]
-    
-    return filename, saved_probs
-
 def print_metrics(
     model,
     problem,
@@ -76,16 +20,16 @@ def print_metrics(
 
     if isTrain == False:
         X_test, Y_test, Y_test_aux = problem.get_test_data()
-        datasets = [(X_train, Y_train, Y_train_aux, 'train'), (X_val, Y_val, Y_val_aux, 'val'), (X_test, Y_test, Y_test_aux, 'test')]
+        datasets = [(X_train, Y_train, Y_train_aux, "train"), (X_val, Y_val, Y_val_aux, "val"), (X_test, Y_test, Y_test_aux, "test")]
     else:
-        datasets = [(X_train, Y_train, Y_train_aux, 'train'), (X_val, Y_val, Y_val_aux, 'val')]
+        datasets = [(X_train, Y_train, Y_train_aux, "train"), (X_val, Y_val, Y_val_aux, "val")]
     # print(f"Current model parameters: {[param for param in model.parameters()]}")
     metrics = {}
     print("metrics use loss function: %s" % loss_fn.__name__)
-    print(prefix, end='')
+
     for Xs, Ys, Ys_aux, partition in datasets:
         # Choose whether we should use train or test 
-        isTrain = (partition=='train') and (prefix != "Final")
+        isTrain = (partition=="train") and (prefix != "Final")
 
         # Decision Quality
         pred = model(Xs).squeeze()
@@ -104,20 +48,20 @@ def print_metrics(
                 break
 
         if None in losses:
-            metrics[partition] = {'objective': objective}
+            metrics[partition] = {"objective": objective}
             continue
         losses = torch.stack(losses).flatten()
         loss = losses.mean().item()
         mae = torch.nn.L1Loss()(losses, -objectives).item()
 
-        metrics[partition] = {'objective': objective, 'loss': loss, 'mae': mae}
+        metrics[partition] = {"objective": objective, "loss": loss, "mae": mae, "objs": objectives}
 
-    print(metrics)
     import sys
     sys.stdout.write(prefix)
-    for key in metrics:
-        for subkey in metrics[key]:
-            sys.stdout.write(",%.12f" % metrics[key][subkey])
+    for par in metrics:
+        sys.stdout.write(",%.12f" % metrics[par]["objective"])
+        sys.stdout.write(",%.12f" % metrics[par]["loss"])
+        sys.stdout.write(",%.12f" % metrics[par]["mae"])
     sys.stdout.write("\n")
     return metrics
 

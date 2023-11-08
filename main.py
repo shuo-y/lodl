@@ -5,31 +5,40 @@ import torch
 import random
 
 
-def get_random_optDQ(Y, Y_aux, args):
+def get_random_optDQ(mpart, Y, Y_aux, args):
     #   Document the value of a random guess
     objs_rand = []
     for _ in range(10):
         Z_rand = problem.get_decision(torch.rand_like(Y), aux_data=Y_aux, is_Train=False)
         objectives = problem.get_objective(Y, Z_rand, aux_data=Y_aux)
         objs_rand.append(objectives)
-    randomdq = torch.stack(objs_rand).mean().item()
-    print(f"Random Decision Quality: {randomdq}")
+    randomdqs = torch.stack(objs_rand).mean(axis=0)
+    print(f"Random Decision Quality: {randomdqs.mean().item()}")
 
     #   Document the optimal value
     Z_fromtrue = problem.get_decision(Y, aux_data=Y_aux, is_Train=False)
-    objectives = problem.get_objective(Y, Z_fromtrue, aux_data=Y_aux)
-    obj = objectives.mean().item()
+    true_objs = problem.get_objective(Y, Z_fromtrue, aux_data=Y_aux)
+
+    nordq = torch.zeros(len(randomdqs))
+    assert len(mpart["objs"]) == len(randomdqs)
+    assert len(mpart["objs"]) == len(true_objs)
 
     if 'vmscheduling' in args.problem:
-        print(f"VMScheduling opt if just using true prediction", obj)
+        print(f"VMScheduling opt if just using true prediction", true_objs.mean().item())
         greedy_objs = problem.get_objective(Y, [None for _ in range(Y.shape[0])], Y_aux, dogreedy=True)
+        assert len(mpart["objs"]) == len(greedy_objs)
         # just work around here to check greedy algorithm we don't need the Z
         print("VMScheduling Greedy objs", greedy_objs.mean().item())
-        return [randomdq, obj, greedy_objs.mean().item()]
+        for i in range(len(randomdqs)):
+            nordq[i] = (mpart["objs"][i] - randomdqs[i])/(greedy_objs[i] - randomdqs[i])
+        mpart['randomopt'] = [nordq.mean().item(), randomdqs.mean().item(), true_objs.mean().item(), greedy_objs.mean().item()]
 
     else:
-        print(f"Decision Quality with true Y: {obj}")
-        return [randomdq, obj]
+        for i in range(len(randomdqs)):
+            nordq[i] = (mpart["objs"][i] - randomdqs[i])/(true_objs[i] - randomdqs[i])
+        print(f"Decision Quality with true Y: {true_objs.mean().item()}")
+        mpart['randomopt'] = [nordq.mean().item(), randomdqs.mean().item(), true_objs.mean().item()]
+        # return norDQ  realDQ randomDQ optDQ
 
 
 def perf_metrics(args, problem, metrics):
@@ -50,17 +59,11 @@ def perf_metrics(args, problem, metrics):
 
     for (Y, aux, par_name) in zip(Y_data, aux_data, parts):
         print(par_name)
-        metrics[par_name]['randomopt'] = get_random_optDQ(Y, aux, args)
-        if args.problem == 'vmscheduling':
-            metrics[par_name]['nordq'] = (metrics[par_name]['objective'] - metrics[par_name]['randomopt'][0])/ (metrics[par_name]['randomopt'][2] - metrics[par_name]['randomopt'][0])
-        else:
-            metrics[par_name]['nordq'] = (metrics[par_name]['objective'] - metrics[par_name]['randomopt'][0])/ (metrics[par_name]['randomopt'][1] - metrics[par_name]['randomopt'][0])
-
+        #metrics[par_name]['randomopt'] = get_random_optDQ(Y, aux, args)
+        get_random_optDQ(metrics[par_name], Y, aux, args)
 
     sys.stdout.write("DQ_seed%d" % args.seed)
     for par_name in parts:
-        sys.stdout.write(",%.12f" % metrics[par_name]['nordq'])
-        sys.stdout.write(",%.12f" % metrics[par_name]['objective'])
         for ite in metrics[par_name]['randomopt']:
             sys.stdout.write(",%.12f" % ite)
     sys.stdout.write(",obj_loss_seed%d" % args.seed)
