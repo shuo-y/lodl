@@ -37,6 +37,9 @@ def get_random_optDQ(mpart, Y, Y_aux, args):
         for i in range(len(randomdqs)):
             nordq[i] = (mpart["objs"][i] - randomdqs[i])/(true_objs[i] - randomdqs[i])
         print(f"Decision Quality with true Y: {true_objs.mean().item()}")
+        if any(nordq.isnan()):
+            print(f"Some nordq is nan dropped...")
+            nordq = nordq[~nordq.isnan()]
         mpart['randomopt'] = [nordq.mean().item(), randomdqs.mean().item(), true_objs.mean().item()]
         # return norDQ  realDQ randomDQ optDQ
 
