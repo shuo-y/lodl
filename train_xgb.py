@@ -623,6 +623,7 @@ def train_xgb_search_weights(args, problem):
             model_list = []
 
             weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
+            weight_samples.append(np.ones(ndim) * args.search_means)
             if args.verbose:
                 start_time = time.time()
                 print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
@@ -630,7 +631,7 @@ def train_xgb_search_weights(args, problem):
                 print(f"Weight vec isna{np.isnan(weight_samples).any()}  max{np.max(weight_samples)}  min{np.min(weight_samples)}")
 
             if args.serial == True:
-                for cnt in range(Nsamples):
+                for cnt in range(len(weight_samples)):
                     objective, model = evaluate_one_search(args, problem, Xtrain, Ytrain, weight_samples[cnt], Y_train[0].shape)
                     obj_list.append(objective)
                     model_list.append(model)
