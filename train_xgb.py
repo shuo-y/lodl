@@ -623,7 +623,7 @@ def train_xgb_search_weights(args, problem):
             model_list = []
 
             weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
-            weight_samples.append(np.ones(ndim) * args.search_means)
+            weight_samples = np.vstack([weight_samples, np.ones(ndim) * args.search_means])
             if args.verbose:
                 start_time = time.time()
                 print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
