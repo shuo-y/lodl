@@ -533,13 +533,16 @@ def train_xgb_ngopt(args, problem):
     metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 
-def evaluate_one_search(args, problem, Xtrain, Ytrain, weights_vec, ygoldshape):
+def evaluate_one_search(args, problem, Xtrain, Ytrain, ygoldshape, weight_vec):
+    """
     if args.loss == "weightedmse":
         cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec)
     elif args.loss == "quad":
         cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec.reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
     elif args.loss == "quad++":
         cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec.reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
+    """
+    cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_vec)
 
     Xy = xgb.DMatrix(Xtrain, Ytrain)
 
@@ -564,6 +567,7 @@ def evaluate_one_search(args, problem, Xtrain, Ytrain, weights_vec, ygoldshape):
     X_val, Y_val, Y_val_aux = problem.get_val_data()
     objective = cem_get_objective(problem, model, X_val, Y_val, Y_val_aux)
     return objective, model
+
 
 
 def train_xgb_search_weights(args, problem):
@@ -606,12 +610,8 @@ def train_xgb_search_weights(args, problem):
 
     outer_iter = args.restart_rounds
     bestmodel_so_far = None
-    bestweights_so_far = None
+    bestweights_so_far = np.ones(ndim) * args.search_means
     best = None
-
-    if args.verbose:
-        obj, modelprev = evaluate_one_search(args, problem, Xtrain, Ytrain, np.ones(ndim) * args.search_means, Y_train[0].shape)
-        print_metrics(modelprev, problem, args.loss, get_loss_fn(args.evalloss, problem), f"Initially2stage", isTrain=False)
 
 
     for oit in range(outer_iter):
@@ -619,50 +619,52 @@ def train_xgb_search_weights(args, problem):
         covs = np.eye(ndim) * args.search_covs
 
         for it in range(args.iters):
-            obj_list = []
-            model_list = []
-
             weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
-            weight_samples = np.vstack([weight_samples, np.ones(ndim) * args.search_means])
+            weight_samples = np.vstack((weight_samples, np.ones(ndim) * args.search_means))
+            results = []
+
             if args.verbose:
                 start_time = time.time()
                 print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
-                print(f"Weight vec{weight_samples}")
-                print(f"Weight vec isna{np.isnan(weight_samples).any()}  max{np.max(weight_samples)}  min{np.min(weight_samples)}")
+                yvalsum = problem.Y_val.sum()
+                ytrueobj = problem.dec_loss(problem.Y_val.detach().numpy(), problem.Y_val.detach().numpy())
+                print(f"Sanity check {yvalsum} {ytrueobj}")
+                #print(f"Weight vec{weight_samples}")
+                #print(f"Weight vec isna{np.isnan(weight_samples).any()}  max{np.max(weight_samples)}  min{np.min(weight_samples)}")
 
             if args.serial == True:
-                for cnt in range(len(weight_samples)):
-                    objective, model = evaluate_one_search(args, problem, Xtrain, Ytrain, weight_samples[cnt], Y_train[0].shape)
-                    obj_list.append(objective)
-                    model_list.append(model)
+                for cnt in range(Nsamples):
+                    #weight_sample = np.random.multivariate_normal(means, covs, 1)
+                    objective, model = evaluate_one_search(args, problem, Xtrain, Ytrain, Y_train[0].shape, weight_samples[cnt])
+                    results.append((objective, model))
+
             else:
                 # TODO multi threads has some issue currently
                 with Pool(os.cpu_count()) as p:
-                    results = p.starmap(evaluate_one_search, [(args, problem, np.copy(Xtrain), np.copy(Ytrain), np.clip(weight_vec, 1, 1000), Y_train[0].shape) for weight_vec in weight_samples])
-                    for obj, model in results:
-                        obj_list.append(obj)
-                        model_list.append(model)
+                    results = p.starmap(evaluate_one_search, [(args, problem, np.copy(Xtrain), np.copy(Ytrain), Y_train[0].shape, weight_samples[cnt]) for cnt in range(Nsamples)])
+
 
             ## Sort obj updates means and covs
-            obj_list = np.array(obj_list)
+            obj_list = np.array([obj for obj, _ in results])
             inds = np.argsort(obj_list)
             sub_weights = weight_samples[inds[:Nsub]]
 
             if args.verbose:
-                select_model = model_list[inds[0]]
-                print_metrics(select_model, problem, args.loss, get_loss_fn(args.evalloss, problem), f"seed{args.seed}iter{it}best", isTrain=False)
-                print(f"Time of one iteration CEM is {time.time() - start_time}")
+                select_model = results[inds[0]][1]
+                print(f"This iter best obj is {obj_list[inds[0]]} Time of one iteration CEM is {time.time() - start_time}")
 
-            if best == None or obj_list[0] < best:
-                best = obj_list[0]
-                bestmodel_so_far = model_list[0]
-                bestweights_so_far = weight_samples[0]
+            if best == None or obj_list[inds[0]] < best:
+                best = obj_list[inds[0]]
+                bestmodel_so_far = results[inds[0]][1]
+                bestweights_so_far = weight_samples[inds[0]]
+
+            sub_weights = weight_samples[:]
 
             means = np.mean(sub_weights, axis=0)
             covs = np.cov(sub_weights.T).reshape(ndim, ndim)
 
-        weight_samples = np.random.multivariate_normal(means, covs, 1)
-        print(f"outer_iter{oit}: means {means} covs {covs} weights {weight_samples[0]}")
+        #weight_samples = np.random.multivariate_normal(means, covs, 1)
+        #print(f"outer_iter{oit}: means {means} covs {covs} weights {weight_samples[0]}")
 
     if args.loss == "weightedmse":
         cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * bestweights_so_far)
