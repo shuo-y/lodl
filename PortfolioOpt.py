@@ -385,6 +385,25 @@ class PortfolioOpt(PThenO):
         else:
             return self.opt(Y, sqrt_covar)[0]
 
+    def pred_loss(self, z_pred: np.ndarray, z_true: np.ndarray, **kwargs) -> np.ndarray:
+        assert z_pred.shape == z_true.shape
+        assert "aux_data" in kwargs
+        Q_mat = kwargs["aux_data"]
+        N = z_true.shape[0]
+        assert Q_mat.shape[0] == N
+        sqrt_covar = np.linalg.cholesky(Q_mat)
+        f_hat_list = []
+        for i in range(N):
+            if i%100 == 0:
+                print("Solving QP:", i, " out of ", N)
+            self.ret.value = z_pred[i]
+            self.L.value = sqrt_covar[i]
+            self.model.solve(solver=cp.SCS)
+            sol = self.var.value
+            ############################
+            f_hat_i_cp = self._get_objective(z_true[i], sol, sqrt_covar[i])
+            f_hat_list.append([f_hat_i_cp])
+        return np.array(f_hat_list)
 
     def get_decision(self, Y, aux_data, max_instances_per_batch=1500, isTrain=True, **kwargs):
         # Get the sqrt of the covariance matrix

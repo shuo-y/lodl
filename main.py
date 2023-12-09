@@ -3,6 +3,7 @@ import argparse
 import ast
 import torch
 import random
+import numpy as np
 
 
 def get_random_optDQ(mpart, Y, Y_aux, args):
@@ -79,6 +80,7 @@ def perf_metrics(args, problem, metrics):
     sys.stdout.flush()
 
 
+
 if __name__ == '__main__':
     # Get hyperparams from the command line
     # TODO: Separate main into folders per domain
@@ -88,9 +90,9 @@ if __name__ == '__main__':
     parser.add_argument('--layers', type=int, default=2)
     parser.add_argument('--iters', type=int, default=5000, help='used for original NN also search weights')
     parser.add_argument('--earlystopping', type=ast.literal_eval, default=True)
-    parser.add_argument('--instances', type=int, default=400)
-    parser.add_argument('--testinstances', type=int, default=200)
-    parser.add_argument('--valfrac', type=float, default=0.5)
+    parser.add_argument('--num_train', type=int, default=1000)
+    parser.add_argument('--num_test', type=int, default=1000)
+    parser.add_argument('--num_val', type=int, default=1000)
     parser.add_argument('--valfreq', type=int, default=5)
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--seed', type=int, default=0)
@@ -174,6 +176,10 @@ if __name__ == '__main__':
     print(f"Hyperparameters: {args}\n")
     print(f"Loading {args.problem} Problem...")
 
+    random.seed(args.seed)
+    np.random.seed(args.seed * 1091)
+    torch.manual_seed(args.seed * 2621)
+
     if args.problem == 'budgetalloc':
         from BudgetAllocation import BudgetAllocation
         problem = BudgetAllocation(num_train_instances = args.instances,
@@ -238,13 +244,18 @@ if __name__ == '__main__':
                                num_per_instance=args.itempertrace)
     elif args.problem == 'shortestpath':
         from ShortestPath import ShortestPath
+        from sklearn.model_selection import train_test_split
+
+        num_train=args.num_train
+        num_val=args.num_val
+        num_test=args.num_test
+        num_total = num_train + num_val + num_test
         problem = ShortestPath(num_feats=args.numfeatures,
                                grid=eval(args.spgrid),
-                               num_train=args.instances - int(args.valfrac * args.instances),
-                               num_val=int(args.valfrac * args.instances),
-                               num_test=args.testinstances,
-                               seed=args.seed,
                                solver=args.solver)
+        xdata, ydata = problem.generate_dataset(num_total)
+        xtrainval, xtest, ytrainval, ytest = train_test_split(xdata, ydata, test_size=num_test, random_state=args.seed * 17)
+        xtrain, xval, ytrain, yval = train_test_split(xtrainval, ytrainval, test_size=num_val, random_state=args.seed * 167)
 
 
 
@@ -252,21 +263,29 @@ if __name__ == '__main__':
     print(f"Building {args.model} Model...")
     if args.model == "xgb_decoupled":
         from train_xgb import train_xgb
-        model, metrics = train_xgb(args, problem)
+        model, metrics = train_xgb(args, problem, xtrain, ytrain)
     elif args.model.startswith("xgb_lodl") or args.model.startswith("xgb_coupled"):
-        from train_xgb import train_xgb_lodl
-        model, metrics = train_xgb_lodl(args, problem)
+        from train_xgb import train_xgb_lodl, perf_booster
+        booster = train_xgb_lodl(args, problem, xtrain, ytrain)
+        perf_train = perf_booster(args, problem, booster, xtrain, ytrain, "train")
+        perf_val = perf_booster(args, problem, booster, xval, yval, "val")
+        perf_test = perf_booster(args, problem, booster, xtest, ytest, "test")
+        print(perf_train + perf_test + perf_val)
     elif args.model.startswith("dense"):
         from train_dense import train_dense
         model, metrics = train_dense(args, problem)
     elif args.model.startswith("xgb_search"):
-        from train_xgb import train_xgb_search_weights
-        model, metrics = train_xgb_search_weights(args, problem)
+        from train_xgb import train_xgb_search_weights, perf_booster
+        booster = train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval)
+        perf_train = perf_booster(args, problem, booster, xtrain, ytrain, "train")
+        perf_val = perf_booster(args, problem, booster, xval, yval, "val")
+        perf_test = perf_booster(args, problem, booster, xtest, ytest, "test")
+        print(perf_train + perf_test + perf_val)
     elif args.model == "xgb_ngopt":
         from train_xgb import train_xgb_ngopt
         model, metrics = train_xgb_ngopt(args, problem)
 
-    perf_metrics(args, problem, metrics)
+    #perf_metrics(args, problem, metrics)
 
     print(args)
 

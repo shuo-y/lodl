@@ -12,10 +12,6 @@ class ShortestPath(PThenO):
     def __init__(self,
                  num_feats,
                  grid,
-                 num_train,
-                 num_val,
-                 num_test,
-                 seed,
                  solver="glpk"):
         super(ShortestPath, self).__init__()
         self.num_feats = num_feats
@@ -29,21 +25,6 @@ class ShortestPath(PThenO):
         self._vars = _vars
         self._solverfac = po.SolverFactory(solver)
 
-
-        X, Y = self.generate_dataset(N=num_train + num_val + num_test, deg=6, noise_width=0.5)
-        X_trainval, X_test, Y_trainval, Y_test = train_test_split(X, Y, test_size=num_test, random_state=seed)
-
-        self.X_train = torch.tensor(X_trainval[:num_train]).float()
-        self.Y_train = torch.tensor(Y_trainval[:num_train]).float()
-
-        self.X_val = torch.tensor(X_trainval[num_train:]).float()
-        self.Y_val = torch.tensor(Y_trainval[num_train:]).float()
-
-        self.X_test = torch.tensor(X_test).float()
-        self.Y_test = torch.tensor(Y_test).float()
-
-        self.rand_seed = seed * 17
-        self._set_seed(self.rand_seed)
 
     def _get_arcs(self):
         """
@@ -185,6 +166,7 @@ class ShortestPath(PThenO):
     def get_output_activation(self):
         return "relu"
 
+    """
     def get_train_data(self, **kwargs):
         return self.X_train, self.Y_train,  [None for _ in range(len(self.X_train))]
 
@@ -196,16 +178,11 @@ class ShortestPath(PThenO):
 
     def get_val_data(self, **kwargs):
         return self.X_val, self.Y_val,  [None for _ in range(len(self.X_val))]
+    """
 
 
 if __name__ == "__main__":
-    sp = ShortestPath(num_feats=5, grid=(5, 5), num_train=800, num_val=200, num_test=1000, seed=1)
+    sp = ShortestPath(num_feats=5, grid=(5, 5))
     import pdb
-
-    X_val, Y_val, _ = sp.get_val_data()
-    zs = sp.get_decision(Y_val)
-
-    zobjs = sp.get_objective(Y_val, zs)
-    zobjs_eval = sp.dec_loss(Y_val.detach().numpy(), Y_val.detach().numpy())
     pdb.set_trace()
 

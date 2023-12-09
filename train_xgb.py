@@ -28,7 +28,7 @@ class custom_tree:
             # https://docs.python.org/3/library/exceptions.html
             raise ValueError
 
-def train_xgb(args, problem):
+def train_xgb(args, problem, xtrain, ytrain):
     # 2stage xgboost decoupled version
     X_train, Y_train, Y_train_aux = problem.get_train_data()
     X_val, Y_val, Y_val_aux = problem.get_val_data()
@@ -109,17 +109,7 @@ class custom_loss():
         self.mag_factor = mag_factor
         self.verbose = verbose
         self.logger = []
-        #g = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
-        #h = np.zeros(self.ygold.shape).reshape(self.ygold.shape[0], np.prod(self.ygold.shape[1:]))
-        #for i in range(self.ygold.shape[0]):
-        #    g[i], h[i] = self.grad_hess_fn(self.ygold[i], self.ygold[i], "train", i)
-        #import pdb
-        #pdb.set_trace()
-        #print("check g sum {}".format(g.sum()))
-        #print("check h sum {}".format(h.sum()))
 
-        #print("initial custom_loss")
-        #print(ygold[0])
 
     # Need use static method ?
     # https://www.digitalocean.com/community/tutorials/python-static-method
@@ -154,28 +144,6 @@ class custom_loss():
                 print("grad.sum() {}".format(grad.sum()))
                 print("hes.sum() {}".format(hes.sum()))
 
-            """
-            print("grad() {}".format(grad))
-            print("hes() {}".format(hes))
-            y = dtrain.get_label().reshape(predt.shape)
-            print(f"predt.size {predt.size}")
-            check_grad = 2 * (predt - y).reshape(y.size)
-            print(f"grad should be {check_grad}")
-            if (all(np.isclose(check_grad, grad)) == False):
-                print("error not close")
-
-            y = dtrain.get_label().reshape(predt.shape)
-            
-            manual_grad = (predt - y).reshape(y.size)
-            if np.isclose(grad, manual_grad).all():
-                print("pass test")
-            else:
-                print("not pass test")
-            print(manual_grad[:10])
-            print(grad[:10]) 
-            print(manual_grad[-10:])
-            print(grad[-10:])
-            """
             self.logger.append([predt, grad, hes])
             return grad, hes
         return obj
@@ -196,19 +164,11 @@ class custom_loss():
 
 
 
-def train_xgb_lodl(args, problem):
+def train_xgb_lodl(args, problem, xtrain, ytrain, **kwargs):
     from losses import get_loss_fn
-    X_train, Y_train, Y_train_aux = problem.get_train_data()
 
-    Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
-    Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
-
-    if args.model == "xgb_lodl_decoupled":
-        Xtrain = Xtrain.reshape(-1, X_train.shape[-1])
-        batch_sz = Xtrain.shape[0]
-        assert batch_sz * np.prod(Y_train.shape) // batch_sz == np.prod(Y_train.shape)
-        # If error check if the dimensions of the shapes is appropriate
-        Ytrain = Y_train.numpy().reshape(batch_sz, np.prod(Y_train.shape) // batch_sz)
+    Xtrain = xtrain.reshape(xtrain.shape[0], np.prod(xtrain.shape[1:]))
+    Ytrain = ytrain.reshape(ytrain.shape[0], np.prod(ytrain.shape[1:]))
 
     print(f"Data shape used for XGB input {Xtrain.shape} output {Ytrain.shape}")
 
@@ -222,23 +182,11 @@ def train_xgb_lodl(args, problem):
         reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
         if args.dumptree:
             dump_booster(reg.get_booster(), args)
-        model = xgbwrapper(reg, Y_train[0].shape)
-        metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
-        return model, metrics
-    elif args.model == "xgb_coupled_clf":
-        print("Use xgb.XGBClassifier")
-        print("Use ce loss no matter the input args.loss")
-        clf = xgb.XGBClassifier(tree_method=args.tree_method, n_estimators=args.num_estimators, learning_rate=args.tree_eta,
-                               reg_alpha=args.tree_alpha, reg_lambda=args.tree_lambda)
-        clf.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
-        model = xgbwrapper(clf, Y_train[0].shape)
-        if args.dumptree:
-            dump_booster(clf.get_booster(), args)
-        metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
-        return model, metrics
+        return reg.get_booster()
 
     print(f"Loading {args.loss} Loss Function...")
     # See https://stackoverflow.com/questions/27892356/add-a-parameter-into-kwargs-during-function-call also for appending an argument
+    # TODO how to learn loss based on passing arguments
     loss_kwargs = {"sampling": args.sampling,
                    "num_samples": args.numsamples,
                    "rank": args.quadrank,
@@ -263,12 +211,10 @@ def train_xgb_lodl(args, problem):
 
     # Based on some code from https://xgboost.readthedocs.io/en/stable/python/examples/multioutput_regression.html
 
-    cusloss = custom_loss(Y_train.detach().numpy(), loss_model_fn, loss_fn, args.mag_factor)
+    cusloss = custom_loss(ytrain, loss_model_fn, loss_fn, args.mag_factor)
     obj_fun = cusloss.get_obj_fn()
     eval_fun = cusloss.get_eval_fn()
 
-    #reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators)
-    print(f"Data shape used for XGB input {Xtrain.shape} output {Ytrain.shape}")
     Xy = xgb.DMatrix(Xtrain, Ytrain)
 
     booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
@@ -285,12 +231,7 @@ def train_xgb_lodl(args, problem):
 
     if args.dumptree:
         dump_booster(booster, args)
-    model = treefromlodl(booster, Y_train[0].shape)
-    if args.model == "xgb_lodl_decoupled":
-        model = decoupledboosterwrapper(booster, Y_train[0].shape)
-
-    metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
-    return model, metrics
+    return booster
 
 
 def dump_booster(booster, args):
@@ -533,7 +474,7 @@ def train_xgb_ngopt(args, problem):
     metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 
-def evaluate_one_search(args, problem, Xtrain, Ytrain, ygoldshape, weight_vec):
+def evaluate_one_search(args, problem, xtrain, ytrain, xval, yval, weight_vec):
     """
     if args.loss == "weightedmse":
         cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec)
@@ -542,11 +483,13 @@ def evaluate_one_search(args, problem, Xtrain, Ytrain, ygoldshape, weight_vec):
     elif args.loss == "quad++":
         cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec.reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
     """
-    cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weight_vec)
+    weight_vec = np.clip(weight_vec, 1, None)
+    cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], args.mag_factor * weight_vec)
 
-    Xy = xgb.DMatrix(Xtrain, Ytrain)
 
-    booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
+    Xy = xgb.DMatrix(xtrain, ytrain)
+
+    booster = xgb.train({"tree_method": args.tree_method, "num_target": ytrain.shape[1],
                             "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
                             "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
                             "min_child_weight": args.tree_min_child_weight,
@@ -559,43 +502,34 @@ def evaluate_one_search(args, problem, Xtrain, Ytrain, ygoldshape, weight_vec):
                         num_boost_round = args.search_estimators,
                         obj = cusloss.get_obj_fn())
 
-    if args.model == "xgb_search_decoupled":
-        model = decoupledboosterwrapper(booster, ygoldshape)
-    else:
-        model = treefromlodl(booster, ygoldshape)
-
-    X_val, Y_val, Y_val_aux = problem.get_val_data()
-    objective = cem_get_objective(problem, model, X_val, Y_val, Y_val_aux)
-    return objective, model
+    ypred = booster.inplace_predict(xval)
+    objective = problem.dec_loss(ypred, yval)
+    objective = objective.squeeze().mean()
+    return objective, booster
 
 
 
-def train_xgb_search_weights(args, problem):
-    X_train, Y_train, Y_train_aux = problem.get_train_data()
-    X_val, Y_val, Y_val_aux = problem.get_val_data()  # Xval is still needed for CEM
+def train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval):
 
-    Xtrain = X_train.numpy().reshape(X_train.shape[0], np.prod(X_train.shape[1:]))
-    Ytrain = Y_train.numpy().reshape(Y_train.shape[0], np.prod(Y_train.shape[1:]))
+    #if args.model == "xgb_search_decoupled":
+    #    Xtrain = Xtrain.reshape(-1, X_train.shape[-1])
+    #    batch_sz = Xtrain.shape[0]
+    #    assert batch_sz * np.prod(Y_train.shape) // batch_sz == np.prod(Y_train.shape)
+    #    # If error check if the dimensions of the shapes is appropriate
+    #    Ytrain = Y_train.numpy().reshape(batch_sz, np.prod(Y_train.shape) // batch_sz)
 
-    if args.model == "xgb_search_decoupled":
-        Xtrain = Xtrain.reshape(-1, X_train.shape[-1])
-        batch_sz = Xtrain.shape[0]
-        assert batch_sz * np.prod(Y_train.shape) // batch_sz == np.prod(Y_train.shape)
-        # If error check if the dimensions of the shapes is appropriate
-        Ytrain = Y_train.numpy().reshape(batch_sz, np.prod(Y_train.shape) // batch_sz)
-
-    print(f"Data shape used for XGB input {Xtrain.shape} output {Ytrain.shape}")
+    print(f"Data shape used for XGB input {xtrain.shape} output {ytrain.shape}")
 
     Nsamples = args.search_numsamples
     # Sample a lot of N
     Nsub = args.search_subsamples
     # Select the sub part
     if args.loss == "weightedmse":
-        ndim = Ytrain.shape[1]
+        ndim = ytrain.shape[1]
     elif args.loss == "quad":
-        ndim = Ytrain.shape[1] * args.quadrank
+        ndim = ytrain.shape[1] * args.quadrank
     elif args.loss == "quad++":
-        ndim = Ytrain.shape[1] * Ytrain.shape[1] * 4
+        ndim = ytrain.shape[1] * ytrain.shape[1] * 4
     else:
         assert "Not supported loss"
 
@@ -613,6 +547,9 @@ def train_xgb_search_weights(args, problem):
     bestweights_so_far = np.ones(ndim) * args.search_means
     best = None
 
+    xtraincopies = [np.copy(xtrain) for _ in range(Nsamples + 1)]
+    ytraincopies = [np.copy(ytrain) for _ in range(Nsamples + 1)]
+
 
     for oit in range(outer_iter):
         means = np.ones(ndim) * args.search_means
@@ -626,22 +563,23 @@ def train_xgb_search_weights(args, problem):
             if args.verbose:
                 start_time = time.time()
                 print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
-                yvalsum = problem.Y_val.sum()
-                ytrueobj = problem.dec_loss(problem.Y_val.detach().numpy(), problem.Y_val.detach().numpy())
-                print(f"Sanity check {yvalsum} {ytrueobj}")
-                #print(f"Weight vec{weight_samples}")
-                #print(f"Weight vec isna{np.isnan(weight_samples).any()}  max{np.max(weight_samples)}  min{np.min(weight_samples)}")
+                if (it + 1) % 10 == 0:
+                    yvalsum = problem.Y_val.sum()
+                    ytrueobj = problem.dec_loss(problem.Y_val.detach().numpy(), problem.Y_val.detach().numpy())
+                    print(f"Iter {it} Sanity check {yvalsum} {ytrueobj}")
+                    #print(f"Weight vec{weight_samples}")
+                    #print(f"Weight vec isna{np.isnan(weight_samples).any()}  max{np.max(weight_samples)}  min{np.min(weight_samples)}")
 
             if args.serial == True:
-                for cnt in range(Nsamples):
+                for cnt in range(Nsamples + 1):
                     #weight_sample = np.random.multivariate_normal(means, covs, 1)
-                    objective, model = evaluate_one_search(args, problem, Xtrain, Ytrain, Y_train[0].shape, weight_samples[cnt])
+                    objective, model = evaluate_one_search(args, problem, xtrain, ytrain, xval, yval, weight_samples[cnt])
                     results.append((objective, model))
 
             else:
                 # TODO multi threads has some issue currently
                 with Pool(os.cpu_count()) as p:
-                    results = p.starmap(evaluate_one_search, [(args, problem, np.copy(Xtrain), np.copy(Ytrain), Y_train[0].shape, weight_samples[cnt]) for cnt in range(Nsamples)])
+                    results = p.starmap(evaluate_one_search, [(args, problem, xtrain, ytrain, xval, yval, weight_samples[cnt]) for cnt in range(Nsamples + 1)])
 
 
             ## Sort obj updates means and covs
@@ -651,7 +589,7 @@ def train_xgb_search_weights(args, problem):
 
             if args.verbose:
                 select_model = results[inds[0]][1]
-                print(f"This iter best obj is {obj_list[inds[0]]} Time of one iteration CEM is {time.time() - start_time}")
+                print(f"Iter {it} best obj is {obj_list[inds[0]]} Time of one iteration CEM is {time.time() - start_time}")
 
             if best == None or obj_list[inds[0]] < best:
                 best = obj_list[inds[0]]
@@ -673,7 +611,7 @@ def train_xgb_search_weights(args, problem):
     elif args.loss == "quad++":
         cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * bestweights_so_far.reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
 
-    Xy = xgb.DMatrix(Xtrain, Ytrain)
+    Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
                          "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
                          "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
@@ -689,18 +627,46 @@ def train_xgb_search_weights(args, problem):
                         evals = [(Xy, "train")],
                         custom_metric = cusloss.get_eval_fn())
 
-    if args.model == "xgb_search_decoupled":
-        model = decoupledboosterwrapper(booster, Y_train[0].shape)
-    else:
-        model = treefromlodl(booster, Y_train[0].shape)
+    #if args.model == "xgb_search_decoupled":
+    #    model = decoupledboosterwrapper(booster, Y_train[0].shape)
+    #else:
+    #    model = treefromlodl(booster, Y_train[0].shape)
 
     if args.tree_check_logger:
         check_logger(cusloss.logger, args)
 
+    return booster
 
-    metrics = print_metrics(model, problem, args.loss, get_loss_fn(args.evalloss, problem), "seed{}".format(args.seed), isTrain=False)
 
-    return model, metrics
+def perf_booster(args, problem, booster, X, y, name):
+    ypred = booster.inplace_predict(X)
+
+    mseloss = ((y - ypred) ** 2).mean()
+
+    randobjs = []
+    for _ in range(10):
+        yrandom = np.random.rand(*y.shape)
+        randomobj = problem.dec_loss(yrandom, y)
+        randobjs.append(randomobj)
+
+    randobjs = np.array(randobjs)
+    randobjs = randobjs.mean(axis = 0)
+    predobj = problem.dec_loss(ypred, y)
+    optobj = problem.dec_loss(y, y)
+
+    randobjs = np.squeeze(randobjs)
+    predobj = np.squeeze(predobj)
+    optobj = np.squeeze(optobj)
+
+    norobj = (predobj - randobjs) / (optobj - randobjs)
+    norobj = norobj.mean()
+
+    norobjnotperins = (predobj.mean() - randobjs.mean()) / (optobj.mean()- randobjs.mean())
+    print(f"{name} Normalized DLoss (per instance) {norobj}  NorDLoss (not per instance) {norobjnotperins} DLoss {predobj.mean()} Random DLoss {randobjs.mean()} Opt DLOSS {optobj.mean()} MSE{mseloss}")
+    csvstring = "%.12f,%.12f,%.12f,%.12f,%.12f,%.12f," % (norobj, norobjnotperins, predobj.mean(), randobjs.mean(), optobj.mean(), mseloss)
+    return csvstring
+
+
 
 
 
