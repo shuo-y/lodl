@@ -270,7 +270,7 @@ if __name__ == '__main__':
         perf_train = perf_booster(args, problem, booster, xtrain, ytrain, "train")
         perf_val = perf_booster(args, problem, booster, xval, yval, "val")
         perf_test = perf_booster(args, problem, booster, xtest, ytest, "test")
-        print(perf_train + perf_test + perf_val)
+        print(f"DQ_seed{args.seed},{perf_train}{perf_test}{perf_val}")
     elif args.model.startswith("dense"):
         from train_dense import train_dense
         model, metrics = train_dense(args, problem)
