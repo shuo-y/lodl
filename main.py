@@ -280,7 +280,7 @@ if __name__ == '__main__':
         perf_train = perf_booster(args, problem, booster, xtrain, ytrain, "train")
         perf_val = perf_booster(args, problem, booster, xval, yval, "val")
         perf_test = perf_booster(args, problem, booster, xtest, ytest, "test")
-        print(perf_train + perf_test + perf_val)
+        print(f"DQ_seed{args.seed},{perf_train}{perf_test}{perf_val}")
     elif args.model == "xgb_ngopt":
         from train_xgb import train_xgb_ngopt
         model, metrics = train_xgb_ngopt(args, problem)

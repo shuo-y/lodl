@@ -564,8 +564,8 @@ def train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval):
                 start_time = time.time()
                 print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
                 if (it + 1) % 10 == 0:
-                    yvalsum = problem.Y_val.sum()
-                    ytrueobj = problem.dec_loss(problem.Y_val.detach().numpy(), problem.Y_val.detach().numpy())
+                    yvalsum = problem.yval.sum()
+                    ytrueobj = problem.dec_loss(yval, yval)
                     print(f"Iter {it} Sanity check {yvalsum} {ytrueobj}")
                     #print(f"Weight vec{weight_samples}")
                     #print(f"Weight vec isna{np.isnan(weight_samples).any()}  max{np.max(weight_samples)}  min{np.min(weight_samples)}")
