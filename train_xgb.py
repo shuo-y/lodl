@@ -503,6 +503,83 @@ def evaluate_one_search(params, problem, xtrain, ytrain, xval, yval, weight_vec)
     objective = objective.squeeze().mean()
     return objective, booster
 
+def cem_one_restart(params, problem, xtrain, ytrain, xval, yval):
+    bestmodel_so_far = None
+    bestweights_so_far = None
+    best = None
+    Nsamples = params["search_numsamples"]
+    # Sample a lot of N
+    Nsub = params["search_subsamples"]
+    ndim = ytrain.shape[1]
+    means = np.ones(ndim) * params["search_means"]
+    covs = np.eye(ndim) * params["search_covs"]
+
+    for it in range(params["iters"]):
+        weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
+        weight_samples = np.vstack((weight_samples, np.ones(ndim) * params["search_means"]))
+        weight_samples = np.clip(weight_samples, 1.0, None)
+        results = []
+
+        for cnt in range(Nsamples + 1):
+            #weight_sample = np.random.multivariate_normal(means, covs, 1)
+            objective, model = evaluate_one_search(params, problem, xtrain, ytrain, xval, yval, weight_samples[cnt])
+            results.append((objective, model))
+
+        obj_list = np.array([obj for obj, _ in results])
+        inds = np.argsort(obj_list)
+        sub_weights = weight_samples[inds[:Nsub]]
+
+        if best == None or obj_list[inds[0]] < best:
+            best = obj_list[inds[0]]
+            bestmodel_so_far = results[inds[0]][1]
+            bestweights_so_far = weight_samples[inds[0]]
+        means = np.mean(sub_weights, axis=0)
+        covs = np.cov(sub_weights.T).reshape(ndim, ndim)
+
+    return best, bestmodel_so_far, bestweights_so_far
+
+
+def train_xgb_search_weights_multirestart(args, prob, probkwargs, xtrain, ytrain, xval, yval):
+    problemcopies = [prob(**probkwargs) for _ in range(args.restart_rounds)]
+    params = vars(args)
+    import copy
+    paramscopies = [copy.deepcopy(params) for _ in range(args.restart_rounds)]
+    xtraincopies = [np.copy(xtrain) for _ in range(args.restart_rounds)]
+    ytraincopies = [np.copy(ytrain) for _ in range(args.restart_rounds)]
+    xvalcopies = [np.copy(xval) for _ in range(args.restart_rounds)]
+    yvalcopies = [np.copy(yval) for _ in range(args.restart_rounds)]
+
+    from torch.multiprocessing import Pool
+    import os
+    import time
+
+    starttime = time.time()
+    with Pool(os.cpu_count()) as pl:
+        results = pl.starmap(cem_one_restart, [(paramscopies[cnt], problemcopies[cnt], xtraincopies[cnt], ytraincopies[cnt], xvalcopies[cnt], yvalcopies[cnt]) for cnt in range(args.restart_rounds)])
+
+    print(f"Train time {time.time() - starttime}")
+
+    obj_list = np.array([obj for obj, _ , _ in results])
+    inds = np.argsort(obj_list)
+    bestweights_so_far = results[inds[0]][2]
+
+    cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], args.mag_factor * bestweights_so_far)
+    Xy = xgb.DMatrix(xtrain, ytrain)
+    booster = xgb.train({"tree_method": args.tree_method, "num_target": ytrain.shape[1],
+                         "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
+                         "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
+                         "min_child_weight": args.tree_min_child_weight,
+                         "max_delta_step": args.tree_max_delta_step, "subsample": args.tree_subsample,
+                         "colsample_bytree": args.tree_colsample_bytree,
+                         "colsample_bylevel": args.tree_colsample_bylevel,
+                         "colsample_bynode": args.tree_colsample_bynode,
+                         "scale_pos_weight": args.tree_scale_pos_weight},
+                        dtrain = Xy,
+                        num_boost_round = args.num_estimators,
+                        obj = cusloss.get_obj_fn(),
+                        evals = [(Xy, "train")],
+                        custom_metric = cusloss.get_eval_fn())
+    return booster
 
 
 def train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval):
@@ -520,7 +597,7 @@ def train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval)
     # Sample a lot of N
     Nsub = args.search_subsamples
     # Select the sub part
-    ndim = ytrain.shape[1]"
+    ndim = ytrain.shape[1]
 
     print(f"The dimensiona is {ndim}")
     global_step = 0
@@ -544,7 +621,7 @@ def train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval)
     xtraincopies = [np.copy(xtrain) for _ in range(Nsamples + 1)]
     ytraincopies = [np.copy(ytrain) for _ in range(Nsamples + 1)]
     xvalcopies = [np.copy(xval) for _ in range(Nsamples + 1)]
-    yvalcopies = [np.copy(yval) for _ in range(Nsampels + 1)]
+    yvalcopies = [np.copy(yval) for _ in range(Nsamples + 1)]
 
 
     for oit in range(outer_iter):
@@ -575,8 +652,8 @@ def train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval)
 
             else:
                 # TODO multi threads has some issue currently
-                with Pool(os.cpu_count()) as pool:
-                    results = pool.starmap(evaluate_one_search, [(paramscopies[cnt], problemcopies[cnt], xtraincopies[cnt], ytraincopies[cnt], xvalcopies[cnt], yvalcopies[cnt], weight_samples[cnt]) for cnt in range(Nsamples + 1)])
+                with Pool(os.cpu_count()) as pl:
+                    results = pl.starmap(evaluate_one_search, [(paramscopies[cnt], problemcopies[cnt], xtraincopies[cnt], ytraincopies[cnt], xvalcopies[cnt], yvalcopies[cnt], weight_samples[cnt]) for cnt in range(Nsamples + 1)])
 
 
             ## Sort obj updates means and covs
@@ -592,8 +669,6 @@ def train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval)
                 best = obj_list[inds[0]]
                 bestmodel_so_far = results[inds[0]][1]
                 bestweights_so_far = weight_samples[inds[0]]
-
-            sub_weights = weight_samples[:]
 
             means = np.mean(sub_weights, axis=0)
             covs = np.cov(sub_weights.T).reshape(ndim, ndim)

@@ -140,6 +140,7 @@ if __name__ == '__main__':
     parser.add_argument('--search_means', type=float, default=1, help='use for cross entropy method search the initial mean')
     parser.add_argument('--search_covs', type=float, default=1, help='use for cross entropy method search the initial covs')
     parser.add_argument('--restart_rounds', type=int, default=1, help='the restart round for CEM search')
+    parser.add_argument('--restart_parallel', action='store_true', help='parallel each thread is a restart')
     parser.add_argument('--num_estimators', type=int, default=10)
     parser.add_argument('--tree_method', type=str, default='hist', choices=['hist', 'gpu_hist', 'approx', 'auto', 'exact'])
     parser.add_argument('--tree_lambda', type=float, default=1, help='L2 normalization')
@@ -259,7 +260,7 @@ if __name__ == '__main__':
         xtrainval, xtest, ytrainval, ytest = train_test_split(xdata, ydata, test_size=num_test, random_state=args.seed * 17)
         xtrain, xval, ytrain, yval = train_test_split(xtrainval, ytrainval, test_size=num_val, random_state=args.seed * 167)
         prob = ShortestPath
-        probkwargs = {"num_feats": args.numfeatures, "grid": eval(args.spgrid), solver=args.solver}
+        probkwargs = {"num_feats": args.numfeatures, "grid": eval(args.spgrid), "solver": args.solver}
 
 
 
@@ -279,8 +280,13 @@ if __name__ == '__main__':
         from train_dense import train_dense
         model, metrics = train_dense(args, problem)
     elif args.model.startswith("xgb_search"):
-        from train_xgb import train_xgb_search_weights, perf_booster
-        booster = train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval)
+        from train_xgb import perf_booster
+        if args.restart_parallel == True:
+            from train_xgb import train_xgb_search_weights_multirestart
+            booster = train_xgb_search_weights_multirestart(args, prob, probkwargs, xtrain, ytrain, xval, yval)
+        else:
+            from train_xgb import train_xgb_search_weights
+            booster = train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval)
         perf_train = perf_booster(args, problem, booster, xtrain, ytrain, "train")
         perf_val = perf_booster(args, problem, booster, xval, yval, "val")
         perf_test = perf_booster(args, problem, booster, xtest, ytest, "test")
