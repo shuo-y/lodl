@@ -253,7 +253,8 @@ if __name__ == '__main__':
         problem = ShortestPath(num_feats=args.numfeatures,
                                grid=eval(args.spgrid),
                                solver=args.solver)
-        xdata, ydata = problem.generate_dataset(num_total)
+        # Generate data based on https://github.com/facebookresearch/LANCER/blob/main/DFL/scripts/run_lancer_dfl.py
+        xdata, ydata = problem.generate_dataset(N=num_total, deg=6, noise_width=0.5)
         xtrainval, xtest, ytrainval, ytest = train_test_split(xdata, ydata, test_size=num_test, random_state=args.seed * 17)
         xtrain, xval, ytrain, yval = train_test_split(xtrainval, ytrainval, test_size=num_val, random_state=args.seed * 167)
 
