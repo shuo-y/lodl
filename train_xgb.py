@@ -475,17 +475,8 @@ def train_xgb_ngopt(args, problem):
     return model, metrics
 
 def evaluate_one_search(args, problem, xtrain, ytrain, xval, yval, weight_vec):
-    """
-    if args.loss == "weightedmse":
-        cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec)
-    elif args.loss == "quad":
-        cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec.reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
-    elif args.loss == "quad++":
-        cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * weights_vec.reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
-    """
-    weight_vec = np.clip(weight_vec, 1, None)
-    cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], args.mag_factor * weight_vec)
 
+    cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], args.mag_factor * weight_vec)
 
     Xy = xgb.DMatrix(xtrain, ytrain)
 
@@ -558,6 +549,7 @@ def train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval):
         for it in range(args.iters):
             weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
             weight_samples = np.vstack((weight_samples, np.ones(ndim) * args.search_means))
+            weight_samples = np.clip(weight_samples, 1.0, None)
             results = []
 
             if args.verbose:
@@ -604,12 +596,8 @@ def train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval):
         #weight_samples = np.random.multivariate_normal(means, covs, 1)
         #print(f"outer_iter{oit}: means {means} covs {covs} weights {weight_samples[0]}")
 
-    if args.loss == "weightedmse":
-        cusloss = search_weights_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * bestweights_so_far)
-    elif args.loss == "quad":
-        cusloss = search_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * bestweights_so_far.reshape(Ytrain.shape[1], args.quadrank), args.quadalpha)
-    elif args.loss == "quad++":
-        cusloss = search_direct_quadratic_loss(Ytrain.shape[0], Ytrain.shape[1], args.mag_factor * bestweights_so_far.reshape(Ytrain.shape[1], Ytrain.shape[1], 4), args.quadalpha)
+    cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], args.mag_factor * bestweights_so_far)
+
 
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
@@ -627,10 +615,6 @@ def train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval):
                         evals = [(Xy, "train")],
                         custom_metric = cusloss.get_eval_fn())
 
-    #if args.model == "xgb_search_decoupled":
-    #    model = decoupledboosterwrapper(booster, Y_train[0].shape)
-    #else:
-    #    model = treefromlodl(booster, Y_train[0].shape)
 
     if args.tree_check_logger:
         check_logger(cusloss.logger, args)
