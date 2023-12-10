@@ -222,6 +222,7 @@ if __name__ == '__main__':
                        rand_seed = args.seed)
     elif args.problem == 'portfolio':
         from PortfolioOpt import PortfolioOpt
+        # TODO coupled or decoupled different shapes change in problem.dec_loss
         problem = PortfolioOpt(num_train_instances = args.instances,
                                num_test_instances = args.testinstances,
                                num_stocks = args.stocks,
@@ -257,6 +258,8 @@ if __name__ == '__main__':
         xdata, ydata = problem.generate_dataset(N=num_total, deg=6, noise_width=0.5)
         xtrainval, xtest, ytrainval, ytest = train_test_split(xdata, ydata, test_size=num_test, random_state=args.seed * 17)
         xtrain, xval, ytrain, yval = train_test_split(xtrainval, ytrainval, test_size=num_val, random_state=args.seed * 167)
+        prob = ShortestPath
+        probkwargs = {"num_feats": args.numfeatures, "grid": eval(args.spgrid), solver=args.solver}
 
 
 
@@ -277,7 +280,7 @@ if __name__ == '__main__':
         model, metrics = train_dense(args, problem)
     elif args.model.startswith("xgb_search"):
         from train_xgb import train_xgb_search_weights, perf_booster
-        booster = train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval)
+        booster = train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval)
         perf_train = perf_booster(args, problem, booster, xtrain, ytrain, "train")
         perf_val = perf_booster(args, problem, booster, xval, yval, "val")
         perf_test = perf_booster(args, problem, booster, xtest, ytest, "test")

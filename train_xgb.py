@@ -474,23 +474,28 @@ def train_xgb_ngopt(args, problem):
     metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 
-def evaluate_one_search(args, problem, xtrain, ytrain, xval, yval, weight_vec):
+def evaluate_one_search(params, problem, xtrain, ytrain, xval, yval, weight_vec):
 
-    cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], args.mag_factor * weight_vec)
+    cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], params["mag_factor"] * weight_vec)
 
     Xy = xgb.DMatrix(xtrain, ytrain)
 
-    booster = xgb.train({"tree_method": args.tree_method, "num_target": ytrain.shape[1],
-                            "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
-                            "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
-                            "min_child_weight": args.tree_min_child_weight,
-                            "max_delta_step": args.tree_max_delta_step, "subsample": args.tree_subsample,
-                            "colsample_bytree": args.tree_colsample_bytree,
-                            "colsample_bylevel": args.tree_colsample_bylevel,
-                            "colsample_bynode": args.tree_colsample_bynode,
-                            "scale_pos_weight": args.tree_scale_pos_weight},
+    booster = xgb.train({"tree_method": params["tree_method"],
+                         "num_target": ytrain.shape[1],
+                         "lambda": params["tree_lambda"],
+                         "alpha": params["tree_alpha"],
+                         "eta": params["tree_eta"],
+                         "gamma": params["tree_gamma"],
+                         "max_depth": params["tree_max_depth"],
+                         "min_child_weight": params["tree_min_child_weight"],
+                         "max_delta_step": params["tree_max_delta_step"],
+                         "subsample": params["tree_subsample"],
+                         "colsample_bytree": params["tree_colsample_bytree"],
+                         "colsample_bylevel": params["tree_colsample_bylevel"],
+                         "colsample_bynode": params["tree_colsample_bynode"],
+                         "scale_pos_weight": params["tree_scale_pos_weight"]},
                         dtrain = Xy,
-                        num_boost_round = args.search_estimators,
+                        num_boost_round = params["search_estimators"],
                         obj = cusloss.get_obj_fn())
 
     ypred = booster.inplace_predict(xval)
@@ -500,7 +505,7 @@ def evaluate_one_search(args, problem, xtrain, ytrain, xval, yval, weight_vec):
 
 
 
-def train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval):
+def train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval):
 
     #if args.model == "xgb_search_decoupled":
     #    Xtrain = Xtrain.reshape(-1, X_train.shape[-1])
@@ -515,14 +520,7 @@ def train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval):
     # Sample a lot of N
     Nsub = args.search_subsamples
     # Select the sub part
-    if args.loss == "weightedmse":
-        ndim = ytrain.shape[1]
-    elif args.loss == "quad":
-        ndim = ytrain.shape[1] * args.quadrank
-    elif args.loss == "quad++":
-        ndim = ytrain.shape[1] * ytrain.shape[1] * 4
-    else:
-        assert "Not supported loss"
+    ndim = ytrain.shape[1]"
 
     print(f"The dimensiona is {ndim}")
     global_step = 0
@@ -532,14 +530,21 @@ def train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval):
     from torch.multiprocessing import Pool
     import os
     import time
+    import copy
 
     outer_iter = args.restart_rounds
     bestmodel_so_far = None
     bestweights_so_far = np.ones(ndim) * args.search_means
     best = None
 
+    params = vars(args)
+    problem = prob(**probkwargs)
+    paramscopies = [copy.deepcopy(params) for _ in range(Nsamples + 1)]
+    problemcopies = [prob(**probkwargs) for _ in range(Nsamples + 1)]
     xtraincopies = [np.copy(xtrain) for _ in range(Nsamples + 1)]
     ytraincopies = [np.copy(ytrain) for _ in range(Nsamples + 1)]
+    xvalcopies = [np.copy(xval) for _ in range(Nsamples + 1)]
+    yvalcopies = [np.copy(yval) for _ in range(Nsampels + 1)]
 
 
     for oit in range(outer_iter):
@@ -555,23 +560,23 @@ def train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval):
             if args.verbose:
                 start_time = time.time()
                 print(f"Iter {it}: means {means[:5]}...  covs {covs[:5]}...")
-                if (it + 1) % 10 == 0:
+                if (oit * args.iters + it + 1) % 15 == 0:
                     yvalsum = yval.sum()
                     ytrueobj = problem.dec_loss(yval, yval)
-                    print(f"Iter {it} Sanity check {yvalsum} {ytrueobj}")
+                    print(f"Restart {oit} Iter {it} sanity check {yvalsum} {ytrueobj}")
                     #print(f"Weight vec{weight_samples}")
                     #print(f"Weight vec isna{np.isnan(weight_samples).any()}  max{np.max(weight_samples)}  min{np.min(weight_samples)}")
 
             if args.serial == True:
                 for cnt in range(Nsamples + 1):
                     #weight_sample = np.random.multivariate_normal(means, covs, 1)
-                    objective, model = evaluate_one_search(args, problem, xtrain, ytrain, xval, yval, weight_samples[cnt])
+                    objective, model = evaluate_one_search(params, problem, xtrain, ytrain, xval, yval, weight_samples[cnt])
                     results.append((objective, model))
 
             else:
                 # TODO multi threads has some issue currently
-                with Pool(os.cpu_count()) as p:
-                    results = p.starmap(evaluate_one_search, [(args, problem, xtrain, ytrain, xval, yval, weight_samples[cnt]) for cnt in range(Nsamples + 1)])
+                with Pool(os.cpu_count()) as pool:
+                    results = pool.starmap(evaluate_one_search, [(paramscopies[cnt], problemcopies[cnt], xtraincopies[cnt], ytraincopies[cnt], xvalcopies[cnt], yvalcopies[cnt], weight_samples[cnt]) for cnt in range(Nsamples + 1)])
 
 
             ## Sort obj updates means and covs
@@ -598,9 +603,8 @@ def train_xgb_search_weights(args, problem, xtrain, ytrain, xval, yval):
 
     cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], args.mag_factor * bestweights_so_far)
 
-
     Xy = xgb.DMatrix(xtrain, ytrain)
-    booster = xgb.train({"tree_method": args.tree_method, "num_target": Ytrain.shape[1],
+    booster = xgb.train({"tree_method": args.tree_method, "num_target": ytrain.shape[1],
                          "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
                          "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
                          "min_child_weight": args.tree_min_child_weight,
