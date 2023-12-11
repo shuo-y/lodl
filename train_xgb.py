@@ -563,6 +563,8 @@ def train_xgb_search_weights_multirestart(args, prob, probkwargs, xtrain, ytrain
     inds = np.argsort(obj_list)
     bestweights_so_far = results[inds[0]][2]
 
+    print(f"Best weights so far {bestweights_so_far} sum{bestweights_so_far.sum()}")
+
     cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], args.mag_factor * bestweights_so_far)
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train({"tree_method": args.tree_method, "num_target": ytrain.shape[1],
@@ -676,6 +678,7 @@ def train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval)
         #weight_samples = np.random.multivariate_normal(means, covs, 1)
         #print(f"outer_iter{oit}: means {means} covs {covs} weights {weight_samples[0]}")
 
+    print(f"Best weights so far {bestweights_so_far} sum{bestweights_so_far.sum()}")
     cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], args.mag_factor * bestweights_so_far)
 
     Xy = xgb.DMatrix(xtrain, ytrain)
