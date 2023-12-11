@@ -512,7 +512,9 @@ def cem_one_restart(params, problem, xtrain, ytrain, xval, yval):
     Nsub = params["search_subsamples"]
     ndim = ytrain.shape[1]
     means = np.random.rand(ndim) * params["search_means"]
-    covs = np.random.rand(ndim, ndim) * params["search_covs"]
+    randL = np.tril(np.random.rand(ndim, ndim) + 0.01)
+    covs = randL @ randL.T
+    covs = covs * params["search_covs"]
 
     for it in range(params["iters"]):
         weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
@@ -628,7 +630,9 @@ def train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval)
 
     for oit in range(outer_iter):
         means = np.random.rand(ndim) * args.search_means
-        covs = np.random.rand(ndim, ndim) * args.search_covs
+        randL = np.tril(np.random.rand(ndim, ndim) + 0.01)
+        covs = randL @ randL.T
+        covs = covs * params["search_covs"]
 
         for it in range(args.iters):
             weight_samples = np.random.multivariate_normal(means, covs, Nsamples)
