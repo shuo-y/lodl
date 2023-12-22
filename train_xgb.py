@@ -499,7 +499,7 @@ def evaluate_one_search(params, problem, xtrain, ytrain, xval, yval, weight_vec)
                         obj = cusloss.get_obj_fn())
 
     ypred = booster.inplace_predict(xval)
-    objective = problem.dec_loss(ypred, yval)
+    objective = problem.dec_loss(ypred, yval, use_cvxpylayer=True)
     objective = objective.squeeze().mean()
     return objective, booster
 

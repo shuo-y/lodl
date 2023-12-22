@@ -8,6 +8,7 @@ from PThenO import PThenO
 from sklearn.model_selection import train_test_split
 import torch
 import cvxpy as cp
+from cvxpylayers.torch import CvxpyLayer
 
 class ShortestPath(PThenO):
     def __init__(self,
@@ -25,6 +26,7 @@ class ShortestPath(PThenO):
         self._model = _model
         self._vars = _vars
         self._solverfac = po.SolverFactory(solver)
+        self._cvxlayer = self._build_cvxpylayer()
 
 
     def _get_arcs(self):
@@ -79,65 +81,63 @@ class ShortestPath(PThenO):
         m.obj = pe.Objective(sense=pe.minimize, expr=0)
         return m, x
 
-    def build_cvx_model(self, **kwargs):
+    def _build_cvxpylayer(self, **kwargs):
         """
         A model same as build_model but use cvxpy
         """
+        z = cp.Parameter(len(self.arcs))
+        x = cp.Variable(len(self.arcs))
+        cons = []
+
+        for i in range(self.m):
+            for j in range(self.n):
+                v = i * self.n + j
+                expr = 0
+                for ind, e in enumerate(self.arcs):
+                    # flow in
+                    if v == e[1]:
+                        expr += x[ind]
+                    # flow out
+                    elif v == e[0]:
+                        expr -= x[ind]
+                # source
+                if i == 0 and j == 0:
+                    cons.append(expr == -1)
+                # sink
+                elif i == self.m - 1 and j == self.m - 1:
+                    cons.append(expr == 1)
+                # transition
+                else:
+                    cons.append(expr == 0)
+
+        cons.append(x >= 0)
+        objective = cp.Minimize(x.T @ z)
+        problem = cp.Problem(objective, cons)
+        return CvxpyLayer(problem, parameters=[z], variables=[x])
 
 
 
 
     def _dec_loss_cvxpylayer(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
         assert z_pred.shape == z_true.shape
+        if verbose:
+            print("Solve using cvxpylayer")
         N = z_true.shape[0]
         f_hat_list = []
 
-        for idx in range(N):
-            if idx%100 == 0 and verbose:
-                print("Solving LP using cvxpy:", i, " out of ", N)
+        zpt = torch.tensor(z_pred)
+        xdec = self._cvxlayer(zpt)[0]
 
-
-            z = cp.Parameter(len(self.arcs))
-            z.value = z_pred[idx]
-            x = cp.Variable(len(self.arcs))
-            cons = []
-
-            for i in range(self.m):
-                for j in range(self.n):
-                    v = i * self.n + j
-                    expr = 0
-                    for ind, e in enumerate(self.arcs):
-                        # flow in
-                        if v == e[1]:
-                            expr += x[ind]
-                        # flow out
-                        elif v == e[0]:
-                            expr -= x[ind]
-                    # source
-                    if i == 0 and j == 0:
-                        cons.append(expr == -1)
-                    # sink
-                    elif i == self.m - 1 and j == self.m - 1:
-                        cons.append(expr == 1)
-                    # transition
-                    else:
-                        cons.append(expr == 0)
-
-            cons.append(x >= 0)
-            objective = cp.Minimize(x.T @ z)
-            problem = cp.Problem(objective, cons)
-            sol = problem.solve()
-
-            x_val = x.value
-            #print(x_val)
-            cost = x_val.T @ z_true[idx]
-            f_hat_list.append([cost])
-        return np.array(f_hat_list)
+        f_hat_list = (xdec * z_true).sum(dim=1).unsqueeze(1)
+        return f_hat_list.detach().clone().numpy()
 
 
     def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
         # Z in lancer paper means y in lodl
         assert z_pred.shape == z_true.shape
+        if "use_cvxpylayer" in kwargs and kwargs["use_cvxpylayer"] == True:
+            return self._dec_loss_cvxpylayer(z_pred, z_true, verbose)
+
         N = z_true.shape[0]
         f_hat_list = []
         # TODO: run this loop in parallel
@@ -242,8 +242,8 @@ class ShortestPath(PThenO):
 if __name__ == "__main__":
     sp = ShortestPath(num_feats=5, grid=(5, 5))
     x, z = sp.generate_dataset(100)
-    dloss1 = sp.dec_loss(z, z)
-    dloss2 = sp._dec_loss_cvxpylayer(z, z)
+    dloss1 = sp.dec_loss(z, z, verbose=True)
+    dloss2 = sp._dec_loss_cvxpylayer(z, z, verbose=True)
     import pdb
     pdb.set_trace()
 
