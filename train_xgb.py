@@ -499,8 +499,15 @@ def evaluate_one_search(params, problem, xtrain, ytrain, xval, yval, weight_vec)
                         obj = cusloss.get_obj_fn())
 
     ypred = booster.inplace_predict(xval)
-    objective = problem.dec_loss(ypred, yval, use_cvxpylayer=True)
-    objective = objective.squeeze().mean()
+
+    if params["search_sub_ratio"] < 1.0 and params["search_sub_ratio"] > 0:
+        sublen = int(len(ypred) * params["search_sub_ratio"])
+        subind = np.random.randint(0, len(ypred), size=sublen)
+        objective = problem.dec_loss(ypred[subind], yval[subind], use_cvxpylayer=True)
+        objective = objective.squeeze().mean()
+    else:
+        objective = problem.dec_loss(ypred, yval, use_cvxpylayer=True)
+        objective = objective.squeeze().mean()
     return objective, booster
 
 def cem_one_restart(params, problem, xtrain, ytrain, xval, yval):

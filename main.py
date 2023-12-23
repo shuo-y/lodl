@@ -139,6 +139,7 @@ if __name__ == '__main__':
     parser.add_argument('--search_subsamples', type=int, default=10, help='use for cross entropy method search')
     parser.add_argument('--search_means', type=float, default=1, help='use for cross entropy method search the initial mean')
     parser.add_argument('--search_covs', type=float, default=1, help='use for cross entropy method search the initial covs')
+    parser.add_argument('--search_sub_ratio', type=float, default=1.0, help="subsample ratio for CEM search")
     parser.add_argument('--restart_rounds', type=int, default=1, help='the restart round for CEM search')
     parser.add_argument('--restart_parallel', action='store_true', help='parallel each thread is a restart')
     parser.add_argument('--num_estimators', type=int, default=10)
