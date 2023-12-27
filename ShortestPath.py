@@ -73,7 +73,7 @@ class ShortestPath(PThenO):
                 if i == 0 and j == 0:
                     m.cons.add(expr == -1)
                 # sink
-                elif i == self.m - 1 and j == self.m - 1:
+                elif i == self.m - 1 and j == self.n - 1:
                     m.cons.add(expr == 1)
                 # transition
                 else:
