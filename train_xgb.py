@@ -444,7 +444,7 @@ def train_xgb_ngopt(args, problem):
     # Running in parallel https://facebookresearch.github.io/nevergrad/optimization.html#using-several-workers
     parametrization = ng.p.Instrumentation(weights_vec=ng.p.Array(shape=(Ytrain.shape[1],)))
 
-    optimizer = ng.optimizers.NGOpt(parametrization=parametrization, budget=args.ng_budget)
+    optimizer = ng.optimizers.NGOpt(parametrization=parametrization, budget=args.search_budget)
     recommendation = optimizer.minimize(train_tree)
 
 
@@ -473,6 +473,61 @@ def train_xgb_ngopt(args, problem):
     from utils import print_metrics
     metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
+
+def train_xgb_smac(args, prob, probkwargs, xtrain, ytrain, xval, yval):
+    params = vars(args)
+    problem = prob(**probkwargs)
+
+    from ConfigSpace import Configuration, ConfigurationSpace, Float, Integer
+    from smac import HyperparameterOptimizationFacade, Scenario
+    from scipy.stats import norm
+
+    def train(config: Configuration, seed: int = 0) -> float:
+        nmean = config["nmean"]
+        ncov = config["ncov"]
+        weight_vec = [norm.pdf(x, nmean, ncov) for x in range(len(ytrain[0]))]
+        weight_vec = np.array(weight_vec)
+        obj, _ = evaluate_one_search(params, problem, xtrain, ytrain, xval, yval, weight_vec)
+        print(f"does obj decrease?{obj}")
+        return obj
+
+    sammean = Float("nmean", bounds=(-1.0, 1.0 + len(ytrain[0])), default=0.5 * len(ytrain[0]))
+    samcov = Float("ncov", bounds=(0.1, 10), default=0.1)
+    configs = ConfigurationSpace()
+    # ConfigurationSpace https://automl.github.io/ConfigSpace/main/guide.html
+    configs.add_hyperparameters([sammean, samcov])
+
+    # Train using sample example https://github.com/automl/SMAC3
+    # Scenario object specifying the optimization environment
+    scenario = Scenario(configs, deterministic=True, n_trials=args.search_budget)
+
+    # Use SMAC to find the best configuration/hyperparameters
+    smac = HyperparameterOptimizationFacade(scenario, train)
+    incumbent = smac.optimize()
+
+    nmean = incumbent["nmean"]
+    ncov = incumbent["ncov"]
+    weight_vec = [norm.pdf(x, nmean, ncov) for x in range(len(ytrain[0]))]
+    weight_vec = np.array(weight_vec)
+
+    cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], args.mag_factor * weight_vec)
+    Xy = xgb.DMatrix(xtrain, ytrain)
+    booster = xgb.train({"tree_method": args.tree_method, "num_target": ytrain.shape[1],
+                         "lambda": args.tree_lambda, "alpha": args.tree_alpha, "eta": args.tree_eta,
+                         "gamma": args.tree_gamma, "max_depth": args.tree_max_depth,
+                         "min_child_weight": args.tree_min_child_weight,
+                         "max_delta_step": args.tree_max_delta_step, "subsample": args.tree_subsample,
+                         "colsample_bytree": args.tree_colsample_bytree,
+                         "colsample_bylevel": args.tree_colsample_bylevel,
+                         "colsample_bynode": args.tree_colsample_bynode,
+                         "scale_pos_weight": args.tree_scale_pos_weight},
+                        dtrain = Xy,
+                        num_boost_round = args.num_estimators,
+                        obj = cusloss.get_obj_fn(),
+                        evals = [(Xy, "train")],
+                        custom_metric = cusloss.get_eval_fn())
+    return booster
+
 
 def evaluate_one_search(params, problem, xtrain, ytrain, xval, yval, weight_vec):
 
