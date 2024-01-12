@@ -28,11 +28,17 @@ if __name__ == "__main__":
     def fun2(x):
         return (1, 0.55)
 
+    def rand_fun(x):
+        if np.random.rand() >= 0.5:
+            return (0, 0.55)
+        return (1, 0.55)
+
+
     from ExampleProb import ExampleProb
 
     prob = ExampleProb()
 
-    X, Y = prob.generate_dataset_two_fun(0, 1, 150, 0, 1, 150, fun1, fun2)
+    X, Y = prob._generate_dataset_single_fun(-1, 1, 150, rand_fun)
     X = np.expand_dims(X, axis=1)
     xtrain = X[:50]
     ytrain = Y[:50]
@@ -45,8 +51,8 @@ if __name__ == "__main__":
 
     tables = []
 
-    for w1 in range(10, 1001, 10):
-        for w2 in range(10, 1001, 10):
+    for w1 in np.logspace(1.0, 10.0, num=50, base=10):
+        for w2 in np.logspace(1.0, 10.0, num=50, base=10):
             weight_vec = np.array([w1, w2])
             cusloss = search_weights_loss(ytrain.shape[0], ytrain.shape[1], weight_vec)
             Xy = xgb.DMatrix(xtrain, ytrain)
@@ -58,9 +64,9 @@ if __name__ == "__main__":
                                 obj = cusloss.get_obj_fn())
 
             ypred = booster.inplace_predict(xtrain)
-            traindl = prob.dec_loss(ypred, ytrain)
+            traindl = prob.dec_loss(ypred, ytrain).mean()
 
-            ytestpred = booster.inplace_predict(xtest)
+            ytestpred = booster.inplace_predict(xtest).mean()
             testdl = prob.dec_loss(ytestpred, ytest)
             print(f"w1 {w1} w2 {w2} train dl{traindl} test dl{testdl}")
             csvstring = "%.12f,%.12f,%.12f,%.12f" % (w1, w2, traindl, testdl)

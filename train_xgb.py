@@ -797,6 +797,16 @@ def perf_booster(args, problem, booster, X, y, name):
     print(f"{name} Normalized DLoss (per instance) {norobj}  NorDLoss (not per instance) {norobjnotperins} DLoss {predobj.mean()} Random DLoss {randobjs.mean()} Opt DLOSS {optobj.mean()} MSE{mseloss}")
     csvstring = "%.12f,%.12f,%.12f,%.12f,%.12f,%.12f," % (norobj, norobjnotperins, predobj.mean(), randobjs.mean(), optobj.mean(), mseloss)
     return csvstring
+    # cem
+    # use smac local search
+    #restart
+
+    # ensemble as uncertain
+    # variance net   Mui Puoll
+    # Gal
+    #quantile regression   \thea_q Huber loss
+    #https://jmlr.org/papers/volume17/14-168/14-168.pdf
+    # conformalized quantile regression aleatoric  epistemic
 
 
 

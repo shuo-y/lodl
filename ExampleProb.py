@@ -3,6 +3,7 @@ import numpy as np
 
 # Reference of https://arxiv.org/pdf/2305.16830.pdf
 # see also https://arxiv.org/pdf/2305.16830.pdf
+# Check github https://github.com/paulgrigas/SmartPredictThenOptimize
 
 class ExampleProb(PThenO):
     def __init__(self):
@@ -16,7 +17,7 @@ class ExampleProb(PThenO):
         zopt_dec = np.take_along_axis(z_true, np.expand_dims(true_ind, axis=1), axis=1)
         diff = (zpred_dec - zopt_dec) ** 2
         diff = diff.sum(axis=1)
-        return diff.mean()
+        return diff
 
 
     def _generate_dataset_single_fun(self, start, end, num, fun):
