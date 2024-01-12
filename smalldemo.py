@@ -66,8 +66,8 @@ if __name__ == "__main__":
             ypred = booster.inplace_predict(xtrain)
             traindl = prob.dec_loss(ypred, ytrain).mean()
 
-            ytestpred = booster.inplace_predict(xtest).mean()
-            testdl = prob.dec_loss(ytestpred, ytest)
+            ytestpred = booster.inplace_predict(xtest)
+            testdl = prob.dec_loss(ytestpred, ytest).mean()
             print(f"w1 {w1} w2 {w2} train dl{traindl} test dl{testdl}")
             csvstring = "%.12f,%.12f,%.12f,%.12f" % (w1, w2, traindl, testdl)
             tables.append(csvstring)
