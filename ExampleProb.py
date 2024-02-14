@@ -11,13 +11,32 @@ class ExampleProb(PThenO):
         pass
 
     def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
-        choose_ind = np.argmin(z_pred, axis=1)
-        true_ind = np.argmin(z_true, axis=1)
-        zpred_dec = np.take_along_axis(z_true, np.expand_dims(choose_ind, axis=1), axis=1)
-        zopt_dec = np.take_along_axis(z_true, np.expand_dims(true_ind, axis=1), axis=1)
-        diff = (zpred_dec - zopt_dec) ** 2
-        diff = diff.sum(axis=1)
-        return diff
+        # Argmin operation
+        z_pred_nor = z_pred
+        z_true_nor = z_true
+
+        if "steiner" in kwargs:
+            ## Assume 2stage has 2 times the cost
+            ## 2 stage steiner tree
+            degree = kwargs["steiner"]
+            z_pred_nor = np.zeros(z_pred.shape)
+            z_true_nor = np.zeros(z_true.shape)
+
+
+            z_pred_nor[:, 0] = z_pred[:, 0] + degree * z_pred[:, 1]
+            z_pred_nor[:, 1] = degree * z_pred[:, 0] + z_pred[:, 1]
+            z_true_nor[:, 0] = z_true[:, 0] + degree * z_true[:, 1]
+            z_true_nor[:, 1] = degree * z_true[:, 0] + z_true[:, 1]
+
+
+        choose_ind = np.argmin(z_pred_nor, axis=1)
+        true_ind = np.argmin(z_true_nor, axis=1)
+        zpred_dec = np.take_along_axis(z_true_nor, np.expand_dims(choose_ind, axis=1), axis=1)
+        zopt_dec = np.take_along_axis(z_true_nor, np.expand_dims(true_ind, axis=1), axis=1)
+        #diff = (zpred_dec - zopt_dec) ** 2
+        #diff = diff.sum(axis=1)
+        return zpred_dec
+
 
 
     def _generate_dataset_single_fun(self, start, end, num, fun):

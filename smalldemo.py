@@ -8,10 +8,15 @@ from train_xgb import search_weights_loss, search_quadratic_loss
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--tree_method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
+    parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
     parser.add_argument("--loss", type=str, default="quad", choices=["mse", "quad"])
+    parser.add_argument("--num-train", type=int, default=20)
+    parser.add_argument("--num-val", type=int, default=20)
+    parser.add_argument("--num-test", type=int, default=20)
+    parser.add_argument("--steiner-degree", type=int, default=0)
+
     args = parser.parse_args()
 
     # Load problem
@@ -49,17 +54,17 @@ if __name__ == "__main__":
     X, Y = prob._generate_dataset_single_fun(0, 1, 80, quad_fun)
     X = np.expand_dims(X, axis=1)
 
-    indices = list(range(80))
+    indices = list(range(args.num_train + args.num_val + args.num_test))
     np.random.shuffle(indices)
 
-    xtrain = X[indices[:40]]
-    ytrain = Y[indices[:40]].squeeze()
+    xtrain = X[indices[:args.num_train]]
+    ytrain = Y[indices[:args.num_train]].squeeze()
 
-    xval = X[indices[40:60]]
-    yval = Y[indices[40:60]].squeeze()
+    xval = X[indices[args.num_train:(args.num_train + args.num_val)]]
+    yval = Y[indices[args.num_train:(args.num_train + args.num_val)]].squeeze()
 
-    xtest = X[indices[60:]]
-    ytest = Y[indices[60:]].squeeze()
+    xtest = X[indices[(args.num_train + args.num_val):]]
+    ytest = Y[indices[(args.num_train + args.num_val):]].squeeze()
 
     data = []
     for i in range(40):
@@ -75,10 +80,10 @@ if __name__ == "__main__":
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
     reg.fit(xval, yval)
     baselinedl = reg.predict(xval)
-    valdl = prob.dec_loss(baselinedl, yval).mean()
+    valdl = prob.dec_loss(baselinedl, yval, steiner=args.steiner_degree).mean()
 
     ytestpred = reg.predict(xtest)
-    testdl = prob.dec_loss(ytestpred, ytest).mean()
+    testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree).mean()
     print(f"Baseline on val: {valdl} test: {testdl}")
     tables = []
 
@@ -96,13 +101,13 @@ if __name__ == "__main__":
                                     obj = cusloss.get_obj_fn())
 
                 ypred = booster.inplace_predict(xtrain)
-                traindl = prob.dec_loss(ypred, ytrain).mean()
+                traindl = prob.dec_loss(ypred, ytrain, steiner=args.steiner_degree).mean()
 
                 yvalpred = booster.inplace_predict(xval)
-                valdl = prob.dec_loss(yvalpred, yval).mean()
+                valdl = prob.dec_loss(yvalpred, yval, steiner=args.steiner_degree).mean()
 
                 ytestpred = booster.inplace_predict(xtest)
-                testdl = prob.dec_loss(ytestpred, ytest).mean()
+                testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree).mean()
                 #print(f"w1 {w1} w2 {w2} train dl{traindl} test dl{testdl}")
                 csvstring = "%.12f,%.12f,%.12f,%.12f,%.12f" % (w1, w2, traindl, valdl, testdl)
                 tables.append(csvstring)
@@ -124,13 +129,13 @@ if __name__ == "__main__":
                                         obj = cusloss.get_obj_fn())
 
                     ypred = booster.inplace_predict(xtrain)
-                    traindl = prob.dec_loss(ypred, ytrain).mean()
+                    traindl = prob.dec_loss(ypred, ytrain, steiner=args.steiner_degree).mean()
 
                     yvalpred = booster.inplace_predict(xval)
-                    valdl = prob.dec_loss(yvalpred, yval).mean()
+                    valdl = prob.dec_loss(yvalpred, yval, steiner=args.steiner_degree).mean()
 
                     ytestpred = booster.inplace_predict(xtest)
-                    testdl = prob.dec_loss(ytestpred, ytest).mean()
+                    testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree).mean()
                     #print(f"w1 {w1} w2 {w2} train dl{traindl} test dl{testdl}")
                     csvstring = "%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (w1, w2, w3, traindl, valdl, testdl)
                     tables.append(csvstring)
