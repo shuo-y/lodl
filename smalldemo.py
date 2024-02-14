@@ -140,11 +140,12 @@ if __name__ == "__main__":
                     csvstring = "%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (w1, w2, w3, traindl, valdl, testdl)
                     tables.append(csvstring)
 
-    datafile = open(f"{args.output}.data.csv", "w")
+    rep_str = f"{args.output}.{args.num_train}.{args.num_val}.{args.num_test}.par{args.steiner_degree}"
+    datafile = open(f"{rep_str}.data.csv", "w")
     for row in data:
         print(row, file=datafile)
 
-    tablefile = open(f"{args.output}.table.csv", "w")
+    tablefile = open(f"{rep_str}.table.csv", "w")
     for row in tables:
         print(row, file=tablefile)
         # infinite sample
