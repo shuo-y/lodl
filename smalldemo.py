@@ -67,13 +67,13 @@ if __name__ == "__main__":
     ytest = Y[indices[(args.num_train + args.num_val):]].squeeze()
 
     data = []
-    for i in range(40):
+    for i in range(args.num_train):
         data.append(f"train,{xtrain[i][0]}, {ytrain[i][0]}, {ytrain[i][1]}")
 
-    for i in range(20):
+    for i in range(args.num_val):
         data.append(f"val,{xval[i][0]}, {yval[i][0]}, {yval[i][1]}")
 
-    for i in range(20):
+    for i in range(args.num_test):
         data.append(f"test,{xtest[i][0]}, {ytest[i][0]}, {ytest[i][1]}")
 
     # Check a baseline first
