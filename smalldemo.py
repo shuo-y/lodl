@@ -87,6 +87,7 @@ if __name__ == "__main__":
     testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree).mean()
     print(f"Baseline on val: {valdl} test: {testdl}")
     tables = []
+    tables.append(f"Baseline on val: {valdl} test: {testdl}")
 
     if args.loss == "mse":
         for w1 in np.logspace(1.0, 10.0, num=50, base=10):
