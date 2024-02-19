@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     prob = ExampleProb()
 
-    X, Y = prob._generate_dataset_single_fun(0, 1, 80, quad_fun)
+    X, Y = prob._generate_dataset_single_fun(0, 1, args.num_train + args.num_val + args.num_test, quad_fun)
     X = np.expand_dims(X, axis=1)
 
     indices = list(range(args.num_train + args.num_val + args.num_test))
