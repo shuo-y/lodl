@@ -30,11 +30,8 @@ class ExampleProb(PThenO):
 
 
         choose_ind = np.argmin(z_pred_nor, axis=1)
-        true_ind = np.argmin(z_true_nor, axis=1)
         zpred_dec = np.take_along_axis(z_true_nor, np.expand_dims(choose_ind, axis=1), axis=1)
-        zopt_dec = np.take_along_axis(z_true_nor, np.expand_dims(true_ind, axis=1), axis=1)
-        #diff = (zpred_dec - zopt_dec) ** 2
-        #diff = diff.sum(axis=1)
+
         return zpred_dec
 
 

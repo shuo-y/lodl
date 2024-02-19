@@ -15,6 +15,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-train", type=int, default=20)
     parser.add_argument("--num-val", type=int, default=20)
     parser.add_argument("--num-test", type=int, default=20)
+    parser.add_argument("--grid-size", type=int, default=10)
     parser.add_argument("--steiner-degree", type=int, default=0)
 
     args = parser.parse_args()
@@ -112,9 +113,9 @@ if __name__ == "__main__":
                 csvstring = "%.12f,%.12f,%.12f,%.12f,%.12f" % (w1, w2, traindl, valdl, testdl)
                 tables.append(csvstring)
     else:
-        for w1 in np.logspace(1.0, 10.0, num=50, base=10):
-            for w2 in np.logspace(1.0, 10.0, num=50, base=10):
-                for w3 in np.logspace(1.0, 10.0, num=50, base=10):
+        for w1 in np.logspace(1.0, 10.0, num=args.grid_size, base=10):
+            for w2 in np.logspace(1.0, 10.0, num=args.grid_size, base=10):
+                for w3 in np.logspace(1.0, 10.0, num=args.grid_size, base=10):
                     weight_vec = np.array([[w1, 0], [w2, w3]])
                     cusloss = search_quadratic_loss(yval.shape[0], yval.shape[1], weight_vec, 0.1)
                     #print(cusloss.basis @ cusloss.basis.T)
@@ -129,15 +130,23 @@ if __name__ == "__main__":
                                         obj = cusloss.get_obj_fn())
 
                     ypred = booster.inplace_predict(xtrain)
-                    traindl = prob.dec_loss(ypred, ytrain, steiner=args.steiner_degree).mean()
+                    traindl = prob.dec_loss(ypred, ytrain, steiner=args.steiner_degree)
+                    traindltrue = prob.dec_loss(ytrain, ytrain, steiner=args.steiner_degree)
 
                     yvalpred = booster.inplace_predict(xval)
-                    valdl = prob.dec_loss(yvalpred, yval, steiner=args.steiner_degree).mean()
+                    valdl = prob.dec_loss(yvalpred, yval, steiner=args.steiner_degree)
+                    valdltrue = prob.dec_loss(yval, yval, steiner=args.steiner_degree)
 
                     ytestpred = booster.inplace_predict(xtest)
-                    testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree).mean()
+                    testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree)
+                    testdltrue = prob.dec_loss(ytest, ytest, steiner=args.steiner_degree)
                     #print(f"w1 {w1} w2 {w2} train dl{traindl} test dl{testdl}")
-                    csvstring = "%.12f,%.12f,%.12f,%.12f,%.12f,%.12f" % (w1, w2, w3, traindl, valdl, testdl)
+                    csvstring = f"""{w1:.12f},{w2:.12f},{w3:.12f},
+                    {traindl.mean():.12f}, {traindltrue.mean():.12f}, {(traindl - traindltrue).min():.12f},
+                    {valdl.mean():.12f}, {valdltrue.mean():.12f}, {(valdl - valdltrue).min():.12f},
+                    {testdl.mean():.12f}, {testdltrue.mean():.12f}, {(testdl - testdltrue).min():.12f}
+                    """
+
                     tables.append(csvstring)
 
     rep_str = f"{args.output}.{args.num_train}.{args.num_val}.{args.num_test}.par{args.steiner_degree}"
