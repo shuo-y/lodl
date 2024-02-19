@@ -141,11 +141,11 @@ if __name__ == "__main__":
                     testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree)
                     testdltrue = prob.dec_loss(ytest, ytest, steiner=args.steiner_degree)
                     #print(f"w1 {w1} w2 {w2} train dl{traindl} test dl{testdl}")
-                    csvstring = f"""{w1:.12f},{w2:.12f},{w3:.12f},
-                    {traindl.mean():.12f}, {traindltrue.mean():.12f}, {(traindl - traindltrue).min():.12f},
-                    {valdl.mean():.12f}, {valdltrue.mean():.12f}, {(valdl - valdltrue).min():.12f},
-                    {testdl.mean():.12f}, {testdltrue.mean():.12f}, {(testdl - testdltrue).min():.12f}
-                    """
+                    csvstring = (f"{w1:.12f},{w2:.12f},{w3:.12f},"
+                                 f"{traindl.mean():.12f}, {traindltrue.mean():.12f}, {(traindl - traindltrue).min():.12f},"
+                                 f"{valdl.mean():.12f}, {valdltrue.mean():.12f}, {(valdl - valdltrue).min():.12f},"
+                                 f"{testdl.mean():.12f}, {testdltrue.mean():.12f}, {(testdl - testdltrue).min():.12f}")
+
 
                     tables.append(csvstring)
 
