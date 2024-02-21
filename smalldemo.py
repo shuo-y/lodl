@@ -81,11 +81,17 @@ if __name__ == "__main__":
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
     reg.fit(xval, yval)
     baselinedl = reg.predict(xval)
-    valdl = prob.dec_loss(baselinedl, yval, steiner=args.steiner_degree).mean()
+    valdl = prob.dec_loss(baselinedl, yval, steiner=args.steiner_degree)
+
+    traindltrue = prob.dec_loss(ytrain, ytrain, steiner=args.steiner_degree)
+    valdltrue = prob.dec_loss(yval, yval, steiner=args.steiner_degree)
+    testdltrue = prob.dec_loss(ytest, ytest, steiner=args.steiner_degree)
+
 
     ytestpred = reg.predict(xtest)
-    testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree).mean()
-    print(f"Baseline on val: {valdl} test: {testdl}")
+    testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree)
+    print(f"Baseline DL (Dcost) on val: {(valdl - valdltrue).mean():.12f} +- {(valdl - valdltrue).std():.12f}  ({valdl.mean():.12f} +- {valdl.std():.12f})"
+          f"DL (Dcost) on test: {(testdl - testdltrue).mean():.12f} +- {(testdl - testdltrue).std():.12f}  ({testdl.mean():.12f} +- {testdl.std():.12f}) ")
     tables = []
     tables.append(f"Baseline on val: {valdl} test: {testdl}")
 
@@ -132,22 +138,22 @@ if __name__ == "__main__":
 
                     ypred = booster.inplace_predict(xtrain)
                     traindl = prob.dec_loss(ypred, ytrain, steiner=args.steiner_degree)
-                    traindltrue = prob.dec_loss(ytrain, ytrain, steiner=args.steiner_degree)
+
 
                     yvalpred = booster.inplace_predict(xval)
                     valdl = prob.dec_loss(yvalpred, yval, steiner=args.steiner_degree)
-                    valdltrue = prob.dec_loss(yval, yval, steiner=args.steiner_degree)
+
 
                     ytestpred = booster.inplace_predict(xtest)
                     testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree)
-                    testdltrue = prob.dec_loss(ytest, ytest, steiner=args.steiner_degree)
+
                     #print(f"w1 {w1} w2 {w2} train dl{traindl} test dl{testdl}")
                     csvstring = (f"{w1:.12f},{w2:.12f},{w3:.12f},"
                                  f"{traindl.mean():.12f},{traindl.std():.12f},{traindltrue.mean():.12f},{(traindl - traindltrue).min():.12f},"
                                  f"{(traindl - traindltrue).mean():.12f},{(traindl - traindltrue).std():.12f},"
                                  f"{valdl.mean():.12f},{valdl.std():.12f},{valdltrue.mean():.12f},{(valdl - valdltrue).min():.12f},"
                                  f"{(valdl - valdltrue).mean():.12f},{(valdl - valdltrue).std():.12f},"
-                                 f"{testdl.mean():.12f},{testdl.std():.12f},{testdltrue.mean():.12f},{(testdl - testdltrue).min():.12f}"
+                                 f"{testdl.mean():.12f},{testdl.std():.12f},{testdltrue.mean():.12f},{(testdl - testdltrue).min():.12f},"
                                  f"{(testdl - testdltrue).mean():.12f},{(testdl - testdltrue).std():.12f},")
 
 
