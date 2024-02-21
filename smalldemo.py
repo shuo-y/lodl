@@ -144,8 +144,11 @@ if __name__ == "__main__":
                     #print(f"w1 {w1} w2 {w2} train dl{traindl} test dl{testdl}")
                     csvstring = (f"{w1:.12f},{w2:.12f},{w3:.12f},"
                                  f"{traindl.mean():.12f},{traindl.std():.12f},{traindltrue.mean():.12f},{(traindl - traindltrue).min():.12f},"
+                                 f"{(traindl - traindltrue).mean():.12f},{(traindl - traindltrue).std():.12f},"
                                  f"{valdl.mean():.12f},{traindl.std():.12f},{valdltrue.mean():.12f},{(valdl - valdltrue).min():.12f},"
-                                 f"{testdl.mean():.12f},{traindl.std():.12f},{testdltrue.mean():.12f},{(testdl - testdltrue).min():.12f}")
+                                 f"{(valdl - valltrue).mean():.12f},{(valdl - valdltrue).std():.12f},"
+                                 f"{testdl.mean():.12f},{traindl.std():.12f},{testdltrue.mean():.12f},{(testdl - testdltrue).min():.12f}"
+                                 f"{(testdl - testdltrue).mean():.12f},{(testdl - testdltrue).std():.12f},")
 
 
                     tables.append(csvstring)
