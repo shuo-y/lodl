@@ -79,21 +79,30 @@ if __name__ == "__main__":
 
     # Check a baseline first
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
-    reg.fit(xval, yval)
-    baselinedl = reg.predict(xval)
-    valdl = prob.dec_loss(baselinedl, yval, steiner=args.steiner_degree)
+    reg.fit(xtrain, ytrain)
+
+    trainpred = reg.predict(xtrain)
+    traindl = prob.dec_loss(trainpred, ytrain, steiner=args.steiner_degree)
+
+    valpred = reg.predict(xval)
+    valdl = prob.dec_loss(valpred, yval, steiner=args.steiner_degree)
 
     traindltrue = prob.dec_loss(ytrain, ytrain, steiner=args.steiner_degree)
     valdltrue = prob.dec_loss(yval, yval, steiner=args.steiner_degree)
     testdltrue = prob.dec_loss(ytest, ytest, steiner=args.steiner_degree)
 
-
     ytestpred = reg.predict(xtest)
     testdl = prob.dec_loss(ytestpred, ytest, steiner=args.steiner_degree)
-    print(f"Baseline DL (Dcost) on val: {(valdl - valdltrue).mean():.12f} +- {(valdl - valdltrue).std():.12f}  ({valdl.mean():.12f} +- {valdl.std():.12f})"
-          f"DL (Dcost) on test: {(testdl - testdltrue).mean():.12f} +- {(testdl - testdltrue).std():.12f}  ({testdl.mean():.12f} +- {testdl.std():.12f}) ")
+
     tables = []
-    tables.append(f"Baseline on val: {valdl} test: {testdl}")
+    basestr = (f"2st,2st,2st,"
+                 f"{traindl.mean():.12f},{traindl.std():.12f},{traindltrue.mean():.12f},{(traindl - traindltrue).min():.12f},"
+                 f"{(traindl - traindltrue).mean():.12f},{(traindl - traindltrue).std():.12f},"
+                 f"{valdl.mean():.12f},{valdl.std():.12f},{valdltrue.mean():.12f},{(valdl - valdltrue).min():.12f},"
+                 f"{(valdl - valdltrue).mean():.12f},{(valdl - valdltrue).std():.12f},"
+                 f"{testdl.mean():.12f},{testdl.std():.12f},{testdltrue.mean():.12f},{(testdl - testdltrue).min():.12f},"
+                 f"{(testdl - testdltrue).mean():.12f},{(testdl - testdltrue).std():.12f},")
+    tables.append(basestr)
 
     if args.loss == "mse":
         for w1 in np.logspace(1.0, 10.0, num=50, base=10):
@@ -128,7 +137,7 @@ if __name__ == "__main__":
                     #print(cusloss.basis @ cusloss.basis.T)
                     #import pdb
                     #pdb.set_trace()
-                    Xy = xgb.DMatrix(xval, yval)
+                    Xy = xgb.DMatrix(xtrain, ytrain)
 
                     booster = xgb.train({"tree_method": params["tree_method"],
                                         "num_target": 2},
@@ -155,8 +164,6 @@ if __name__ == "__main__":
                                  f"{(valdl - valdltrue).mean():.12f},{(valdl - valdltrue).std():.12f},"
                                  f"{testdl.mean():.12f},{testdl.std():.12f},{testdltrue.mean():.12f},{(testdl - testdltrue).min():.12f},"
                                  f"{(testdl - testdltrue).mean():.12f},{(testdl - testdltrue).std():.12f},")
-
-
                     tables.append(csvstring)
 
     rep_str = f"{args.output}.{args.num_train}.{args.num_val}.{args.num_test}.par{args.steiner_degree}"
