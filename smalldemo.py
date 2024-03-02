@@ -133,7 +133,7 @@ if __name__ == "__main__":
             for w2 in np.logspace(1.0, 10.0, num=args.grid_size, base=10):
                 for w3 in np.logspace(1.0, 10.0, num=args.grid_size, base=10):
                     weight_vec = np.array([[w1, 0], [w2, w3]])
-                    cusloss = search_quadratic_loss(yval.shape[0], yval.shape[1], weight_vec, 0.1)
+                    cusloss = search_quadratic_loss(ytrain.shape[0], ytrain.shape[1], weight_vec, 0.1)
                     #print(cusloss.basis @ cusloss.basis.T)
                     #import pdb
                     #pdb.set_trace()
