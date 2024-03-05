@@ -90,6 +90,10 @@ def compute_stderror(vec: np.ndarray) -> float:
     n = len(vec)
     return (popstd * np.sqrt(n / (n - 1.0))) / np.sqrt(n)
 
+def sanity_check(vec: np.ndarray, msg: str) -> None:
+    if (vec < 0).any():
+        print(f"{str}: check some negative value {vec}")
+
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class QuadLoss:
     def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl):
@@ -210,6 +214,10 @@ if __name__ == "__main__":
     valdltrue = prob.dec_loss(yval, yval)
     testdltrue = prob.dec_loss(ytest, ytest)
 
+    traindlrand = prob.dec_loss(np.random.random(ytrain.shape), ytrain)
+    valdlrand = prob.dec_loss(np.random.random(yval.shape), yval)
+    testdlrand = prob.dec_loss(np.random.random(ytest.shape), ytest)
+
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest)
 
@@ -236,6 +244,16 @@ if __name__ == "__main__":
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest)
 
+    sanity_check(traindl2st - traindltrue, "train2st")
+    sanity_check(valdl2st - valdltrue, "val2st")
+    sanity_check(testdl2st - testdltrue, "test2st")
+    sanity_check(trainsmac - traindltrue, "trainsmac")
+    sanity_check(valsmac - valdltrue, "valsmac")
+    sanity_check(testsmac - testdltrue, "testsmac")
+    sanity_check(traindlrand - traindltrue, "trainrand")
+    sanity_check(valdlrand - valdltrue, "valrand")
+    sanity_check(testdlrand - testdltrue, "testrand")
+
     res_str= [(f"2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
                f"smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr")]
     res_str.append((f"{(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
@@ -243,7 +261,10 @@ if __name__ == "__main__":
                     f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)},"
                     f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
                     f"{(valsmac - valdltrue).mean()}, {compute_stderror(valsmac - valdltrue)}, "
-                    f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)}"))
+                    f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)}"
+                    f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
+                    f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
+                    f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}"))
 
     for row in res_str:
         print(row)
