@@ -92,7 +92,7 @@ def compute_stderror(vec: np.ndarray) -> float:
 
 def sanity_check(vec: np.ndarray, msg: str) -> None:
     if (vec < 0).any():
-        print(f"{str}: check some negative value {vec}")
+        print(f"{msg}: check some negative value {vec}")
 
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class QuadLoss:
@@ -204,8 +204,8 @@ if __name__ == "__main__":
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
     reg.fit(xtrain, ytrain)
 
-    xtrainpred = reg.predict(xtrain)
-    traindl2st = prob.dec_loss(xtrainpred, xtrain)
+    ytrainpred = reg.predict(xtrain)
+    traindl2st = prob.dec_loss(ytrainpred, ytrain)
 
     yvalpred = reg.predict(xval)
     valdl2st = prob.dec_loss(yvalpred, yval)
@@ -253,6 +253,7 @@ if __name__ == "__main__":
     sanity_check(traindlrand - traindltrue, "trainrand")
     sanity_check(valdlrand - valdltrue, "valrand")
     sanity_check(testdlrand - testdltrue, "testrand")
+
 
     res_str= [(f"2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
                f"smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr")]
