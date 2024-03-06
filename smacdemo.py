@@ -256,13 +256,14 @@ if __name__ == "__main__":
 
 
     res_str= [(f"2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
-               f"smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr")]
+               f"smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
+               f"randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr")]
     res_str.append((f"{(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
                     f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
                     f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)},"
                     f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
                     f"{(valsmac - valdltrue).mean()}, {compute_stderror(valsmac - valdltrue)}, "
-                    f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)}"
+                    f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)},"
                     f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
                     f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
                     f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}"))
