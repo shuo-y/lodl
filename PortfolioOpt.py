@@ -32,7 +32,9 @@ class PortfolioOpt(PThenO):
         super(PortfolioOpt, self).__init__()
         # Do some random seed fu
         self.rand_seed = rand_seed
-        self._set_seed(self.rand_seed)
+        random.seed(rand_seed)
+        np.random.seed(rand_seed * 1091)
+        torch.manual_seed(rand_seed * 2621)
 
         # Load train and test labels
         self.num_stocks = num_stocks
@@ -62,7 +64,7 @@ class PortfolioOpt(PThenO):
         self.opt = self._create_cvxpy_problem(alpha=self.alpha)
 
         # Undo random seed setting
-        self._set_seed()
+
 
     def _load_instances(
         self,
@@ -122,29 +124,26 @@ class PortfolioOpt(PThenO):
         features based on rolling windows of the price
         :return:
         """
-        if not overwrite and os.path.exists(self.price_feature_file):
-            print("Loading dataset...")
-            price_feature_df = pd.read_csv(self.price_feature_file, index_col=["Date", "Symbol"])
+
+        # download prices
+        if not overwrite and os.path.exists(self.raw_historical_price_file):
+            print(f"Loading {self.raw_historical_price_file}")
+            raw_price_df = pd.read_csv(self.raw_historical_price_file, index_col=["Date", "Symbol"])
         else:
-            # download prices
-            if not overwrite and os.path.exists(self.raw_historical_price_file):
-                raw_price_df = pd.read_csv(self.raw_historical_price_file, index_col=["Date", "Symbol"])
-            else:
-                symbol_df = self._load_raw_symbols()
-                raw_price_df = self._download_prices(symbol_df)
-                print("saving the data...")
-                raw_price_df.to_csv(self.raw_historical_price_file)
+            symbol_df = self._load_raw_symbols()
+            raw_price_df = self._download_prices(symbol_df)
+            print("saving the data...")
+            raw_price_df.to_csv(self.raw_historical_price_file)
 
-            # filter out symbols without right number of timesteps
-            max_num_timesteps = raw_price_df.groupby("Symbol").apply(lambda x: x.shape[0]).max()
-            raw_price_feature_df = raw_price_df.groupby("Symbol").filter(lambda x: x.shape[0] == max_num_timesteps)
+        # filter out symbols without right number of timesteps
+        max_num_timesteps = raw_price_df.groupby("Symbol").apply(lambda x: x.shape[0]).max()
+        raw_price_feature_df = raw_price_df.groupby("Symbol").filter(lambda x: x.shape[0] == max_num_timesteps)
 
-            # compute features for each symbol
-            feature_df = raw_price_feature_df.groupby("Symbol", as_index=False).apply(self._compute_monthly_cols).droplevel(0)
+        # compute features for each symbol
+        feature_df = raw_price_feature_df.groupby("Symbol", as_index=False).apply(self._compute_monthly_cols).droplevel(0)
 
-            price_feature_df = feature_df.join(raw_price_df, on=["Date", "Symbol"])
-            price_feature_df.index = price_feature_df.index.remove_unused_levels()
-            price_feature_df.to_csv(self.price_feature_file)
+        price_feature_df = feature_df.join(raw_price_df, on=["Date", "Symbol"])
+        price_feature_df.index = price_feature_df.index.remove_unused_levels()
 
         return price_feature_df
     
@@ -165,16 +164,16 @@ class PortfolioOpt(PThenO):
         rolling_returns = returns.rolling(7)
 
         result_data = {
-            # "next10_return": returns.shift(-10),
-            # "next9_return": returns.shift(-9),
-            # "next8_return": returns.shift(-8),
-            # "next7_return": returns.shift(-7),
-            # "next6_return": returns.shift(-6),
-            # "next5_return": returns.shift(-5),
-            # "next4_return": returns.shift(-4),
-            # "next3_return": returns.shift(-3),
-            # "next2_return": returns.shift(-2),
-            # "next1_return": returns.shift(-1),
+            "next10_return": returns.shift(-10),
+            "next9_return": returns.shift(-9),
+            "next8_return": returns.shift(-8),
+            "next7_return": returns.shift(-7),
+            "next6_return": returns.shift(-6),
+            "next5_return": returns.shift(-5),
+            "next4_return": returns.shift(-4),
+            "next3_return": returns.shift(-3),
+            "next2_return": returns.shift(-2),
+            "next1_return": returns.shift(-1),
             "cur_return": returns,
             "prev1_return": returns.shift(1),
             "prev2_return": returns.shift(2),
@@ -295,25 +294,25 @@ class PortfolioOpt(PThenO):
         # Define data directories to write to
         self.raw_historical_price_file = os.path.join(data_dir, "raw_historical_prices_{}_{}_{}.csv".format(start_date.date(), end_date.date(), collapse))
         self.raw_symbol_file = os.path.join(data_dir, "raw_symbols.csv")
-        self.price_feature_file = os.path.join(data_dir, "price_feature_mat_{}_{}_{}.csv".format(start_date.date(), end_date.date(), collapse))
-        self.torch_file = os.path.join(data_dir, "price_data_{}_{}_{}.pt".format(start_date.date(), end_date.date(), collapse))
+        #self.price_feature_file = os.path.join(data_dir, "price_feature_mat_{}_{}_{}.csv".format(start_date.date(), end_date.date(), collapse))
+        #self.torch_file = os.path.join(data_dir, "price_data_{}_{}_{}.pt".format(start_date.date(), end_date.date(), collapse))
 
         # Load data if it exists
-        print(self.torch_file)
-        if not overwrite and os.path.exists(self.torch_file):
-            print("Loading pytorch data...")
-            feature_mat, target_mat, feature_cols, future_mat, target_names, dates, symbols = torch.load(self.torch_file)
-        else:
-            price_feature_df = self._get_price_feature_df()
-            target_names = ["next1_return"]
-            covariance_names = ["next{}_return".format(i) for i in range(2,11)]
-            feature_cols = [c for c in price_feature_df.columns if c not in target_names + covariance_names + ["Volume"]]
-            target_mat = torch.tensor(self._get_price_feature_matrix(price_feature_df[target_names]))
-            future_mat = torch.tensor(self._get_price_feature_matrix(price_feature_df[covariance_names]))
-            feature_mat = torch.tensor(self._get_price_feature_matrix(price_feature_df[feature_cols]))
-            dates = list(price_feature_df.index.levels[0])
-            symbols = list(price_feature_df.index.levels[1])
-            torch.save([feature_mat, target_mat, feature_cols, future_mat, target_names, dates, symbols], self.torch_file)
+        #print(self.torch_file)
+        #if not overwrite and os.path.exists(self.torch_file):
+        #    print("Loading pytorch data...")
+        #    feature_mat, target_mat, feature_cols, future_mat, target_names, dates, symbols = torch.load(self.torch_file)
+        #else:
+        price_feature_df = self._get_price_feature_df()
+        target_names = ["next1_return"]
+        covariance_names = ["next{}_return".format(i) for i in range(2,11)]
+        feature_cols = [c for c in price_feature_df.columns if c not in target_names + covariance_names + ["Volume"]]
+        target_mat = torch.tensor(self._get_price_feature_matrix(price_feature_df[target_names]))
+        future_mat = torch.tensor(self._get_price_feature_matrix(price_feature_df[covariance_names]))
+        feature_mat = torch.tensor(self._get_price_feature_matrix(price_feature_df[feature_cols]))
+        dates = list(price_feature_df.index.levels[0])
+        symbols = list(price_feature_df.index.levels[1])
+
         return feature_mat, target_mat, feature_cols, future_mat, target_names, dates, symbols
 
     def _create_cvxpy_problem(

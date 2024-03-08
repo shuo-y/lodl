@@ -34,6 +34,12 @@ class ProdObj(PThenO):
         obj = np.apply_along_axis(np.prod, 1, z_true) * dec
         return obj
 
+    def rand_loss(self, z_true: np.ndarray) -> np.ndarray:
+        rand_dec = np.random.randint(2, size=len(z_true))
+        rand_dec = rand_dec * 2 - 1
+        obj = np.apply_along_axis(np.prod, 1, z_true) * rand_dec
+        return obj
+
 
 
     def generate_dataset(self, N, deg, noise_width,
@@ -72,14 +78,24 @@ class ProdObj(PThenO):
             print(f"Warning: sign of E[y0]E[y1] is the same as E[y0y1]")
 
 
-    def get_decision(self):
-        pass
+    def get_decision(self, y_pred: np.ndarray, **kwargs):
+        def opt(yi):
+            # min y0 y1 c
+            # c \in {-1, 1}
+            if yi[0] * yi[1] >= 0:
+                c = -1
+            else:
+                c = 1
+            return c
+
+        return np.apply_along_axis(opt, 1, y_pred)
+
 
     def get_modelio_shape(self):
         pass
 
-    def get_objective(self):
-        pass
+    def get_objective(self, y_vec: np.ndarray, dec: np.ndarray, **kwargs):
+        return np.apply_along_axis(np.prod, 1, y_vec) * dec
 
     def get_output_activation(self):
         pass
@@ -214,9 +230,9 @@ if __name__ == "__main__":
     valdltrue = prob.dec_loss(yval, yval)
     testdltrue = prob.dec_loss(ytest, ytest)
 
-    traindlrand = prob.dec_loss(np.random.random(ytrain.shape), ytrain)
-    valdlrand = prob.dec_loss(np.random.random(yval.shape), yval)
-    testdlrand = prob.dec_loss(np.random.random(ytest.shape), ytest)
+    traindlrand = prob.rand_loss(ytrain)
+    valdlrand = prob.rand_loss(yval)
+    testdlrand = prob.rand_loss(ytest)
 
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest)
