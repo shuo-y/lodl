@@ -263,7 +263,7 @@ class PortfolioOpt(PThenO):
         :return:
         """
         if not overwrite and os.path.exists(self.raw_symbol_file):
-            print("Loading dataset...")
+            print(f"Loading symbol files {self.raw_symbol_file}...")
             return pd.read_csv(self.raw_symbol_file)
         else:
             symbol_df = self._download_symbols()
