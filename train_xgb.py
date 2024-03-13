@@ -1,6 +1,7 @@
 import xgboost as xgb
 import torch
 import numpy as np
+from loss import search_weights_loss, search_quadratic_loss
 
 class custom_tree:
     # This one is for decoupled tree
@@ -260,78 +261,6 @@ def dump_booster(booster, args):
         f.write(config)
 
 
-class search_weights_loss():
-    def __init__(self, num_item, ypred_dim, weights_vec, verbose=True):
-        self.num_item = num_item
-        self.ypred_dim = ypred_dim
-        assert len(weights_vec) == self.ypred_dim
-        self.weights_vec = weights_vec
-        self.logger = []
-
-
-    def get_obj_fn(self):
-        def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
-            y = dtrain.get_label().reshape(predt.shape)
-
-            diff = (predt - y) / self.ypred_dim
-            grad = 2 * self.weights_vec * diff
-            hess = (2 * self.weights_vec) / self.ypred_dim
-            hess = np.tile(hess, self.num_item).reshape(self.num_item, self.ypred_dim)
-            grad = grad.reshape(y.size)
-            hess = hess.reshape(y.size)
-            self.logger.append([predt, grad, hess])
-            return grad, hess
-        return grad_fn
-
-    def get_eval_fn(self):
-        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
-            y = dtrain.get_label().reshape(predt.shape)
-            diff = self.weights_vec * ((predt - y) ** 2)
-            loss = diff.mean()
-            return "evalloss", loss
-        return eval_fn
-
-
-
-class search_quadratic_loss():
-    def __init__(self, num_item, ypred_dim, basis, alpha):
-        self.num_item = num_item
-        self.ypred_dim = ypred_dim
-        self.basis = np.tril(basis)
-        self.alpha = alpha
-        self.logger = []
-
-    def get_obj_fn(self):
-        def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
-            y = dtrain.get_label().reshape(predt.shape)
-
-            diff = predt - y
-            base = self.basis
-            hmat = (base @ base.T)
-            hmat = hmat + hmat.T
-            grad = (diff @ hmat) + 2 * self.alpha * (diff/y.shape[1])
-            grad = grad.reshape(y.size)
-            hess = np.diagonal(hmat) + (2 * self.alpha/y.shape[1])
-            hess = np.tile(hess, self.num_item)
-            #print(grad.sum())
-            #print(hess.sum())
-            self.logger.append([predt, grad, hess])
-            return grad, hess
-        return grad_fn
-
-    def get_eval_fn(self):
-        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
-            y = dtrain.get_label().reshape(predt.shape)
-
-            diff = y - predt
-            ## (100, 2)  (2)
-            #print(diff.shape)
-            #print(self.basis.shape)
-            quad = ((diff @ self.basis) ** 2).sum()
-            mse = (diff ** 2).mean()
-            res = quad + self.alpha * mse
-            return "quadloss4", res
-        return eval_fn
 
 class search_direct_quadratic_loss():
     def __init__(self, num_item, ypred_dim, basis, alpha):

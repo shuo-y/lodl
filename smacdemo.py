@@ -10,7 +10,7 @@ from ConfigSpace import Configuration, ConfigurationSpace, Float
 from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
-from train_xgb import search_weights_loss, search_quadratic_loss
+from loss import search_weights_loss, search_quadratic_loss
 from PThenO import PThenO
 
 # 2-dimensional Rosenbrock function https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/3_ask_and_tell.html
@@ -59,6 +59,7 @@ class ProdObj(PThenO):
         x = np.random.normal(0, 1, (N, num_feats))
         # cost vectors
         z = np.random.multivariate_normal(mean, cov, N)
+        """
         for i in range(N):
             # cost without noise
 
@@ -69,6 +70,7 @@ class ProdObj(PThenO):
             epislon = np.random.uniform(1 - noise_width, 1 + noise_width, num_feats)
             xi *= epislon
             x[i, :] = xi
+        """
         return x, z
 
     def checky(self, y):
@@ -112,13 +114,14 @@ def sanity_check(vec: np.ndarray, msg: str) -> None:
 
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class QuadLoss:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, alpha):
         self.Xy = xgb.DMatrix(xtrain, ytrain)
         self.xval = xval
         self.yval = yval
         self.params = params
         self.valtruedl = valtruedl
         self.prob = prob
+        self.alpha = alpha
 
 
     @property
@@ -134,7 +137,7 @@ class QuadLoss:
     def train(self, config: Configuration, seed: int) -> float:
         weight_vec = np.array([[config["w1"], 0], [config["w2"], config["w3"]]])
 
-        cusloss = search_quadratic_loss(ytrain.shape[0], ytrain.shape[1], weight_vec, 0.1)
+        cusloss = search_quadratic_loss(ytrain.shape[0], ytrain.shape[1], weight_vec, self.alpha)
         booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": 2},
                              dtrain = self.Xy, num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
 
@@ -158,6 +161,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-val", type=int, default=2000)
     parser.add_argument("--num-test", type=int, default=2000)
     parser.add_argument("--n-trials", type=int, default=200)
+    parser.add_argument("--quad-alpha", type=float, default=0.0)
 
     args = parser.parse_args()
     params = vars(args)
@@ -238,15 +242,16 @@ if __name__ == "__main__":
     testdl2st = prob.dec_loss(ytestpred, ytest)
 
 
-    model = QuadLoss(prob, params, xtrain, ytrain, xval, yval, valdltrue)
+    model = QuadLoss(prob, params, xtrain, ytrain, xval, yval, valdltrue, args.quad_alpha)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     smac = HPOFacade(scenario, model.train, overwrite=True)
     incumbent = smac.optimize()
 
 
     weight_vec = np.array([[incumbent["w1"], 0], [incumbent["w2"], incumbent["w3"]]])
+    print(f"SMAC choose {weight_vec}")
 
-    cusloss = search_quadratic_loss(ytrain.shape[0], ytrain.shape[1], weight_vec, 0.1)
+    cusloss = search_quadratic_loss(ytrain.shape[0], ytrain.shape[1], weight_vec, params["quad_alpha"])
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
                              dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
@@ -284,7 +289,27 @@ if __name__ == "__main__":
                     f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
                     f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}"))
 
+
+    handcrapcusloss = search_quadratic_loss(ytrain.shape[0], ytrain.shape[1], np.array([[1.0, 0], [1.0, 0.1]]), params["quad_alpha"])
+    hcbooster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
+                             dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+
+    hctrainpred = hcbooster.inplace_predict(xtrain)
+    hctrain = prob.dec_loss(hctrainpred, ytrain)
+
+    hcvalpred = hcbooster.inplace_predict(xval)
+    hcval = prob.dec_loss(hcvalpred, yval)
+
+    hctestpred = hcbooster.inplace_predict(xtest)
+    hctest = prob.dec_loss(hctestpred, ytest)
+
+    res_str.append((f"Handcrafted.{(hctrain - traindltrue).mean()}, {compute_stderror(hctrain - traindltrue)}, "
+                    f"{(hcval - valdltrue).mean()}, {compute_stderror(hcval - valdltrue)}, "
+                    f"{(hctest - testdltrue).mean()}, {compute_stderror(hctest - testdltrue)}"))
+
     for row in res_str:
         print(row)
+
+        #TODO how Lower L map to y0y1
 
 

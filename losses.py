@@ -18,6 +18,117 @@ from utils import starmap_with_kwargs
 NUM_CPUS = os.cpu_count()
 
 
+class search_weights_loss():
+    def __init__(self, num_item, ypred_dim, weights_vec, verbose=True):
+        self.num_item = num_item
+        self.ypred_dim = ypred_dim
+        assert len(weights_vec) == self.ypred_dim
+        self.weights_vec = weights_vec
+        self.logger = []
+
+
+    def get_obj_fn(self):
+        def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+
+            diff = (predt - y) / self.ypred_dim
+            grad = 2 * self.weights_vec * diff
+            hess = (2 * self.weights_vec) / self.ypred_dim
+            hess = np.tile(hess, self.num_item).reshape(self.num_item, self.ypred_dim)
+            grad = grad.reshape(y.size)
+            hess = hess.reshape(y.size)
+            self.logger.append([predt, grad, hess])
+            return grad, hess
+        return grad_fn
+
+    def get_eval_fn(self):
+        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+            diff = self.weights_vec * ((predt - y) ** 2)
+            loss = diff.mean()
+            return "evalloss", loss
+        return eval_fn
+
+
+class search_weights_directed_loss():
+    def __init__(self, num_item, ypred_dim, weights_pos, verbose=True):
+        self.num_item = num_item
+        self.ypred_dim = ypred_dim
+        assert len(weights_pos) == self.ypred_dim
+        self.weights_pos = weights_pos
+        self.weights_neg = np.ones(ypred_dim)
+
+    def get_obj_fn(self):
+        def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+            y = y.flatten()
+
+            diff = (predt - y)
+            posdiff = (diff > 0) * diff
+            negdiff = (diff < 0) * diff
+
+            grad = (2 * (self.weights_pos * posdiff) + 2 * (self.weights_neg * negdiff))/len(predt)
+            hess = (2 * (self.weights_pos * (diff > 0)) + 2 * (self.weights_neg * (diff < 0))) / len(predt)
+            return grad, hess
+        return grad_fn
+
+    def get_eval_fn(self):
+        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+            y = y.flatten()
+
+            cur_pos_w = (predt > y) * self.weights_pos
+            cur_neg_w = (predt < y) * self.weights_neg
+            w = cur_pos_w + cur_neg_w
+            diff = (predt - y)
+            loss = (w * (diff ** 2)).mean()
+            return "evaldirectedmseloss", loss
+        return eval_fn
+
+
+
+class search_quadratic_loss():
+    def __init__(self, num_item, ypred_dim, basis, alpha):
+        self.num_item = num_item
+        self.ypred_dim = ypred_dim
+        self.basis = np.tril(basis)
+        self.alpha = alpha
+        self.logger = []
+
+    def get_obj_fn(self):
+        def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+
+            diff = predt - y
+            base = self.basis
+            hmat = (base @ base.T)
+            hmat = hmat + hmat.T
+            grad = (diff @ hmat) + 2 * self.alpha * (diff/y.shape[1])
+            grad = grad.reshape(y.size)
+            hess = np.diagonal(hmat) + (2 * self.alpha/y.shape[1])
+            hess = np.tile(hess, self.num_item)
+            #print(grad.sum())
+            #print(hess.sum())
+            self.logger.append([predt, grad, hess])
+            return grad, hess
+        return grad_fn
+
+    def get_eval_fn(self):
+        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+            y = dtrain.get_label().reshape(predt.shape)
+
+            diff = y - predt
+            ## (100, 2)  (2)
+            #print(diff.shape)
+            #print(self.basis.shape)
+            quad = ((diff @ self.basis) ** 2).sum()
+            mse = (diff ** 2).mean()
+            res = quad + self.alpha * mse
+            return "quadloss4", res
+        return eval_fn
+
+
+
 def MSE(Yhats, Ys, **kwargs):
     """
     Calculates the mean squared error between predictions
@@ -509,3 +620,5 @@ def get_loss_fn(
         return _get_decision_focused(problem, **kwargs)
     else:
         return _get_learned_loss(problem, name, **kwargs)
+
+
