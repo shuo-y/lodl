@@ -9,6 +9,8 @@ from torch.multiprocessing import Pool
 from statistics import mean
 from functools import partial
 from copy import deepcopy
+import numpy as np
+import xgboost as xgb
 
 from models import DenseLoss, LowRankQuadratic, WeightedMSESum, WeightedMSE, WeightedCE, WeightedMSESum, QuadraticPlusPlus, WeightedMSEPlusPlus
 from BudgetAllocation import BudgetAllocation
@@ -51,24 +53,28 @@ class search_weights_loss():
 
 
 class search_weights_directed_loss():
-    def __init__(self, num_item, ypred_dim, weights_pos, verbose=True):
+    def __init__(self, num_item, ypred_dim, weights_vec, verbose=True):
         self.num_item = num_item
         self.ypred_dim = ypred_dim
-        assert len(weights_pos) == self.ypred_dim
-        self.weights_pos = weights_pos
+        assert len(weights_vec) == self.ypred_dim
+        self.weights_pos = weights_vec
         self.weights_neg = np.ones(ypred_dim)
 
     def get_obj_fn(self):
         def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
             y = dtrain.get_label().reshape(predt.shape)
-            y = y.flatten()
 
             diff = (predt - y)
-            posdiff = (diff > 0) * diff
+            posdiff = (diff >= 0) * diff
             negdiff = (diff < 0) * diff
 
-            grad = (2 * (self.weights_pos * posdiff) + 2 * (self.weights_neg * negdiff))/len(predt)
-            hess = (2 * (self.weights_pos * (diff > 0)) + 2 * (self.weights_neg * (diff < 0))) / len(predt)
+            grad = (2 * (self.weights_pos * posdiff) + 2 * (self.weights_neg * negdiff))
+            hess = (2 * (self.weights_pos * (diff >= 0)) + 2 * (self.weights_neg * (diff < 0)))
+
+            grad = grad.flatten()
+            grad = grad / len(grad)
+            hess = hess.flatten()
+            hess = hess / len(hess)
             return grad, hess
         return grad_fn
 
