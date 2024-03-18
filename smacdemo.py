@@ -292,7 +292,7 @@ if __name__ == "__main__":
 
     handcrapcusloss = search_quadratic_loss(ytrain.shape[0], ytrain.shape[1], np.array([[1.0, 0], [1.0, 0.1]]), params["quad_alpha"])
     hcbooster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
-                             dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+                             dtrain = Xy, num_boost_round = params["search_estimators"], obj = handcrapcusloss.get_obj_fn())
 
     hctrainpred = hcbooster.inplace_predict(xtrain)
     hctrain = prob.dec_loss(hctrainpred, ytrain)

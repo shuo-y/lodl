@@ -127,8 +127,8 @@ class DirectedLoss:
     def configspace(self) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=0)
         cs = ConfigurationSpace(seed=0)
-        w1 = Float("w1", (1, 10000), default=1)
-        w2 = Float("w2", (1, 10000), default=1)
+        w1 = Float("w1", (0.01, 100), default=1)
+        w2 = Float("w2", (0.01, 100), default=1)
         cs.add_hyperparameters([w1, w2])
         return cs
 
@@ -287,6 +287,22 @@ if __name__ == "__main__":
                     f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
                     f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}"))
 
+    handcrapcusloss = search_weights_directed_loss(ytrain.shape[0], ytrain.shape[1], np.array([0.01, 100]))
+    hcbooster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
+                             dtrain = Xy, num_boost_round = params["search_estimators"], obj = handcrapcusloss.get_obj_fn())
+
+    hctrainpred = hcbooster.inplace_predict(xtrain)
+    hctrain = prob.dec_loss(hctrainpred, ytrain)
+
+    hcvalpred = hcbooster.inplace_predict(xval)
+    hcval = prob.dec_loss(hcvalpred, yval)
+
+    hctestpred = hcbooster.inplace_predict(xtest)
+    hctest = prob.dec_loss(hctestpred, ytest)
+
+    res_str.append((f"Handcrafted.{(hctrain - traindltrue).mean()}, {compute_stderror(hctrain - traindltrue)}, "
+                    f"{(hcval - valdltrue).mean()}, {compute_stderror(hcval - valdltrue)}, "
+                    f"{(hctest - testdltrue).mean()}, {compute_stderror(hctest - testdltrue)}"))
 
     for row in res_str:
         print(row)
