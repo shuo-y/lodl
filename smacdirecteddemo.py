@@ -300,7 +300,7 @@ if __name__ == "__main__":
     hctestpred = hcbooster.inplace_predict(xtest)
     hctest = prob.dec_loss(hctestpred, ytest)
 
-    res_str.append((f"Handcrafted.{(hctrain - traindltrue).mean()}, {compute_stderror(hctrain - traindltrue)}, "
+    res_str.append((f"Handcrafted,{(hctrain - traindltrue).mean()}, {compute_stderror(hctrain - traindltrue)}, "
                     f"{(hcval - valdltrue).mean()}, {compute_stderror(hcval - valdltrue)}, "
                     f"{(hctest - testdltrue).mean()}, {compute_stderror(hctest - testdltrue)}"))
 
