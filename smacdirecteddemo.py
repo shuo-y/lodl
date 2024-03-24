@@ -127,13 +127,13 @@ class DirectedLoss:
     def configspace(self) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=0)
         cs = ConfigurationSpace(seed=0)
-        w1 = Float("w1", (0.01, 100), default=1)
-        w2 = Float("w2", (0.01, 100), default=1)
-        cs.add_hyperparameters([w1, w2])
+        configs = [Float(f"w{i}", (0.01, 100), default=1) for i in range(self.yval.shape[1])]
+        cs.add_hyperparameters(configs)
         return cs
 
-    def train(self, config: Configuration, seed: int) -> float:
-        weight_vec = np.array([config["w1"], config["w2"]])
+    def train(self, configs: Configuration, seed: int) -> float:
+        configarray = [configs[f"w{i}"] for i in range(self.yval.shape[1])]
+        weight_vec = np.array(configarray)
 
         cusloss = search_weights_directed_loss(ytrain.shape[0], ytrain.shape[1], weight_vec)
         booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": 2},
@@ -246,7 +246,7 @@ if __name__ == "__main__":
     incumbent = smac.optimize()
 
 
-    weight_vec = np.array([incumbent["w1"], incumbent["w2"]])
+    weight_vec = np.array([incumbent["w0"], incumbent["w1"]])
     print(f"SMAC choose {weight_vec}")
 
     cusloss = search_weights_directed_loss(ytrain.shape[0], ytrain.shape[1], weight_vec)
