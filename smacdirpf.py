@@ -11,98 +11,8 @@ from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
-from PThenO import PThenO
+from PortfolioOpt import PortfolioOpt
 from smacdirected import DirectedLoss
-
-# 2-dimensional Rosenbrock function https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/3_ask_and_tell.html
-class ProdObj(PThenO):
-    def __init__(self):
-        super(ProdObj, self).__init__()
-        pass
-
-    def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
-
-        def opt(yi):
-            # min y0 y1 c
-            # c \in {-1, 1}
-            if yi[0] * yi[1] >= 0:
-                c = -1
-            else:
-                c = 1
-            return c
-
-        dec = np.apply_along_axis(opt, 1, z_pred)
-        obj = np.apply_along_axis(np.prod, 1, z_true) * dec
-        return obj
-
-    def rand_loss(self, z_true: np.ndarray) -> np.ndarray:
-        rand_dec = np.random.randint(2, size=len(z_true))
-        rand_dec = rand_dec * 2 - 1
-        obj = np.apply_along_axis(np.prod, 1, z_true) * rand_dec
-        return obj
-
-
-
-    def generate_dataset(self, N, deg, noise_width,
-                         num_feats, d=2, mean=np.array([-0.9, -0.9]),
-                         cov=np.array([[1, -1], [-1, 5]])):
-        """
-        From the LANCER code
-        Generate synthetic dataset for the DFL shortest path problem
-        :param N: number of points
-        :param deg: degree of polynomial to enforce nonlinearity
-        :param noise_width: add eps noise to the cost vector
-        :return: dataset of features x and the ground truth cost vector of edges c
-        """
-        # random matrix parameter B
-        B = np.random.binomial(1, 0.5, (num_feats, d))
-        # feature vectors
-        x = np.random.normal(0, 1, (N, num_feats))
-        # cost vectors
-        z = np.random.multivariate_normal(mean, cov, N)
-        """
-        for i in range(N):
-            # cost without noise
-
-            xi = (np.dot(B, z[i].reshape(d, 1)).T / np.sqrt(num_feats) + 3) ** deg + 1
-            # rescale
-            xi /= 3.5 ** deg
-            # noise
-            epislon = np.random.uniform(1 - noise_width, 1 + noise_width, num_feats)
-            xi *= epislon
-            x[i, :] = xi
-        """
-        return x, z
-
-    def checky(self, y):
-        yprod = np.apply_along_axis(np.prod, 1, y)
-        print(f"{y[:, 0].mean()},{y[:, 1].mean()},{yprod.mean()}")
-        if not (y[:, 0].mean() < 0 and y[:, 1].mean() < 0 and yprod.mean() < 0):
-            print(f"Warning: sign of E[y0]E[y1] is the same as E[y0y1]")
-
-
-    def get_decision(self, y_pred: np.ndarray, **kwargs):
-        def opt(yi):
-            # min y0 y1 c
-            # c \in {-1, 1}
-            if yi[0] * yi[1] >= 0:
-                c = -1
-            else:
-                c = 1
-            return c
-
-        return np.apply_along_axis(opt, 1, y_pred)
-
-
-    def get_modelio_shape(self):
-        pass
-
-    def get_objective(self, y_vec: np.ndarray, dec: np.ndarray, **kwargs):
-        return np.apply_along_axis(np.prod, 1, y_vec) * dec
-
-    def get_output_activation(self):
-        pass
-
 
 def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()
@@ -128,6 +38,8 @@ if __name__ == "__main__":
     parser.add_argument("--num-test", type=int, default=2000)
     parser.add_argument("--n-trials", type=int, default=200)
     parser.add_argument("--quad-alpha", type=float, default=0.0)
+    parser.add_argument("--stocks", type=int, default=50)
+    parser.add_argument("--stockalpha", type=float, default=0.1)
 
     args = parser.parse_args()
     params = vars(args)
@@ -142,29 +54,14 @@ if __name__ == "__main__":
 
     params = vars(args)
 
-    def fun1(x):
-        return (0, 0.55)
 
-    def fun2(x):
-        return (1, 0.55)
+    prob = PortfolioOpt(num_train_instances = params["num_train"],
+                        num_val = params["num_val"],
+                        num_test_instances = params["num_test"],
+                        num_stocks = params["stocks"],
+                        alpha = args.stockalpha)
 
-    def rand_fun(x):
-        if np.random.rand() >= 0.5:
-            return (0, 0.55)
-        return (1, 0.55)
-
-    def quad_fun(x):
-        # Similar to SPO demo
-        y0 = 0.5 * (x ** 2) - 0.1
-        y1 = 0.2 * (x ** 2)
-        return (y0, y1)
-
-
-    N = args.num_train + args.num_val + args.num_test
-    prob = ProdObj()
-    X, Y = prob.generate_dataset(N, 6, 0.5, 10)
-
-    prob.checky(Y)
+    X, Y, Aux = prob.get_data()
 
     indices = list(range(args.num_train + args.num_val + args.num_test))
     np.random.shuffle(indices)
@@ -214,7 +111,7 @@ if __name__ == "__main__":
     incumbent = smac.optimize()
 
 
-    weight_vec = np.array([incumbent["w0"], incumbent["w1"]])
+    weight_vec = model.get_vec(model)
     print(f"SMAC choose {weight_vec}")
 
     cusloss = search_weights_directed_loss(ytrain.shape[0], ytrain.shape[1], weight_vec)

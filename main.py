@@ -225,11 +225,11 @@ if __name__ == "__main__":
     elif args.problem == "portfolio":
         from PortfolioOpt import PortfolioOpt
         # TODO coupled or decoupled different shapes change in problem.dec_loss
-        problem = PortfolioOpt(num_train_instances = args.instances,
+        problem = PortfolioOpt(num_train_instances = args.instances - int(args.valfrac * args.instances),
+                               num_val = int(args.valfrac * args.instances),
                                num_test_instances = args.testinstances,
                                num_stocks = args.stocks,
                                alpha = args.stockalpha,
-                               val_frac = args.valfrac,
                                rand_seed = args.seed)
     elif args.problem == "vmscheduling":
         from VMScheduling import VMScheduling

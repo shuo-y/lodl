@@ -21,20 +21,15 @@ class PortfolioOpt(PThenO):
 
     def __init__(
         self,
-        num_train_instances=200,  # number of *days* to use from the dataset to train
+        num_train_instances=160,  # number of *days* to use from the dataset to train
+        num_val=40,
         num_test_instances=200,  # number of *days* to use from the dataset to test
         num_stocks=50,  # number of stocks per instance to choose from
-        val_frac=0.2,  # fraction of training data reserved for test
         rand_seed=0,  # for reproducibility
         alpha=1,  # risk aversion constant
         data_dir="data",  # directory to store data
     ):
         super(PortfolioOpt, self).__init__()
-        # Do some random seed fu
-        self.rand_seed = rand_seed
-        random.seed(rand_seed)
-        np.random.seed(rand_seed * 1091)
-        torch.manual_seed(rand_seed * 2621)
 
         # Load train and test labels
         self.num_stocks = num_stocks
@@ -45,17 +40,16 @@ class PortfolioOpt(PThenO):
         total_days = self.Xs.shape[0]
         self.num_train_instances = num_train_instances
         self.num_test_instances = num_test_instances
-        num_days = self.num_train_instances + self.num_test_instances
-        assert self.num_train_instances + self.num_test_instances < total_days
-        assert 0 < val_frac < 1
-        self.val_frac = val_frac
+        self.num_val = num_val
+        num_days = self.num_train_instances + self.num_val + self.num_test_instances
+        assert num_days < total_days
+
 
         #   Creating "days" for train/valid/test
         idxs = list(range(num_days))
-        num_val = int(self.val_frac * self.num_train_instances)
-        self.train_idxs = idxs[:self.num_train_instances - num_val]
-        self.val_idxs = idxs[self.num_train_instances - num_val:self.num_train_instances]
-        self.test_idxs = idxs[self.num_train_instances:]
+        self.train_idxs = idxs[:self.num_train_instances]
+        self.val_idxs = idxs[self.num_train_instances:(self.num_train_instances + self.num_val)]
+        self.test_idxs = idxs[(self.num_train_instances + self.num_val):]
         assert all(x is not None for x in [self.train_idxs, self.val_idxs, self.test_idxs])
 
         # Create functions for optimisation
@@ -99,8 +93,9 @@ class PortfolioOpt(PThenO):
             # TODO: See if things change if you get rid of num_samples
             num_samples = future_mat.shape[-1]
             spi = future_mat.shape[-2]  # stocks per instance
-            covar_raw = [(fm_norm * fm_norm[..., i:i+1, :].repeat((*((1,) * (fm_norm.ndim - 2)), spi, 1))).sum(dim=-1) for i in range(spi)]
-            covar_mat_unreg = torch.stack(covar_raw, dim=-1) / (num_samples - 1)
+            #covar_raw = [(fm_norm * fm_norm[..., i:i+1, :].repeat((*((1,) * (fm_norm.ndim - 2)), spi, 1))).sum(dim=-1) for i in range(spi)]
+            covar_raw = [fm_norm[i,:,:] @ fm_norm[i,:,:].T for i in range(future_mat.shape[0])]
+            covar_mat_unreg = torch.stack(covar_raw) / (num_samples - 1)
 
             # Add regularisation to make sure that the covariance matrix is positive-definite
             covar_mat = covar_mat_unreg + reg * torch.eye(spi)
@@ -346,6 +341,8 @@ class PortfolioOpt(PThenO):
         #pdb.set_trace()
         return z_var.value, sol
 
+    def get_data(self, **kwargs) -> np.ndarray:
+        return self.Xs.numpy(), self.Ys.numpy(), self.covar_mat.numpy()
 
     def get_train_data(self, **kwargs):
         return self.Xs[self.train_idxs], self.Ys[self.train_idxs], self.covar_mat[self.train_idxs]
@@ -461,6 +458,7 @@ class PortfolioOpt(PThenO):
 
 
 if __name__ == "__main__":
+    random.seed(0) # For debug
     problem = PortfolioOpt()
     X_train, Y_train, Y_train_aux = problem.get_train_data()
 
