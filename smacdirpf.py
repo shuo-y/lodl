@@ -86,22 +86,22 @@ if __name__ == "__main__":
 
 
     ytrainpred = reg.predict(xtrain)
-    traindl2st = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain)
+    traindl2st = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
 
     yvalpred = reg.predict(xval)
-    valdl2st = prob.dec_loss(yvalpred, yval, aux_data=auxval)
+    valdl2st = prob.dec_loss(yvalpred, yval, aux_data=auxval).flatten()
 
     ytestpred = reg.predict(xtest)
-    testdl2st = prob.dec_loss(ytestpred, ytest, aux_data=auxtest)
+    testdl2st = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
 
-    traindltrue = prob.dec_loss(ytrain, ytrain, aux_data=auxtrain)
-    valdltrue = prob.dec_loss(yval, yval, aux_data=auxval)
-    testdltrue = prob.dec_loss(ytest, ytest, aux_data=auxtest)
+    traindltrue = prob.dec_loss(ytrain, ytrain, aux_data=auxtrain).flatten()
+    valdltrue = prob.dec_loss(yval, yval, aux_data=auxval).flatten()
+    testdltrue = prob.dec_loss(ytest, ytest, aux_data=auxtest).flatten()
 
     # The shape of decision is the same as label Y
-    traindlrand = prob.get_objective(torch.tensor(ytrain), torch.rand(ytrain.shape), aux_data=torch.tensor(auxtrain))
-    valdlrand = prob.get_objective(torch.tensor(yval), torch.rand(yval.shape), aux_data=torch.tensor(auxval))
-    testdlrand = prob.get_objective(torch.tensor(ytest), torch.rand(ytest.shape), aux_data=torch.tensor(auxtest))
+    traindlrand = -1.0 * prob.get_objective(torch.tensor(ytrain), torch.rand(ytrain.shape), aux_data=torch.tensor(auxtrain)).numpy().flatten()
+    valdlrand = -1.0 * prob.get_objective(torch.tensor(yval), torch.rand(yval.shape), aux_data=torch.tensor(auxval)).numpy().flatten()
+    testdlrand = -1.0 * prob.get_objective(torch.tensor(ytest), torch.rand(ytest.shape), aux_data=torch.tensor(auxtest)).numpy().flatten()
 
 
     model = DirectedLoss(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval)
@@ -119,13 +119,16 @@ if __name__ == "__main__":
                              dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
 
     smacytrainpred = booster.inplace_predict(xtrain)
-    trainsmac = prob.dec_loss(smacytrainpred, ytrain, aux_data=auxtrain)
+    trainsmac = prob.dec_loss(smacytrainpred, ytrain, aux_data=auxtrain).flatten()
 
     smacyvalpred = booster.inplace_predict(xval)
-    valsmac = prob.dec_loss(smacyvalpred, yval, aux_data=auxval)
+    valsmac = prob.dec_loss(smacyvalpred, yval, aux_data=auxval).flatten()
 
     smacytestpred = booster.inplace_predict(xtest)
-    testsmac = prob.dec_loss(smacytestpred, ytest, aux_data=auxtest)
+    testsmac = prob.dec_loss(smacytestpred, ytest, aux_data=auxtest).flatten()
+
+    import pdb
+    pdb.set_trace()
 
     sanity_check(traindl2st - traindltrue, "train2st")
     sanity_check(valdl2st - valdltrue, "val2st")
