@@ -15,13 +15,14 @@ from PThenO import PThenO
 
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class DirectedLoss:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata):
         self.Xy = xgb.DMatrix(xtrain, ytrain)
         self.xval = xval
         self.yval = yval
         self.params = params
         self.valtruedl = valtruedl
         self.prob = prob
+        self.aux_data = auxdata
 
 
     @property
@@ -36,12 +37,12 @@ class DirectedLoss:
         configarray = [configs[f"w{i}"] for i in range(self.yval.shape[1])]
         weight_vec = np.array(configarray)
 
-        cusloss = search_weights_directed_loss(ytrain.shape[0], ytrain.shape[1], weight_vec)
-        booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": 2},
+        cusloss = search_weights_directed_loss(self.yval.shape[1], weight_vec)
+        booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]},
                              dtrain = self.Xy, num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
 
         yvalpred = booster.inplace_predict(self.xval)
-        valdl = self.prob.dec_loss(yvalpred, self.yval)
+        valdl = self.prob.dec_loss(yvalpred, self.yval, aux_data=self.aux_data)
 
         cost = (valdl - self.valtruedl).mean()
         return cost

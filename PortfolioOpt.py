@@ -58,6 +58,17 @@ class PortfolioOpt(PThenO):
         self.opt = self._create_cvxpy_problem(alpha=self.alpha)
 
         # Undo random seed setting
+        self.model, self.var, self.ret, self.L = self.build_model() # Code from LANCER
+
+    def build_model(self, **kwargs):
+        # Adapt code from LANCER
+        x_var = cp.Variable(self.num_stocks)
+        L_sqrt_para = cp.Parameter((self.num_stocks, self.num_stocks))
+        p_para = cp.Parameter(self.num_stocks)
+        constraints = [x_var >= 0, x_var <= 1, cp.sum(x_var) == 1]
+        objective = cp.Minimize(self.alpha * cp.sum_squares(L_sqrt_para.T @ x_var) - p_para.T @ x_var)
+        problem = cp.Problem(objective, constraints)
+        return problem, x_var, p_para, L_sqrt_para
 
 
     def _load_instances(
@@ -341,7 +352,7 @@ class PortfolioOpt(PThenO):
         #pdb.set_trace()
         return z_var.value, sol
 
-    def get_data(self, **kwargs) -> np.ndarray:
+    def get_np_data(self, **kwargs) -> np.ndarray:
         return self.Xs.numpy(), self.Ys.numpy(), self.covar_mat.numpy()
 
     def get_train_data(self, **kwargs):
@@ -408,7 +419,7 @@ class PortfolioOpt(PThenO):
         if isTrain == True:
             return self.get_decision_old(Y, aux_data, max_instances_per_batch)
 
-        print("does not use CvxpyLayer for the decision")
+        #print("does not use CvxpyLayer for the decision")
         assert Y.ndim <= 2
         if Y.ndim == 2 and aux_data.ndim == 3:
             results = []
@@ -453,6 +464,28 @@ class PortfolioOpt(PThenO):
         obj = (Y * Z).sum(dim=-1) - self.alpha * quad_term
         return obj
     
+    def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, **kwargs) -> np.ndarray:
+        # Function from LANCER
+        assert z_pred.shape == z_true.shape
+        assert "aux_data" in kwargs
+        Q_mat = kwargs["aux_data"]
+        N = z_true.shape[0]
+        assert Q_mat.shape[0] == N
+        sqrt_covar = np.linalg.cholesky(Q_mat)
+        f_hat_list = []
+        for i in range(N):
+            self.ret.value = z_pred[i]
+            self.L.value = sqrt_covar[i]
+            self.model.solve(solver=cp.SCS)
+            sol = self.var.value
+            ############################
+            #f_hat_i_cp = self._get_objective(z_true[i], sol, sqrt_covar[i])
+            quad_term = np.square(sqrt_covar[i].T @ sol).sum()
+            f_hat_i_cp = self.alpha * quad_term - z_true[i].T @ sol
+            f_hat_list.append([f_hat_i_cp])
+        return np.array(f_hat_list)
+
+
     def get_output_activation(self):
         return 'tanh'
 

@@ -10,7 +10,7 @@ from ConfigSpace import Configuration, ConfigurationSpace, Float
 from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
-from loss import search_weights_loss, search_quadratic_loss
+from losses import search_weights_loss, search_quadratic_loss
 from PThenO import PThenO
 
 # 2-dimensional Rosenbrock function https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/3_ask_and_tell.html

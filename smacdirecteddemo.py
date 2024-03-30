@@ -208,7 +208,7 @@ if __name__ == "__main__":
     testdl2st = prob.dec_loss(ytestpred, ytest)
 
 
-    model = DirectedLoss(prob, params, xtrain, ytrain, xval, yval, valdltrue)
+    model = DirectedLoss(prob, params, xtrain, ytrain, xval, yval, valdltrue, None)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     smac = HPOFacade(scenario, model.train, overwrite=True)
     incumbent = smac.optimize()
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     weight_vec = np.array([incumbent["w0"], incumbent["w1"]])
     print(f"SMAC choose {weight_vec}")
 
-    cusloss = search_weights_directed_loss(ytrain.shape[0], ytrain.shape[1], weight_vec)
+    cusloss = search_weights_directed_loss(ytrain.shape[1], weight_vec)
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
                              dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
@@ -247,7 +247,7 @@ if __name__ == "__main__":
                f"randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr")]
     res_str.append((f"{(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
                     f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
-                    f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)},"
+                    f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
                     f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
                     f"{(valsmac - valdltrue).mean()}, {compute_stderror(valsmac - valdltrue)}, "
                     f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)},"
@@ -255,7 +255,7 @@ if __name__ == "__main__":
                     f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
                     f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}"))
 
-    handcrapcusloss = search_weights_directed_loss(ytrain.shape[0], ytrain.shape[1], np.array([0.01, 100]))
+    handcrapcusloss = search_weights_directed_loss(ytrain.shape[1], np.array([0.01, 100]))
     hcbooster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
                              dtrain = Xy, num_boost_round = params["search_estimators"], obj = handcrapcusloss.get_obj_fn())
 

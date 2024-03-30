@@ -21,8 +21,7 @@ NUM_CPUS = os.cpu_count()
 
 
 class search_weights_loss():
-    def __init__(self, num_item, ypred_dim, weights_vec, verbose=True):
-        self.num_item = num_item
+    def __init__(self, ypred_dim, weights_vec, verbose=True):
         self.ypred_dim = ypred_dim
         assert len(weights_vec) == self.ypred_dim
         self.weights_vec = weights_vec
@@ -36,7 +35,8 @@ class search_weights_loss():
             diff = (predt - y) / self.ypred_dim
             grad = 2 * self.weights_vec * diff
             hess = (2 * self.weights_vec) / self.ypred_dim
-            hess = np.tile(hess, self.num_item).reshape(self.num_item, self.ypred_dim)
+
+            hess = np.tile(hess, predt.shape[0]).reshape(predt.shape[0], self.ypred_dim)
             grad = grad.reshape(y.size)
             hess = hess.reshape(y.size)
             self.logger.append([predt, grad, hess])
@@ -53,8 +53,7 @@ class search_weights_loss():
 
 
 class search_weights_directed_loss():
-    def __init__(self, num_item, ypred_dim, weights_vec, verbose=True):
-        self.num_item = num_item
+    def __init__(self, ypred_dim, weights_vec, verbose=True):
         self.ypred_dim = ypred_dim
         assert len(weights_vec) == self.ypred_dim
         self.weights_pos = weights_vec
