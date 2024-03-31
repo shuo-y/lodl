@@ -127,8 +127,6 @@ if __name__ == "__main__":
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest, aux_data=auxtest).flatten()
 
-    import pdb
-    pdb.set_trace()
 
     sanity_check(traindl2st - traindltrue, "train2st")
     sanity_check(valdl2st - valdltrue, "val2st")
