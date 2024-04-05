@@ -10,7 +10,7 @@ from ConfigSpace import Configuration, ConfigurationSpace, Float
 from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
-from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
+from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from PortfolioOpt import PortfolioOpt
 from smacdirected import DirectedLoss
 
@@ -152,6 +152,22 @@ if __name__ == "__main__":
                     f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
                     f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}"))
 
+    handcrapcusloss = search_weights_directed_loss(ytrain.shape[1], np.array([1.0 for _ in range(yval.shape[1])]))
+    hcbooster = xgb.train({"tree_method": params["tree_method"], "num_target": yval.shape[1]},
+                             dtrain = Xy, num_boost_round = params["search_estimators"], obj = handcrapcusloss.get_obj_fn())
+
+    hctrainpred = hcbooster.inplace_predict(xtrain)
+    hctrain = prob.dec_loss(hctrainpred, ytrain, aux_data=auxtrain).flatten()
+
+    hcvalpred = hcbooster.inplace_predict(xval)
+    hcval = prob.dec_loss(hcvalpred, yval, aux_data=auxval).flatten()
+
+    hctestpred = hcbooster.inplace_predict(xtest)
+    hctest = prob.dec_loss(hctestpred, ytest, aux_data=auxtest).flatten()
+
+    res_str.append((f"Handcrafted,{(hctrain - traindltrue).mean()}, {compute_stderror(hctrain - traindltrue)}, "
+                    f"{(hcval - valdltrue).mean()}, {compute_stderror(hcval - valdltrue)}, "
+                    f"{(hctest - testdltrue).mean()}, {compute_stderror(hctest - testdltrue)}"))
 
     for row in res_str:
         print(row)

@@ -100,6 +100,11 @@ class ProdObj(PThenO):
     def get_objective(self, y_vec: np.ndarray, dec: np.ndarray, **kwargs):
         return np.apply_along_axis(np.prod, 1, y_vec) * dec
 
+    def get_best_const(self, y):
+        dl1 = self.get_objective(y, np.array([-1 for _ in range(len(y))])).mean()
+        dl2 = self.get_objective(y, np.array([1 for _ in range(len(y))])).mean()
+        return min(dl1, dl2)
+
     def get_output_activation(self):
         pass
 
@@ -112,6 +117,8 @@ def compute_stderror(vec: np.ndarray) -> float:
 def sanity_check(vec: np.ndarray, msg: str) -> None:
     if (vec < 0).any():
         print(f"{msg}: check some negative value {vec}")
+
+
 
 
 
@@ -199,6 +206,10 @@ if __name__ == "__main__":
     traindltrue = prob.dec_loss(ytrain, ytrain)
     valdltrue = prob.dec_loss(yval, yval)
     testdltrue = prob.dec_loss(ytest, ytest)
+
+    traindlconsttrue = prob.get_best_const(ytrain)
+    valdlconsttrue = prob.get_best_const(yval)
+    testdlconsttrue = prob.get_best_const(ytest)
 
     traindlrand = prob.rand_loss(ytrain)
     valdlrand = prob.rand_loss(yval)

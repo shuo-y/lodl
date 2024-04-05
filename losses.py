@@ -32,9 +32,9 @@ class search_weights_loss():
         def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
             y = dtrain.get_label().reshape(predt.shape)
 
-            diff = (predt - y) / self.ypred_dim
+            diff = (predt - y) #/ self.ypred_dim
             grad = 2 * self.weights_vec * diff
-            hess = (2 * self.weights_vec) / self.ypred_dim
+            hess = (2 * self.weights_vec) #/ self.ypred_dim
 
             hess = np.tile(hess, predt.shape[0]).reshape(predt.shape[0], self.ypred_dim)
             grad = grad.reshape(y.size)
@@ -71,9 +71,9 @@ class search_weights_directed_loss():
             hess = (2 * (self.weights_pos * (diff >= 0)) + 2 * (self.weights_neg * (diff < 0)))
 
             grad = grad.flatten()
-            grad = grad / len(grad)
+            grad = grad
             hess = hess.flatten()
-            hess = hess / len(hess)
+            hess = hess
             return grad, hess
         return grad_fn
 
@@ -625,5 +625,18 @@ def get_loss_fn(
         return _get_decision_focused(problem, **kwargs)
     else:
         return _get_learned_loss(problem, name, **kwargs)
+
+if __name__ == "__main__":
+    ytrain = np.random.random((10, 2))
+    xtrain = np.random.random((10, 5))
+    ytest = np.random.random((10, 2))
+    weightloss = search_weights_loss(ytrain.shape[1], np.array([1.0 for _ in range(ytrain.shape[1])]))
+    losfnweight = weightloss.get_obj_fn()
+    dirweightloss = search_weights_directed_loss(ytrain.shape[1], np.array([1.0 for _ in range(ytrain.shape[1])]))
+    losfndirweight = dirweightloss.get_obj_fn()
+
+    Xy = xgb.DMatrix(xtrain, ytrain)
+    grad, hess = losfnweight(ytest, Xy)
+    graddir, hessdir = losfndirweight(ytest, Xy)
 
 
