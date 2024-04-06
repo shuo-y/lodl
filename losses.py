@@ -111,7 +111,7 @@ class search_quadratic_loss():
             grad = (diff @ hmat) + 2 * self.alpha * (diff/y.shape[1])
             grad = grad.reshape(y.size)
             hess = np.diagonal(hmat) + (2 * self.alpha/y.shape[1])
-            hess = np.tile(hess, self.num_item)
+            hess = np.tile(hess, y.shape[0])
             #print(grad.sum())
             #print(hess.sum())
             self.logger.append([predt, grad, hess])
@@ -121,7 +121,6 @@ class search_quadratic_loss():
     def get_eval_fn(self):
         def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
             y = dtrain.get_label().reshape(predt.shape)
-
             diff = y - predt
             ## (100, 2)  (2)
             #print(diff.shape)
@@ -131,6 +130,9 @@ class search_quadratic_loss():
             res = quad + self.alpha * mse
             return "quadloss4", res
         return eval_fn
+
+
+# TODO class search_diadir_quadratic_loss():
 
 
 
