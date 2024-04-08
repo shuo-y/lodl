@@ -71,9 +71,9 @@ class search_weights_directed_loss():
             hess = (2 * (self.weights_pos * (diff >= 0)) + 2 * (self.weights_neg * (diff < 0)))
 
             grad = grad.flatten()
-            grad = grad
+            grad = grad #/ len(grad)  # TODO check if normalized matters when the feature is unrelated?
             hess = hess.flatten()
-            hess = hess
+            hess = hess #/ len(hess) 
             return grad, hess
         return grad_fn
 
@@ -93,12 +93,11 @@ class search_weights_directed_loss():
 
 
 class search_quadratic_loss():
-    def __init__(self, num_item, ypred_dim, basis, alpha):
-        self.num_item = num_item
+    def __init__(self, ypred_dim, basis, alpha):
         self.ypred_dim = ypred_dim
         self.basis = np.tril(basis)
         self.alpha = alpha
-        self.logger = []
+        #self.logger = []
 
     def get_obj_fn(self):
         def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
@@ -114,7 +113,7 @@ class search_quadratic_loss():
             hess = np.tile(hess, y.shape[0])
             #print(grad.sum())
             #print(hess.sum())
-            self.logger.append([predt, grad, hess])
+            #self.logger.append([predt, grad, hess])
             return grad, hess
         return grad_fn
 

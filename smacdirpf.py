@@ -12,7 +12,7 @@ from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from PortfolioOpt import PortfolioOpt
-from smacdirected import DirectedLoss
+from smacdirected import DirectedLoss, QuadSearch
 
 def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()
@@ -30,9 +30,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
+    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
-    parser.add_argument("--loss", type=str, default="quad", choices=["mse", "quad"])
     parser.add_argument("--num-train", type=int, default=200)
     parser.add_argument("--num-val", type=int, default=200)
     parser.add_argument("--num-test", type=int, default=400)
@@ -103,17 +103,19 @@ if __name__ == "__main__":
     valdlrand = -1.0 * prob.get_objective(torch.tensor(yval), torch.rand(yval.shape), aux_data=torch.tensor(auxval)).numpy().flatten()
     testdlrand = -1.0 * prob.get_objective(torch.tensor(ytest), torch.rand(ytest.shape), aux_data=torch.tensor(auxtest)).numpy().flatten()
 
+    search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
+    search_model = search_map[args.search_method]
 
-    model = DirectedLoss(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval)
+    model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     smac = HPOFacade(scenario, model.train, overwrite=True)
     incumbent = smac.optimize()
 
 
-    weight_vec = model.get_vec(incumbent)
-    print(f"SMAC choose {weight_vec}")
+    params_vec = model.get_vec(incumbent)
+    print(f"SMAC choose {params_vec}")
 
-    cusloss = search_weights_directed_loss(ytrain.shape[1], weight_vec)
+    cusloss = model.loss_fn(ytrain.shape[1], params_vec, 0.01)
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train({"tree_method": params["tree_method"], "num_target": ytrain.shape[1]},
                              dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
