@@ -52,6 +52,9 @@ class DirectedLoss:
         arr = [incumbent[f"w{i}"] for i in range(self.yval.shape[1])]
         return np.array(arr)
 
+    def get_xgb_params(self):
+        return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]}
+
 
 class QuadSearch:
     def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata):
@@ -83,7 +86,7 @@ class QuadSearch:
                 indx += 1
 
         cusloss = search_quadratic_loss(self.yval.shape[1], base_vec, 0.01)
-        booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]},
+        booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1], "eta": 0.03},
                              dtrain = self.Xy, num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
 
         yvalpred = booster.inplace_predict(self.xval)
@@ -102,4 +105,7 @@ class QuadSearch:
                 base_vec[i, j] = arr[indx]
                 indx += 1
         return base_vec
+
+    def get_xgb_params(self):
+        return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1], "eta": 0.03}
 

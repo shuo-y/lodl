@@ -117,8 +117,7 @@ if __name__ == "__main__":
 
     cusloss = model.loss_fn(ytrain.shape[1], params_vec, 0.01)
     Xy = xgb.DMatrix(xtrain, ytrain)
-    booster = xgb.train({"tree_method": params["tree_method"], "num_target": ytrain.shape[1]},
-                             dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+    booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
 
     smacytrainpred = booster.inplace_predict(xtrain)
     trainsmac = prob.dec_loss(smacytrainpred, ytrain, aux_data=auxtrain).flatten()

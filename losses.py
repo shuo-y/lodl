@@ -113,7 +113,7 @@ class search_quadratic_loss():
             hess = np.tile(hess, y.shape[0])
             #print(grad.sum())
             #print(hess.sum())
-            #self.logger.append([predt, grad, hess])
+            #self.logger.append([grad, hess])
             return grad, hess
         return grad_fn
 
