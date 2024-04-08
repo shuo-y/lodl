@@ -28,13 +28,13 @@ class DirectedLoss:
 
     @property
     def configspace(self) -> ConfigurationSpace:
-        cs = ConfigurationSpace(seed=0)
-        configs = [Float(f"w{i}", (0.01, 100), default=1) for i in range(self.yval.shape[1])]
+        cs = ConfigurationSpace()
+        configs = [Float(f"w{i}", (0.01, 100), default=1) for i in range(1 + self.yval.shape[1])]
         cs.add_hyperparameters(configs)
         return cs
 
     def train(self, configs: Configuration, seed: int) -> float:
-        configarray = [configs[f"w{i}"] for i in range(self.yval.shape[1])]
+        configarray = [configs[f"w{i}"] for i in range(1 + self.yval.shape[1])]
         weight_vec = np.array(configarray)
 
         cusloss = search_weights_directed_loss(self.yval.shape[1], weight_vec)

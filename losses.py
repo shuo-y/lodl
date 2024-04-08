@@ -55,9 +55,9 @@ class search_weights_loss():
 class search_weights_directed_loss():
     def __init__(self, ypred_dim, weights_vec, verbose=True):
         self.ypred_dim = ypred_dim
-        assert len(weights_vec) == self.ypred_dim
-        self.weights_pos = weights_vec
-        self.weights_neg = 1 / weights_vec
+        assert len(weights_vec) == (1 + self.ypred_dim)
+        self.weights_pos = weights_vec[:-1]
+        self.weights_neg = weights_vec[-1] / weights_vec[:-1]
 
     def get_obj_fn(self):
         def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
