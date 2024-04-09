@@ -49,7 +49,7 @@ class DirectedLoss:
 
     def get_vec(self, incumbent) -> np.ndarray:
         # Get the weight vector from incumbent
-        arr = [incumbent[f"w{i}"] for i in range(self.yval.shape[1])]
+        arr = [incumbent[f"w{i}"] for i in range(1 + self.yval.shape[1])]
         return np.array(arr)
 
     def get_xgb_params(self):

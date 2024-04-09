@@ -225,7 +225,7 @@ if __name__ == "__main__":
     incumbent = smac.optimize()
 
 
-    weight_vec = np.array([incumbent["w0"], incumbent["w1"]])
+    weight_vec = model.get_vec(incumbent)
     print(f"SMAC choose {weight_vec}")
 
     cusloss = search_weights_directed_loss(ytrain.shape[1], weight_vec)
@@ -266,7 +266,7 @@ if __name__ == "__main__":
                     f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
                     f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}"))
 
-    handcrapcusloss = search_weights_directed_loss(ytrain.shape[1], np.array([0.01, 100]))
+    handcrapcusloss = search_weights_directed_loss(ytrain.shape[1], np.array([0.01, 100, 1.0]))
     hcbooster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
                              dtrain = Xy, num_boost_round = params["search_estimators"], obj = handcrapcusloss.get_obj_fn())
 
