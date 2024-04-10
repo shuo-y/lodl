@@ -12,7 +12,7 @@ from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PThenO import PThenO
-from smacdirected import DirectedLoss
+from smacdirected import DirectedLoss, QuadSearch
 
 # 2-dimensional Rosenbrock function https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/3_ask_and_tell.html
 class ProdObj(PThenO):
@@ -127,9 +127,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
-    parser.add_argument("--search_estimators", type=int, default=100)
+    parser.add_argument("--search-estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
-    parser.add_argument("--loss", type=str, default="quad", choices=["mse", "quad"])
+    parser.add_argument("--search-method", type=str, default="quad", choices=["mse++", "quad"])
     parser.add_argument("--num-train", type=int, default=500)
     parser.add_argument("--num-val", type=int, default=2000)
     parser.add_argument("--num-test", type=int, default=2000)
@@ -218,8 +218,10 @@ if __name__ == "__main__":
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest)
 
+    search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
+    search_model = search_map[args.search_method]
 
-    model = DirectedLoss(prob, params, xtrain, ytrain, xval, yval, valdltrue, None)
+    model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, None)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     smac = HPOFacade(scenario, model.train, overwrite=True)
     incumbent = smac.optimize()
@@ -228,7 +230,7 @@ if __name__ == "__main__":
     weight_vec = model.get_vec(incumbent)
     print(f"SMAC choose {weight_vec}")
 
-    cusloss = search_weights_directed_loss(ytrain.shape[1], weight_vec)
+    cusloss = model.get_loss_fn(incumbent)
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
                              dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
@@ -255,7 +257,8 @@ if __name__ == "__main__":
 
     res_str= [(f"2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
                f"smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
-               f"randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr")]
+               f"randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr,"
+               f"constTrainDL,constTrainDLsstderr,constValDL,constValDLstderr,constTestDL,constTestDLstderr")]
     res_str.append((f"{(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
                     f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
                     f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
@@ -264,24 +267,11 @@ if __name__ == "__main__":
                     f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)},"
                     f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
                     f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
-                    f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}"))
+                    f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}, "
+                    f"{(traindlconsttrue - traindltrue).mean()}, {compute_stderror(traindlconsttrue - traindltrue)}, "
+                    f"{(valdlconsttrue - valdltrue).mean()}, {compute_stderror(valdlconsttrue - valdltrue)}, "
+                    f"{(testdlconsttrue - testdltrue).mean()}, {compute_stderror(testdlconsttrue - testdltrue)}"))
 
-    handcrapcusloss = search_weights_directed_loss(ytrain.shape[1], np.array([0.01, 100, 1.0]))
-    hcbooster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
-                             dtrain = Xy, num_boost_round = params["search_estimators"], obj = handcrapcusloss.get_obj_fn())
-
-    hctrainpred = hcbooster.inplace_predict(xtrain)
-    hctrain = prob.dec_loss(hctrainpred, ytrain)
-
-    hcvalpred = hcbooster.inplace_predict(xval)
-    hcval = prob.dec_loss(hcvalpred, yval)
-
-    hctestpred = hcbooster.inplace_predict(xtest)
-    hctest = prob.dec_loss(hctestpred, ytest)
-
-    res_str.append((f"Handcrafted,{(hctrain - traindltrue).mean()}, {compute_stderror(hctrain - traindltrue)}, "
-                    f"{(hcval - valdltrue).mean()}, {compute_stderror(hcval - valdltrue)}, "
-                    f"{(hctest - testdltrue).mean()}, {compute_stderror(hctest - testdltrue)}"))
 
     for row in res_str:
         print(row)

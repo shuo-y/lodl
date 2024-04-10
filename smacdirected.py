@@ -23,21 +23,20 @@ class DirectedLoss:
         self.valtruedl = valtruedl
         self.prob = prob
         self.aux_data = auxdata
-        self.loss_fn = search_weights_directed_loss
 
 
     @property
     def configspace(self) -> ConfigurationSpace:
         cs = ConfigurationSpace()
-        configs = [Float(f"w{i}", (0.01, 100), default=1) for i in range(1 + self.yval.shape[1])]
+        configs = [Float(f"w{i}", (0.0001, 0.01), default=0.001) for i in range(2 * self.yval.shape[1])]
         cs.add_hyperparameters(configs)
         return cs
 
     def train(self, configs: Configuration, seed: int) -> float:
-        configarray = [configs[f"w{i}"] for i in range(1 + self.yval.shape[1])]
+        configarray = [configs[f"w{i}"] for i in range(2 * self.yval.shape[1])]
         weight_vec = np.array(configarray)
 
-        cusloss = search_weights_directed_loss(self.yval.shape[1], weight_vec)
+        cusloss = search_weights_directed_loss(weight_vec)
         booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]},
                              dtrain = self.Xy, num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
 
@@ -49,8 +48,14 @@ class DirectedLoss:
 
     def get_vec(self, incumbent) -> np.ndarray:
         # Get the weight vector from incumbent
-        arr = [incumbent[f"w{i}"] for i in range(1 + self.yval.shape[1])]
+        arr = [incumbent[f"w{i}"] for i in range(2 * self.yval.shape[1])]
         return np.array(arr)
+
+    def get_loss_fn(self, incumbent):
+        arr = [incumbent[f"w{i}"] for i in range(2 * self.yval.shape[1])]
+        weight_vec = np.array(arr)
+        cusloss = search_weights_directed_loss(weight_vec)
+        return cusloss
 
     def get_xgb_params(self):
         return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]}
@@ -66,12 +71,12 @@ class QuadSearch:
         self.prob = prob
         self.aux_data = auxdata
         self.total_params_n = ((1 + self.yval.shape[1]) * self.yval.shape[1]) // 2
-        self.loss_fn = search_quadratic_loss
+
 
     @property
     def configspace(self) -> ConfigurationSpace:
         cs = ConfigurationSpace()
-        configs = [Float(f"w{i}", (0.001, 1), default=1) for i in range(self.total_params_n)]
+        configs = [Float(f"w{i}", (0.0001, 1), default=0.1) for i in range(self.total_params_n)]
         cs.add_hyperparameters(configs)
         return cs
 
@@ -85,7 +90,7 @@ class QuadSearch:
                 base_vec[i, j] = configarray[indx]
                 indx += 1
 
-        cusloss = search_quadratic_loss(self.yval.shape[1], base_vec, 0.01)
+        cusloss = search_quadratic_loss(base_vec, 0.01)
         booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1], "eta": 0.03},
                              dtrain = self.Xy, num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
 
@@ -105,6 +110,12 @@ class QuadSearch:
                 base_vec[i, j] = arr[indx]
                 indx += 1
         return base_vec
+
+    def get_loss_fn(self, incumbent):
+        base_vec = self.get_vec(incumbent)
+        cusloss = search_quadratic_loss(base_vec, 0.01)
+
+        return cusloss
 
     def get_xgb_params(self):
         return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1], "eta": 0.03}

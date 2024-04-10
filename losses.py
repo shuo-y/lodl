@@ -53,11 +53,11 @@ class search_weights_loss():
 
 
 class search_weights_directed_loss():
-    def __init__(self, ypred_dim, weights_vec, verbose=True):
-        self.ypred_dim = ypred_dim
-        assert len(weights_vec) == (1 + self.ypred_dim)
-        self.weights_pos = weights_vec[:-1]
-        self.weights_neg = weights_vec[-1] / weights_vec[:-1]
+    def __init__(self, weights_vec, **kwargs):
+        self.ypred_dim = len(weights_vec) // 2
+
+        self.weights_pos = weights_vec[:self.ypred_dim]
+        self.weights_neg = weights_vec[self.ypred_dim:]
 
     def get_obj_fn(self):
         def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
@@ -93,8 +93,8 @@ class search_weights_directed_loss():
 
 
 class search_quadratic_loss():
-    def __init__(self, ypred_dim, basis, alpha):
-        self.ypred_dim = ypred_dim
+    def __init__(self, basis, alpha, **kwargs):
+        self.ypred_dim = len(basis)
         self.basis = np.tril(basis)
         self.alpha = alpha
         #self.logger = []
