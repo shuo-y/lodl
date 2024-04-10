@@ -134,7 +134,9 @@ if __name__ == "__main__":
     parser.add_argument("--num-val", type=int, default=2000)
     parser.add_argument("--num-test", type=int, default=2000)
     parser.add_argument("--n-trials", type=int, default=200)
-    parser.add_argument("--quad-alpha", type=float, default=0.0)
+    parser.add_argument("--param-low", type=float, default=0.0001)
+    parser.add_argument("--param-upp", type=float, default=0.01)
+    parser.add_argument("--param-def", type=float, default=0.001)
 
     args = parser.parse_args()
     params = vars(args)
@@ -221,7 +223,7 @@ if __name__ == "__main__":
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
     search_model = search_map[args.search_method]
 
-    model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, None)
+    model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, None, args.param_low, args.param_upp, args.param_def)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     smac = HPOFacade(scenario, model.train, overwrite=True)
     incumbent = smac.optimize()

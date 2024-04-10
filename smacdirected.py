@@ -15,7 +15,7 @@ from PThenO import PThenO
 
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class DirectedLoss:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def):
         self.Xy = xgb.DMatrix(xtrain, ytrain)
         self.xval = xval
         self.yval = yval
@@ -23,12 +23,16 @@ class DirectedLoss:
         self.valtruedl = valtruedl
         self.prob = prob
         self.aux_data = auxdata
+        self.param_low = param_low
+        self.param_upp = param_upp
+        self.param_def = param_def
+        # 0.0001, 0.01, 0.001
 
 
     @property
     def configspace(self) -> ConfigurationSpace:
         cs = ConfigurationSpace()
-        configs = [Float(f"w{i}", (0.0001, 0.01), default=0.001) for i in range(2 * self.yval.shape[1])]
+        configs = [Float(f"w{i}", (self.param_low, self.param_upp), default=self.param_def) for i in range(2 * self.yval.shape[1])]
         cs.add_hyperparameters(configs)
         return cs
 
@@ -62,7 +66,7 @@ class DirectedLoss:
 
 
 class QuadSearch:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def):
         self.Xy = xgb.DMatrix(xtrain, ytrain)
         self.xval = xval
         self.yval = yval
@@ -71,12 +75,16 @@ class QuadSearch:
         self.prob = prob
         self.aux_data = auxdata
         self.total_params_n = ((1 + self.yval.shape[1]) * self.yval.shape[1]) // 2
+        self.param_low = param_low
+        self.param_upp = param_upp
+        self.param_def = param_def
+        # 0.0001, 1, 0.1
 
 
     @property
     def configspace(self) -> ConfigurationSpace:
         cs = ConfigurationSpace()
-        configs = [Float(f"w{i}", (0.0001, 1), default=0.1) for i in range(self.total_params_n)]
+        configs = [Float(f"w{i}", (self.param_low, self.param_upp), default=self.param_def) for i in range(self.total_params_n)]
         cs.add_hyperparameters(configs)
         return cs
 
