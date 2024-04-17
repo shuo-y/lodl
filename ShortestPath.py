@@ -133,6 +133,7 @@ class ShortestPath(PThenO):
 
 
     def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
+        # From the https://github.com/facebookresearch/LANCER
         # Z in lancer paper means y in lodl
         assert z_pred.shape == z_true.shape
         if "use_cvxpylayer" in kwargs and kwargs["use_cvxpylayer"] == True:
@@ -183,7 +184,7 @@ class ShortestPath(PThenO):
     def get_decision(self, Y, **kwargs):
         if Y.ndim == 1:
             # A single item
-            assert len(Y) == self.Y_train.shape[1]
+            assert len(Y) == self.d
             y_pred = Y.detach().numpy()
             self._model.del_component(self._model.obj)
             obj = sum(y_pred[j] * self._vars[k] for j, k in enumerate(self._vars))
@@ -194,7 +195,7 @@ class ShortestPath(PThenO):
         elif Y.ndim == 2:
             # Solve for multiple instances
             N = len(Y)
-            assert Y.shape[1] == self.Y_train.shape[1]
+            assert Y.shape[1] == self.d
             y_preds = Y.detach().numpy()
             all_sols = []
             for i in range(N):

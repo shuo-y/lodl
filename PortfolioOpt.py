@@ -465,7 +465,7 @@ class PortfolioOpt(PThenO):
         return obj
     
     def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, **kwargs) -> np.ndarray:
-        # Function from LANCER
+        # Function from LANCER https://github.com/facebookresearch/LANCER
         assert z_pred.shape == z_true.shape
         assert "aux_data" in kwargs
         Q_mat = kwargs["aux_data"]
