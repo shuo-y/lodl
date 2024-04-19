@@ -1,5 +1,6 @@
 import random
 import argparse
+import time
 import numpy as np
 import torch
 import xgboost as xgb
@@ -111,7 +112,10 @@ if __name__ == "__main__":
     model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval, args.param_low, args.param_upp, args.param_def)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     smac = HPOFacade(scenario, model.train, overwrite=True)
+
+    start_time = time.time()
     incumbent = smac.optimize()
+    print(f"Search takes {time.time() - start_time} seconds")
 
 
     params_vec = model.get_vec(incumbent)
