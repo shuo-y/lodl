@@ -12,7 +12,7 @@ from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from ShortestPath import ShortestPath
-from smacdirected import DirectedLoss, QuadSearch
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossMag
 
 def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
-    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad"])
+    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "msemag++", "quad"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
     parser.add_argument("--num-train", type=int, default=200)
@@ -40,9 +40,9 @@ if __name__ == "__main__":
     parser.add_argument("--solver", type=str, choices=["scip", "gurobi", "glpk"], default="scip", help="optimization solver to use")
     parser.add_argument("--numfeatures", type=int, default=4)
     parser.add_argument("--spgrid", type=str, default="(5, 5)")
-    parser.add_argument("--param-low", type=float, default=0.0001)
-    parser.add_argument("--param-upp", type=float, default=0.01)
-    parser.add_argument("--param-def", type=float, default=0.001)
+    parser.add_argument("--param-low", type=float, default=0.1)
+    parser.add_argument("--param-upp", type=float, default=10.0)
+    parser.add_argument("--param-def", type=float, default=1.0)
 
     args = parser.parse_args()
     params = vars(args)
@@ -103,7 +103,7 @@ if __name__ == "__main__":
     valdlrand = -1.0 * prob.get_objective(torch.tensor(yval).float(), torch.rand(yval.shape)).numpy().flatten()
     testdlrand = -1.0 * prob.get_objective(torch.tensor(ytest).float(), torch.rand(ytest.shape)).numpy().flatten()
 
-    search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
+    search_map = {"mse++": DirectedLoss, "quad": QuadSearch, "msemag++": DirectedLossMag}
     search_model = search_map[args.search_method]
 
     model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, None, args.param_low, args.param_upp, args.param_def)
@@ -140,10 +140,10 @@ if __name__ == "__main__":
     sanity_check(testdlrand - testdltrue, "testrand")
 
 
-    res_str= [(f"2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
+    res_str= [(f"res,2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
                f"smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
                f"randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr")]
-    res_str.append((f"{(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
+    res_str.append((f"res, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
                     f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
                     f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
                     f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "

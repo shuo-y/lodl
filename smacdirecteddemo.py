@@ -12,7 +12,7 @@ from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PThenO import PThenO
-from smacdirected import DirectedLoss, QuadSearch
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossMag
 
 # 2-dimensional Rosenbrock function https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/3_ask_and_tell.html
 class ProdObj(PThenO):
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
     parser.add_argument("--search-estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
-    parser.add_argument("--search-method", type=str, default="quad", choices=["mse++", "quad"])
+    parser.add_argument("--search-method", type=str, default="quad", choices=["mse++", "msemag++", "quad"])
     parser.add_argument("--num-train", type=int, default=500)
     parser.add_argument("--num-val", type=int, default=2000)
     parser.add_argument("--num-test", type=int, default=2000)
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest)
 
-    search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
+    search_map = {"mse++": DirectedLoss, "quad": QuadSearch, "msemag++": DirectedLossMag}
     search_model = search_map[args.search_method]
 
     model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, None, args.param_low, args.param_upp, args.param_def)
@@ -257,11 +257,11 @@ if __name__ == "__main__":
     sanity_check(testdlrand - testdltrue, "testrand")
 
 
-    res_str= [(f"2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
+    res_str= [(f"res,2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
                f"smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
                f"randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr,"
                f"constTrainDL,constTrainDLsstderr,constValDL,constValDLstderr,constTestDL,constTestDLstderr")]
-    res_str.append((f"{(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
+    res_str.append((f"res, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
                     f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
                     f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
                     f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
