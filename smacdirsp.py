@@ -44,6 +44,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-low", type=float, default=0.1)
     parser.add_argument("--param-upp", type=float, default=10.0)
     parser.add_argument("--param-def", type=float, default=1.0)
+    parser.add_argument("--test-history", action="store_true", help="Check test dl of the history")
 
     args = parser.parse_args()
     params = vars(args)
@@ -162,6 +163,24 @@ if __name__ == "__main__":
         print(row)
 
         #TODO how Lower L map to y0y1
+
+    def test_config(configs: Configuration) -> float:
+        cusloss = model.get_loss_fn(configs)
+        Xy = xgb.DMatrix(xtrain, ytrain)
+        booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+        testpred = booster.inplace_predict(xtest)
+        itertestsmac = prob.dec_loss(testpred, ytest).flatten()
+
+        return (itertestsmac - testdltrue).mean(), compute_stderror(itertestsmac - testdltrue)
+
+
+    if args.test_history:
+        config_tests = []
+        for config in smac.runhistory.get_configs():
+            config_tests.append(test_config(config))
+
+        for trial_info, trial_value in smac.runhistory.items():
+            print(f"{trial_value.cost},{config_tests[trial_info.config_id - 1][0]},{config_tests[trial_info.config_id - 1][1]}")
 
 
 
