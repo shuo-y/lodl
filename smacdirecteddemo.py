@@ -13,7 +13,7 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PThenO import PThenO
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossMag
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossMag, test_config
 
 # 2-dimensional Rosenbrock function https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/3_ask_and_tell.html
 class ProdObj(PThenO):
@@ -119,16 +119,6 @@ def sanity_check(vec: np.ndarray, msg: str) -> None:
     if (vec < 0).any():
         print(f"{msg}: check some negative value {vec}")
 
-
-def test_config(model, xtrain, ytrain, configs: Configuration) -> float:
-    cusloss = model.get_loss_fn(configs)
-    Xy = xgb.DMatrix(xtrain, ytrain)
-    booster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
-                            dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
-    testpred = booster.inplace_predict(xtest)
-    itertestsmac = prob.dec_loss(testpred, ytest)
-
-    return (itertestsmac - testdltrue).mean(), compute_stderror(itertestsmac - testdltrue)
 
 
 
@@ -252,7 +242,7 @@ if __name__ == "__main__":
         smac.tell(info, value)
 
         if args.test_history:
-            testdl, testvar = test_config(model, xtrain, ytrain, info.config)
+            testdl, testvar = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, testdltrue, info.config)
             history_val.append((cost, testdl, testvar))
 
     final = smac.ask()
