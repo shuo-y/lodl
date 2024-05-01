@@ -10,6 +10,7 @@ from ConfigSpace import Configuration, ConfigurationSpace, Float
 from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
+from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PThenO import PThenO
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossMag
@@ -119,7 +120,15 @@ def sanity_check(vec: np.ndarray, msg: str) -> None:
         print(f"{msg}: check some negative value {vec}")
 
 
+def test_config(model, xtrain, ytrain, configs: Configuration) -> float:
+    cusloss = model.get_loss_fn(configs)
+    Xy = xgb.DMatrix(xtrain, ytrain)
+    booster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
+                            dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+    testpred = booster.inplace_predict(xtest)
+    itertestsmac = prob.dec_loss(testpred, ytest)
 
+    return (itertestsmac - testdltrue).mean(), compute_stderror(itertestsmac - testdltrue)
 
 
 
@@ -226,8 +235,31 @@ if __name__ == "__main__":
 
     model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, None, args.param_low, args.param_upp, args.param_def)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
-    smac = HPOFacade(scenario, model.train, overwrite=True)
-    incumbent = smac.optimize()
+    intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)  # We basically use one seed per config only
+
+    smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
+
+    # We can ask SMAC which trials should be evaluated next
+    history_val = []
+
+    for cnt in range(args.n_trials):
+        info = smac.ask()
+        assert info.seed is not None
+
+        cost = model.train(info.config, seed=info.seed)
+        value = TrialValue(cost=cost)
+
+        smac.tell(info, value)
+
+        if args.test_history:
+            testdl, testvar = test_config(model, xtrain, ytrain, info.config)
+            history_val.append((cost, testdl, testvar))
+
+    final = smac.ask()
+    incumbent = final.config
+
+
+    #incumbent = smac.optimize()
 
 
     weight_vec = model.get_vec(incumbent)
@@ -281,24 +313,11 @@ if __name__ == "__main__":
 
         #TODO how Lower L map to y0y1
 
-    def test_config(configs: Configuration) -> float:
-        cusloss = model.get_loss_fn(configs)
-        Xy = xgb.DMatrix(xtrain, ytrain)
-        booster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
-                             dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
-        testpred = booster.inplace_predict(xtest)
-        itertestsmac = prob.dec_loss(testpred, ytest)
-
-        return (itertestsmac - testdltrue).mean(), compute_stderror(itertestsmac - testdltrue)
 
 
     if args.test_history:
-        config_tests = []
-        for config in smac.runhistory.get_configs():
-            config_tests.append(test_config(config))
-
-        for trial_info, trial_value in smac.runhistory.items():
-            print(f"{trial_value.cost},{config_tests[trial_info.config_id - 1][0]},{config_tests[trial_info.config_id - 1][1]}")
+        for valdl, testdl, testvar in history_val:
+            print(f"{valdl},{testdl},{testvar}")
 
 
 
