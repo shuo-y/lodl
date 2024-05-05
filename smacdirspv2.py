@@ -139,7 +139,8 @@ if __name__ == "__main__":
 
         if args.test_history:
             testdl, testvar = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, testdltrue, info.config)
-            history_val.append((cost, testdl, testvar))
+            helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, helddltrue, info.config)
+            history_val.append((cost, testdl, testvar, helddl, heldvar))
 
     print(f"Search takes {time.time() - start_time} seconds")
 
@@ -202,8 +203,8 @@ if __name__ == "__main__":
 
 
     if args.test_history:
-        for valdl, testdl, testvar in history_val:
-            print(f"{valdl},{testdl},{testvar}")
+        for valdl, testdl, testvar, helddl, heldvar in history_val:
+            print(f"{valdl},{testdl},{testvar},{helddl},{heldvar}")
 
 
 
