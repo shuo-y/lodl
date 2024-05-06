@@ -103,8 +103,10 @@ if __name__ == "__main__":
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest).flatten()
 
-    helddltrue = prob.dec_loss(yheld, yheld).flatten()
+    yheldpred = reg.predict(xheld)
+    held2st = prob.dec_loss(yheldpred, yheld).flatten()
 
+    helddltrue = prob.dec_loss(yheld, yheld).flatten()
     traindltrue = prob.dec_loss(ytrain, ytrain).flatten()
     valdltrue = prob.dec_loss(yval, yval).flatten()
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
@@ -113,6 +115,7 @@ if __name__ == "__main__":
     traindlrand = -1.0 * prob.get_objective(torch.tensor(ytrain).float(), torch.rand(ytrain.shape)).numpy().flatten()
     valdlrand = -1.0 * prob.get_objective(torch.tensor(yval).float(), torch.rand(yval.shape)).numpy().flatten()
     testdlrand = -1.0 * prob.get_objective(torch.tensor(ytest).float(), torch.rand(ytest.shape)).numpy().flatten()
+    helddlrand = -1.0 * prob.get_objective(torch.tensor(yheld).float(), torch.rand(yheld.shape)).numpy().flatten()
 
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch, "msemag++": DirectedLossMag}
     search_model = search_map[args.search_method]
@@ -125,7 +128,6 @@ if __name__ == "__main__":
 
     start_time = time.time()
     # We can ask SMAC which trials should be evaluated next
-    history_val = []
     records = []
     for cnt in range(args.n_trials):
         info = smac.ask()
@@ -140,7 +142,7 @@ if __name__ == "__main__":
         if args.test_history:
             testdl, testvar = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, testdltrue, info.config)
             helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, helddltrue, info.config)
-            history_val.append((cost, testdl, testvar, helddl, heldvar))
+            print(f"history, {cost}, {testdl}, {testvar}, {helddl}, {heldvar}")
 
     print(f"Search takes {time.time() - start_time} seconds")
 
@@ -153,7 +155,7 @@ if __name__ == "__main__":
         heldvalues.append(testdl)
 
     pickind = np.argmin(heldvalues)
-    incumbent =records[pickind][1]
+    incumbent = records[pickind][1]
     params_vec = model.get_vec(incumbent)
     print(f"Final choose {params_vec}")
 
@@ -170,6 +172,9 @@ if __name__ == "__main__":
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
 
+    smacyheldpred = booster.inplace_predict(xheld)
+    heldsmac = prob.dec_loss(smacyheldpred, yheld).flatten()
+
 
     sanity_check(traindl2st - traindltrue, "train2st")
     sanity_check(valdl2st - valdltrue, "val2st")
@@ -184,7 +189,8 @@ if __name__ == "__main__":
 
     res_str= [(f"res,2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
                f"smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
-               f"randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr")]
+               f"randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr,"
+               f"held2st,held2ststderr,heldsmac,heldsmacstderr,heldrand,heldrandstderr")]
     res_str.append((f"res, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
                     f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
                     f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
@@ -193,7 +199,10 @@ if __name__ == "__main__":
                     f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)}, "
                     f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
                     f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
-                    f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}"))
+                    f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}, "
+                    f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, "
+                    f"{(heldsmac - helddltrue).mean()}, {compute_stderror(heldsmac - helddltrue)}, "
+                    f"{(helddlrand - helddltrue).mean()}, {compute_stderror(helddlrand - helddltrue)}"))
 
 
     for row in res_str:
@@ -201,10 +210,6 @@ if __name__ == "__main__":
 
         #TODO how Lower L map to y0y1
 
-
-    if args.test_history:
-        for valdl, testdl, testvar, helddl, heldvar in history_val:
-            print(f"{valdl},{testdl},{testvar},{helddl},{heldvar}")
 
 
 
