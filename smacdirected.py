@@ -194,6 +194,7 @@ def test_config(params, prob, model, xtrain, ytrain, xtest, ytest, testdltrue, c
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
     testpred = booster.inplace_predict(xtest)
-    itertestsmac = prob.dec_loss(testpred, ytest)
+    itertestsmac = prob.dec_loss(testpred, ytest).flatten()
 
-    return (itertestsmac - testdltrue).mean(), compute_stderror(itertestsmac - testdltrue)
+
+    return (itertestsmac - testdltrue).mean(), compute_stderror((itertestsmac - testdltrue))

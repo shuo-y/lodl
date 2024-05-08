@@ -111,6 +111,13 @@ if __name__ == "__main__":
     valdltrue = prob.dec_loss(yval, yval).flatten()
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
+
+    print(f"2st, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
+          f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
+          f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
+          f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, ")
+
+
     # The shape of decision is the same as label Y
     traindlrand = -1.0 * prob.get_objective(torch.tensor(ytrain).float(), torch.rand(ytrain.shape)).numpy().flatten()
     valdlrand = -1.0 * prob.get_objective(torch.tensor(yval).float(), torch.rand(yval.shape)).numpy().flatten()
@@ -187,28 +194,22 @@ if __name__ == "__main__":
     sanity_check(testdlrand - testdltrue, "testrand")
 
 
-    res_str= [(f"res,2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
-               f"smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
-               f"randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr,"
-               f"held2st,held2ststderr,heldsmac,heldsmacstderr,heldrand,heldrandstderr")]
-    res_str.append((f"res, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
-                    f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
-                    f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
-                    f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
-                    f"{(valsmac - valdltrue).mean()}, {compute_stderror(valsmac - valdltrue)}, "
-                    f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)}, "
-                    f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
-                    f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
-                    f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}, "
-                    f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, "
-                    f"{(heldsmac - helddltrue).mean()}, {compute_stderror(heldsmac - helddltrue)}, "
-                    f"{(helddlrand - helddltrue).mean()}, {compute_stderror(helddlrand - helddltrue)}"))
-
-
-    for row in res_str:
-        print(row)
-
-        #TODO how Lower L map to y0y1
+    print("res,2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
+          "smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
+          "randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr,"
+          "held2st,held2ststderr,heldsmac,heldsmacstderr,heldrand,heldrandstderr")
+    print((f"res, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
+           f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
+           f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
+           f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
+           f"{(valsmac - valdltrue).mean()}, {compute_stderror(valsmac - valdltrue)}, "
+           f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)}, "
+           f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
+           f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
+           f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}, "
+           f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, "
+           f"{(heldsmac - helddltrue).mean()}, {compute_stderror(heldsmac - helddltrue)}, "
+           f"{(helddlrand - helddltrue).mean()}, {compute_stderror(helddlrand - helddltrue)}"))
 
 
 
