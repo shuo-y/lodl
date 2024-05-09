@@ -130,7 +130,6 @@ if __name__ == "__main__":
     model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, None, args.param_low, args.param_upp, args.param_def)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)  # We basically use one seed per config only
-
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
 
     start_time = time.time()
@@ -147,8 +146,8 @@ if __name__ == "__main__":
         smac.tell(info, value)
 
         if args.test_history:
-            testdl, testvar = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, testdltrue, info.config)
-            helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, helddltrue, info.config)
+            testdl, testvar = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, None, testdltrue, info.config)
+            helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, None, helddltrue, info.config)
             print(f"history, {cost}, {testdl}, {testvar}, {helddl}, {heldvar}")
 
     print(f"Search takes {time.time() - start_time} seconds")
