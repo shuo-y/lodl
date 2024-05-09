@@ -112,7 +112,7 @@ if __name__ == "__main__":
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
 
-    print(f"2st, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
+    print(f"2st train val test held, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
           f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
           f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
           f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, ")
