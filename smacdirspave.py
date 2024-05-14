@@ -47,7 +47,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-upp", type=float, default=10.0)
     parser.add_argument("--param-def", type=float, default=1.0)
     parser.add_argument("--test-history", action="store_true", help="Check test dl of the history")
-    parser.add_argument("--topk", type=int, default=50, help="Another held out set")
+
 
     args = parser.parse_args()
     params = vars(args)
@@ -71,7 +71,6 @@ if __name__ == "__main__":
     X, Y = prob.generate_dataset(N=total_num, deg=6, noise_width=0.5)
 
     indices = list(range(total_num))
-    assert args.topk < args.n_trials
     np.random.shuffle(indices)
 
     xtrain = X[indices[:args.num_train]]
@@ -141,9 +140,9 @@ if __name__ == "__main__":
 
         cost = model.train(info.config, seed=info.seed)
         helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, None, helddltrue, info.config)
-        cost = 0.5 * (cost + helddl)
+        costave = 0.5 * (cost + helddl)
 
-        value = TrialValue(cost=cost)
+        value = TrialValue(cost=costave)
         records.append((value.cost, info.config))
 
         smac.tell(info, value)
