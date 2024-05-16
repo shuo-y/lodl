@@ -7,6 +7,19 @@ import torch
 import inspect
 from itertools import repeat
 
+
+def perfrandomdq(problem, Y, Y_aux, trials):
+    objs_rand = []
+    for _ in range(trials):
+        Z_rand = problem.get_decision(torch.rand_like(Y), aux_data=Y_aux, is_Train=False)
+        objectives = problem.get_objective(Y, Z_rand, aux_data=Y_aux)
+        objs_rand.append(objectives)
+
+    import pdb
+    pdb.set_trace()
+    randomdqs = torch.stack(objs_rand).mean(axis=0)
+    return randomdqs
+
 def print_metrics(
     model,
     problem,

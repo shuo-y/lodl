@@ -34,8 +34,9 @@ python main.py --problem=budgetalloc --loss=weightedmse++ --seed=1 --instances=1
 
 ### Portfolio Optimization
 
+
 ```
-python main.py --problem=portfolio --loss=weightedmse++ --seed=1 --instances=400 --testinstances=400 --valfrac=0.5 --stocks=50 --stockalpha=0.1 --lr=0.01 --sampling=random_hessian --samplingstd=0.1 --numsamples=50000 --losslr=0.001 --serial=False
+python main.py --problem=portfolio --loss=mse --seed=1 --num_train=200 --num_val=200 --num_test=400 --stocks=50 --stockalpha=0.1 --lr=0.01 --sampling=random_hessian --samplingstd=0.1 --numsamples=50000 --losslr=0.001 --serial=False
 ```
 
 _Note: (A) Sampling points can take a **long** time. (B) In the event that you receive an error along the lines of `Thread creation failed: Resource temporarily unavailable`, you should run the following command:_

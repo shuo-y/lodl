@@ -16,6 +16,7 @@ from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from PortfolioOpt import PortfolioOpt
 from smacdirected import DirectedLoss, QuadSearch, test_config
+from utils import perfrandomdq
 
 def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()
@@ -120,16 +121,13 @@ if __name__ == "__main__":
     testdltrue = prob.dec_loss(ytest, ytest, aux_data=auxtest).flatten()
     helddltrue = prob.dec_loss(yheld, yheld, aux_data=auxheld).flatten()
 
-    print(f"2st train val test held, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
+    print(f"2st train val test held diff, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
           f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
           f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
           f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, ")
 
     # The shape of decision is the same as label Y
-    traindlrand = -1.0 * prob.get_objective(torch.tensor(ytrain), torch.rand(ytrain.shape), aux_data=torch.tensor(auxtrain)).numpy().flatten()
-    valdlrand = -1.0 * prob.get_objective(torch.tensor(yval), torch.rand(yval.shape), aux_data=torch.tensor(auxval)).numpy().flatten()
-    testdlrand = -1.0 * prob.get_objective(torch.tensor(ytest), torch.rand(ytest.shape), aux_data=torch.tensor(auxtest)).numpy().flatten()
-    helddlrand = -1.0 * prob.get_objective(torch.tensor(yheld), torch.rand(yheld.shape), aux_data=torch.tensor(auxheld)).numpy().flatten()
+    traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain), Y_aux=torch.tensor(auxtrain), trials=10).numpy().flatten()
 
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
     search_model = search_map[args.search_method]
@@ -199,22 +197,31 @@ if __name__ == "__main__":
     sanity_check(testdlrand - testdltrue, "testrand")
 
 
-    print("res,2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
+    print("DLdiff,2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
           "smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
           "randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr,"
           "held2st,held2ststderr,heldsmac,heldsmacstderr,heldrand,heldrandstderr")
-    print((f"res, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
-           f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
-           f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
-           f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
-           f"{(valsmac - valdltrue).mean()}, {compute_stderror(valsmac - valdltrue)}, "
-           f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)}, "
-           f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
-           f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
-           f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}, "
-           f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, "
-           f"{(heldsmac - helddltrue).mean()}, {compute_stderror(heldsmac - helddltrue)}, "
-           f"{(helddlrand - helddltrue).mean()}, {compute_stderror(helddlrand - helddltrue)}"))
+    print(f"DLdiff, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
+          f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
+          f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
+          f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
+          f"{(valsmac - valdltrue).mean()}, {compute_stderror(valsmac - valdltrue)}, "
+          f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)}, "
+          f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
+          f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
+          f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}, "
+          f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, "
+          f"{(heldsmac - helddltrue).mean()}, {compute_stderror(heldsmac - helddltrue)}, "
+          f"{(helddlrand - helddltrue).mean()}, {compute_stderror(helddlrand - helddltrue)}")
+
+    print("DQ, 2stagetrainobj, 2stagetestobj, 2statevalobj, 2stageheldobj, "
+          "smactrainobj, smactestobj, smacvalobj, smacheldobj, "
+          "randtrainobj, randtestobj, randvalobj, randheldobj, "
+          "truetrainobj, truetestobj, truevalobj, trueheldobj, ")
+    print(f"DQ, {-1 * traindl2st.mean()}, {-1 * testdl2st.mean()}, {-1 * valdl2st.mean()}, {-1 * held2st.mean()}, "
+          f"{-1 * trainsmac.mean()}, {-1 * testsmac.mean()}, {-1 * valsmac.mean()}, {-1 * heldsmac.mean()}, "
+          f"{-1 * traindlrand.mean()}, {-1 * testdlrand.mean()}, {-1 * valdlrand.mean()}, {-1 * helddlrand.mean()}, "
+          f"{-1 * traindltrue.mean()}, {-1 * testdltrue.mean()}, {-1 * valdltrue.mean()}, {-1 * helddltrue.mean()}, ")
 
 
 

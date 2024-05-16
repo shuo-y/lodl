@@ -225,9 +225,9 @@ if __name__ == "__main__":
     elif args.problem == "portfolio":
         from PortfolioOpt import PortfolioOpt
         # TODO coupled or decoupled different shapes change in problem.dec_loss
-        problem = PortfolioOpt(num_train_instances = args.instances - int(args.valfrac * args.instances),
-                               num_val = int(args.valfrac * args.instances),
-                               num_test_instances = args.testinstances,
+        problem = PortfolioOpt(num_train_instances = args.num_train,
+                               num_val = args.num_val,
+                               num_test_instances = args.num_test,
                                num_stocks = args.stocks,
                                alpha = args.stockalpha,
                                rand_seed = args.seed)
@@ -305,7 +305,7 @@ if __name__ == "__main__":
         from train_xgb import train_xgb_ngopt
         model, metrics = train_xgb_ngopt(args, problem)
 
-    #perf_metrics(args, problem, metrics)
+    perf_metrics(args, problem, metrics)
 
     print(args)
 
