@@ -28,12 +28,20 @@ class PortfolioOpt(PThenO):
         rand_seed=0,  # for reproducibility
         alpha=1,  # risk aversion constant
         data_dir="data",  # directory to store data
+        start_time=dt.datetime(2004, 1, 1),
+        end_time=dt.datetime(2017, 1, 1),
+        collapse="daily"
     ):
         super(PortfolioOpt, self).__init__()
 
+        # Save constants
+        self.start_time = start_time
+        self.end_time = end_time
+        self.collapse = collapse
+
         # Load train and test labels
         self.num_stocks = num_stocks
-        self.Xs, self.Ys, self.covar_mat = self._load_instances(data_dir, num_stocks)
+        self.Xs, self.Ys, self.covar_mat = self._load_instances(data_dir, num_stocks, start_time, end_time, collapse)
 
         # Split data into train/val/test
         #   Sanity check and initialisations
@@ -75,10 +83,13 @@ class PortfolioOpt(PThenO):
         self,
         data_dir,
         stocks_per_instance,
+        start_time,
+        end_time,
+        collapse,
         reg=0.1,
     ):
         # Get raw data
-        feature_mat, target_mat, _, future_mat, _, dates, symbols = self._get_data(data_dir=data_dir)
+        feature_mat, target_mat, _, future_mat, _, dates, symbols = self._get_data(data_dir, start_time, end_time, collapse)
 
         # Split into instances
         # Sample stocks in a day to define an instance
@@ -123,7 +134,9 @@ class PortfolioOpt(PThenO):
 
     def _get_price_feature_df(
         self,
-        overwrite=False,
+        start_time,
+        end_time,
+        collapse
     ):
         """
         Loads raw historical price data if it exists, otherwise compute the file on the fly, this adds other timeseries
@@ -132,12 +145,12 @@ class PortfolioOpt(PThenO):
         """
 
         # download prices
-        if not overwrite and os.path.exists(self.raw_historical_price_file):
+        if os.path.exists(self.raw_historical_price_file):
             print(f"Loading {self.raw_historical_price_file}")
             raw_price_df = pd.read_csv(self.raw_historical_price_file, index_col=["Date", "Symbol"])
         else:
             symbol_df = self._load_raw_symbols()
-            raw_price_df = self._download_prices(symbol_df)
+            raw_price_df = self._download_prices(symbol_df, start_time, end_time, collapse)
             print("saving the data...")
             raw_price_df.to_csv(self.raw_historical_price_file)
 
@@ -223,7 +236,7 @@ class PortfolioOpt(PThenO):
         raw_symbol_df = pd.read_html("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", header=0)[0]
         return raw_symbol_df
 
-    def _download_prices(self, symbol_df):
+    def _download_prices(self, symbol_df, start_time, end_time, collapse):
         import quandl
         print("Downloading data from quandl...")
         quandl.ApiConfig.api_key = '3Uxzq4TZV5V9RghuRYsY'
@@ -236,7 +249,7 @@ class PortfolioOpt(PThenO):
         print("requesting {} tickers".format(len(request_field)))
 
         raw_s_data = quandl.get(request_field,
-                                start_date=self.start_date, end_date=self.end_date, collapse=self.collapse)
+                                start_date=start_time, end_date=end_time, collapse=collapse)
         print("processing data...")
 
         # only keep columns where data was found, and parse column names
@@ -260,15 +273,12 @@ class PortfolioOpt(PThenO):
         price_df.sort_index(inplace=True)
         return price_df
 
-    def _load_raw_symbols(
-        self,
-        overwrite=False,
-    ):
+    def _load_raw_symbols(self):
         """
         Loads symbols if they exist otherwise download them using download symbols
         :return:
         """
-        if not overwrite and os.path.exists(self.raw_symbol_file):
+        if os.path.exists(self.raw_symbol_file):
             print(f"Loading symbol files {self.raw_symbol_file}...")
             return pd.read_csv(self.raw_symbol_file)
         else:
@@ -284,21 +294,16 @@ class PortfolioOpt(PThenO):
     def _get_data(
         self,
         data_dir,
-        start_date=dt.datetime(2004, 1, 1),
-        end_date=dt.datetime(2017, 1, 1),
-        collapse="daily",
-        overwrite=False,
+        start_time,
+        end_time,
+        collapse
     ):
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
 
-        # Save constants
-        self.start_date = start_date
-        self.end_date = end_date
-        self.collapse = collapse
 
         # Define data directories to write to
-        self.raw_historical_price_file = os.path.join(data_dir, "raw_historical_prices_{}_{}_{}.csv".format(start_date.date(), end_date.date(), collapse))
+        self.raw_historical_price_file = os.path.join(data_dir, "raw_historical_prices_{}_{}_{}.csv".format(start_time.date(), end_time.date(), collapse))
         self.raw_symbol_file = os.path.join(data_dir, "raw_symbols.csv")
         #self.price_feature_file = os.path.join(data_dir, "price_feature_mat_{}_{}_{}.csv".format(start_date.date(), end_date.date(), collapse))
         #self.torch_file = os.path.join(data_dir, "price_data_{}_{}_{}.pt".format(start_date.date(), end_date.date(), collapse))
@@ -309,7 +314,7 @@ class PortfolioOpt(PThenO):
         #    print("Loading pytorch data...")
         #    feature_mat, target_mat, feature_cols, future_mat, target_names, dates, symbols = torch.load(self.torch_file)
         #else:
-        price_feature_df = self._get_price_feature_df()
+        price_feature_df = self._get_price_feature_df(start_time, end_time, collapse)
         target_names = ["next1_return"]
         covariance_names = ["next{}_return".format(i) for i in range(2,11)]
         feature_cols = [c for c in price_feature_df.columns if c not in target_names + covariance_names + ["Volume"]]
