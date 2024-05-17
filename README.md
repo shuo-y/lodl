@@ -34,7 +34,7 @@ python main.py --problem=budgetalloc --loss=weightedmse++ --seed=1 --instances=1
 
 ### Portfolio Optimization
 
-
+(2stage command change loss for LODL)
 ```
 python main.py --problem=portfolio --loss=mse --seed=1 --num_train=200 --num_val=200 --num_test=400 --stocks=50 --stockalpha=0.1 --lr=0.01 --sampling=random_hessian --samplingstd=0.1 --numsamples=50000 --losslr=0.001 --serial=False
 ```
