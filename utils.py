@@ -15,8 +15,6 @@ def perfrandomdq(problem, Y, Y_aux, trials):
         objectives = problem.get_objective(Y, Z_rand, aux_data=Y_aux)
         objs_rand.append(objectives)
 
-    import pdb
-    pdb.set_trace()
     randomdqs = torch.stack(objs_rand).mean(axis=0)
     return randomdqs
 

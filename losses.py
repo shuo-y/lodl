@@ -390,7 +390,6 @@ def _learn_loss(
     model = best[1]
     # If needed, PSDify
     # TODO: Figure out a better way to do this?
-    # pdb.set_trace()
     # if hasattr(model, 'PSDify') and callable(model.PSDify):
     #     model.PSDify()
 
@@ -404,7 +403,6 @@ def _learn_loss(
     test_loss = loss.item()
 
     # Visualise generated datapoints and model
-    # pdb.set_trace()
     # #   Visualise results on sampled_points
     # Yhats_flat = Yhats_train.reshape((Yhats_train.shape[0], -1))
     # Y_flat = Y.flatten()
