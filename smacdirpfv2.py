@@ -128,6 +128,9 @@ if __name__ == "__main__":
 
     # The shape of decision is the same as label Y
     traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain), Y_aux=torch.tensor(auxtrain), trials=10).numpy().flatten()
+    testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest), Y_aux=torch.tensor(auxtest), trials=10).numpy().flatten()
+    helddlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(yheld), Y_aux=torch.tensor(auxheld), trials=10).numpy().flatten()
+    valdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(yval), Y_aux=torch.tensor(auxval), trials=10).numpy().flatten()
 
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
     search_model = search_map[args.search_method]
@@ -222,6 +225,12 @@ if __name__ == "__main__":
           f"{-1 * trainsmac.mean()}, {-1 * testsmac.mean()}, {-1 * valsmac.mean()}, {-1 * heldsmac.mean()}, "
           f"{-1 * traindlrand.mean()}, {-1 * testdlrand.mean()}, {-1 * valdlrand.mean()}, {-1 * helddlrand.mean()}, "
           f"{-1 * traindltrue.mean()}, {-1 * testdltrue.mean()}, {-1 * valdltrue.mean()}, {-1 * helddltrue.mean()}, ")
+
+    print("NorDQ, 2stagetest, smactest, 2stageval, smacval, 2stagetrain, smactrain, 2stageheld, smacheld, ")
+    print(f"NorDQ, {((-testdl2st + testdlrand)/(-testdltrue + testdlrand)).mean()}, {((-testsmac + testdlrand)/(-testdltrue + testdlrand)).mean()}, "
+          f"{((-valdl2st + valdlrand)/(-valdltrue + valdlrand)).mean()}, {((-valsmac + valdlrand)/(-valdltrue + valdlrand)).mean()}, "
+          f"{((-traindl2st + traindlrand)/(-traindltrue + traindlrand)).mean()}, {((-trainsmac + traindlrand)/(-traindltrue + traindlrand)).mean()}, "
+          f"{((-held2st + helddlrand)/(-helddltrue + helddlrand)).mean()}, {((-heldsmac + helddlrand)/(-helddltrue + helddlrand)).mean()}, ")
 
 
 

@@ -1,7 +1,8 @@
 import xgboost as xgb
 import torch
 import numpy as np
-from loss import search_weights_loss, search_quadratic_loss
+from utils import print_metrics
+from losses import get_loss_fn, search_weights_loss, search_quadratic_loss
 
 class custom_tree:
     # This one is for decoupled tree
@@ -53,9 +54,8 @@ def train_xgb(args, problem, xtrain, ytrain):
 
     reg.fit(Xtrain, Ytrain, eval_set=[(Xtrain, Ytrain)])
     model = custom_tree(reg, np.prod(X_train[0].shape), np.prod(Y_train[0].shape), Y_train[0].shape)
-    from utils import print_metrics
-    from losses import get_loss_fn
-    metrics = print_metrics(model, problem, args.loss, get_loss_fn('mse', problem), "seed{}".format(args.seed), isTrain=False)
+
+    metrics = print_metrics(model, problem, get_loss_fn('mse', problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 
 #class ext_model:
@@ -163,17 +163,31 @@ class custom_loss():
         return eval_fn
 
 
+def train_xgb_2st(args, problem):
+    xtrain, ytrain, trainaux = problem.get_train_data()
+    yishape = ytrain[0].shape
+    xtrain = xtrain.detach().numpy()
+    ytrain = ytrain.detach().numpy()
+    Xtrain = xtrain.reshape(xtrain.shape[0], np.prod(xtrain.shape[1:]))
+    Ytrain = ytrain.reshape(ytrain.shape[0], np.prod(ytrain.shape[1:]))
+
+    reg = xgb.XGBRegressor(tree_method='hist', n_estimators=args.num_estimators, learning_rate=args.tree_eta,
+                           reg_alpha=args.tree_alpha, reg_lambda=args.tree_lambda)
+    reg.fit(Xtrain, Ytrain)
+
+    model = xgbwrapper(reg, yishape)
+    metrics = print_metrics(model, problem, get_loss_fn("mse", problem), "Final_xgb{}".format(args.seed))
+
+    return model, metrics
+
 
 
 def train_xgb_lodl(args, problem, xtrain, ytrain, **kwargs):
-    from losses import get_loss_fn
 
     Xtrain = xtrain.reshape(xtrain.shape[0], np.prod(xtrain.shape[1:]))
     Ytrain = ytrain.reshape(ytrain.shape[0], np.prod(ytrain.shape[1:]))
 
     print(f"Data shape used for XGB input {Xtrain.shape} output {Ytrain.shape}")
-
-    from utils import print_metrics
     if args.model == "xgb_coupled":
         # 2stage xgboost coupled version
         print("Using native xgb.XGBRegressor")
@@ -398,9 +412,7 @@ def train_xgb_ngopt(args, problem):
                         custom_metric = cusloss.get_eval_fn())
 
     model = treefromlodl(booster, Y_train[0].shape)
-    from losses import get_loss_fn
-    from utils import print_metrics
-    metrics = print_metrics(model, problem, args.loss, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
+    metrics = print_metrics(model, problem, get_loss_fn("mse", problem), "seed{}".format(args.seed), isTrain=False)
     return model, metrics
 
 def train_xgb_smac(args, prob, probkwargs, xtrain, ytrain, xval, yval):
@@ -597,8 +609,6 @@ def train_xgb_search_weights(args, prob, probkwargs, xtrain, ytrain, xval, yval)
     print(f"The dimensiona is {ndim}")
     global_step = 0
 
-    from losses import get_loss_fn
-    from utils import print_metrics
     from torch.multiprocessing import Pool
     import os
     import time
@@ -723,7 +733,7 @@ def perf_booster(args, problem, booster, X, y, name):
     norobj = norobj.mean()
 
     norobjnotperins = (predobj.mean() - randobjs.mean()) / (optobj.mean()- randobjs.mean())
-    print(f"{name} Normalized DLoss (per instance) {norobj}  NorDLoss (not per instance) {norobjnotperins} DLoss {predobj.mean()} Random DLoss {randobjs.mean()} Opt DLOSS {optobj.mean()} MSE{mseloss}")
+    print(f"{name} Normalized DQ (per instance) {norobj}  NorDQ (not per instance) {norobjnotperins} DLoss {predobj.mean()} Random DLoss {randobjs.mean()} Opt DLOSS {optobj.mean()} MSE{mseloss}")
     csvstring = "%.12f,%.12f,%.12f,%.12f,%.12f,%.12f," % (norobj, norobjnotperins, predobj.mean(), randobjs.mean(), optobj.mean(), mseloss)
     return csvstring
     # cem

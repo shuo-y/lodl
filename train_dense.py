@@ -54,7 +54,7 @@ def train_dense(args, problem):
         # Check metrics on val set
         if iter_idx % args.valfreq == 0:
             # Compute metrics
-            metrics = print_metrics(model, problem, args.loss, loss_fn, f"Iter {iter_idx}", isTrain=True)
+            metrics = print_metrics(model, problem, loss_fn, f"Iter {iter_idx}", isTrain=True)
 
             # Save model if it's the best one
             if best[1] is None or metrics['val']['loss'] < best[0]:
@@ -81,6 +81,6 @@ def train_dense(args, problem):
 
     print("\nBenchmarking Model...")
     # Print final metrics
-    metrics = print_metrics(model, problem, args.loss, loss_fn if args.loss == args.evalloss else get_loss_fn(args.evalloss, problem), "Final_seed{}".format(args.seed))
+    metrics = print_metrics(model, problem, loss_fn if args.loss == args.evalloss else get_loss_fn(args.evalloss, problem), "Final_seed{}".format(args.seed))
 
     return model, metrics

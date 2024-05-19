@@ -42,6 +42,7 @@ def get_random_optDQ(mpart, Y, Y_aux, args):
             print(f"Some {len(nordq[nordq.isnan()])} of total {len(nordq)} nordq are nan dropped...")
             nordq = nordq[~nordq.isnan()]
         mpart["randomopt"] = [nordq.mean().item(), randomdqs.mean().item(), true_objs.mean().item()]
+        print(f"Normalized DQ {nordq.mean().item()}")
         # return norDQ  realDQ randomDQ optDQ
 
 
@@ -276,10 +277,15 @@ if __name__ == "__main__":
         perf_train = perf_booster(args, problem, booster, xtrain, ytrain, "train")
         perf_val = perf_booster(args, problem, booster, xval, yval, "val")
         perf_test = perf_booster(args, problem, booster, xtest, ytest, "test")
-        print(f"DQ_seed{args.seed},{perf_train}{perf_test}{perf_val}")
+        print(f"DQ_seed{args.seed},{perf_train},{perf_test},{perf_val}")
     elif args.model.startswith("dense"):
         from train_dense import train_dense
         model, metrics = train_dense(args, problem)
+
+        # 2st XGB for comparison
+        from train_xgb import train_xgb_2st
+        model, metrics = train_xgb_2st(args, problem)
+
     elif args.model.startswith("xgb_search"):
         from train_xgb import perf_booster
         if args.restart_parallel == True:

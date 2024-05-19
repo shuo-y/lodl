@@ -21,7 +21,6 @@ def perfrandomdq(problem, Y, Y_aux, trials):
 def print_metrics(
     model,
     problem,
-    loss_type,
     loss_fn,
     prefix="",
     isTrain=False,
