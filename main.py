@@ -312,5 +312,6 @@ if __name__ == "__main__":
     print("Test 2st XGB for comparison")
     from train_xgb import train_xgb_2st
     model, metrics = train_xgb_2st(args, problem)
+    perf_metrics(args, problem, metrics)
 
 
