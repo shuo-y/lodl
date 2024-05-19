@@ -282,10 +282,6 @@ if __name__ == "__main__":
         from train_dense import train_dense
         model, metrics = train_dense(args, problem)
 
-        # 2st XGB for comparison
-        from train_xgb import train_xgb_2st
-        model, metrics = train_xgb_2st(args, problem)
-
     elif args.model.startswith("xgb_search"):
         from train_xgb import perf_booster
         if args.restart_parallel == True:
@@ -313,6 +309,8 @@ if __name__ == "__main__":
 
     perf_metrics(args, problem, metrics)
 
-    print(args)
+    print("Test 2st XGB for comparison")
+    from train_xgb import train_xgb_2st
+    model, metrics = train_xgb_2st(args, problem)
 
 
