@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import torch
 import xgboost as xgb
+import copy
 
 # From SMAC examples
 
@@ -15,7 +16,7 @@ from PThenO import PThenO
 
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class DirectedLoss:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def, reg2st=None):
         self.Xy = xgb.DMatrix(xtrain, ytrain)
         self.xval = xval
         self.yval = yval
@@ -26,6 +27,7 @@ class DirectedLoss:
         self.param_low = param_low
         self.param_upp = param_upp
         self.param_def = param_def
+        self.reg2stmodel = reg2st
         # 0.0001, 0.01, 0.001
 
 
@@ -41,8 +43,13 @@ class DirectedLoss:
         weight_vec = np.array(configarray)
 
         cusloss = search_weights_directed_loss(weight_vec)
-        booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]},
-                             dtrain = self.Xy, num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
+        if self.reg2stmodel == None:
+            booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]},
+                                dtrain = self.Xy, num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
+        else:
+            xgbmodel = self.reg2stmodel.get_booster().copy()
+            booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]},
+                                dtrain = self.Xy, num_boost_round = self.params["search_estimators"], xgb_model = xgbmodel, obj = cusloss.get_obj_fn())
 
         yvalpred = booster.inplace_predict(self.xval)
         valdl = self.prob.dec_loss(yvalpred, self.yval, aux_data=self.aux_data)

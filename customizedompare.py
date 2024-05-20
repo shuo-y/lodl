@@ -13,7 +13,7 @@ from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
-from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
+from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PortfolioOpt import PortfolioOpt
 from smacdirected import DirectedLoss, QuadSearch, test_config
 from utils import perfrandomdq
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     ypred2st = reg.predict(xtest)
 
     weight_vec = np.array([1.0 for _ in range(2 * ytrain.shape[1])])
-    cusloss = search_weights_directed_loss(weight_vec)
+    cusloss = search_weights_loss(weight_vec)
     Xy = xgb.DMatrix(xtrain, ytrain)
 
     booster = xgb.train({"tree_method": params["tree_method"], "num_target": yval.shape[1]},

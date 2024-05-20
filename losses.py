@@ -21,8 +21,8 @@ NUM_CPUS = os.cpu_count()
 
 
 class search_weights_loss():
-    def __init__(self, ypred_dim, weights_vec, verbose=True):
-        self.ypred_dim = ypred_dim
+    def __init__(self, weights_vec, verbose=True):
+        self.ypred_dim = len(weights_vec)
         assert len(weights_vec) == self.ypred_dim
         self.weights_vec = weights_vec
         self.logger = []
