@@ -92,7 +92,7 @@ if __name__ == "__main__":
     ypred2st = reg.predict(xtest)
 
     weight_vec = np.array([1.0 for _ in range(2 * ytrain.shape[1])])
-    cusloss = search_weights_loss(weight_vec)
+    cusloss = search_weights_directed_loss(weight_vec)
     Xy = xgb.DMatrix(xtrain, ytrain)
 
     booster = xgb.train({"tree_method": params["tree_method"], "num_target": yval.shape[1]},
@@ -100,4 +100,5 @@ if __name__ == "__main__":
 
 
     ypredcus = booster.inplace_predict(xtest)
+    print(f"{((ypred2st - ytest) ** 2).mean()}, {((ypredcus - ytest) ** 2).mean()}")
 
