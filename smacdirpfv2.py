@@ -121,10 +121,10 @@ if __name__ == "__main__":
     testdltrue = prob.dec_loss(ytest, ytest, aux_data=auxtest).flatten()
     helddltrue = prob.dec_loss(yheld, yheld, aux_data=auxheld).flatten()
 
-    print(f"2st train val test held diff, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
-          f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
-          f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
-          f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, ")
+    print(f"2st train val test held obj, {traindl2st.mean()}, {compute_stderror(traindl2st)}, "
+          f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, "
+          f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, "
+          f"{held2st.mean()}, {compute_stderror(held2st)}, ")
 
     # The shape of decision is the same as label Y
     traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain), Y_aux=torch.tensor(auxtrain), trials=10).numpy().flatten()
@@ -153,8 +153,8 @@ if __name__ == "__main__":
         smac.tell(info, value)
 
         if args.test_history:
-            testdl, testvar = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, auxtest, testdltrue, info.config)
-            helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, auxheld, helddltrue, info.config)
+            testdl, testvar = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, auxtest, info.config)
+            helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, auxheld, info.config)
             print(f"history, {cost}, {testdl}, {testvar}, {helddl}, {heldvar}")
 
     print(f"Search takes {time.time() - start_time} seconds")

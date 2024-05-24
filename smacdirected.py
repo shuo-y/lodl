@@ -192,7 +192,7 @@ class QuadSearch:
         return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1], "eta": 0.03}
 
 
-def test_config(params, prob, model, xtrain, ytrain, xtest, ytest, auxtest, testdltrue, configs: Configuration) -> float:
+def test_config(params, prob, model, xtrain, ytrain, xtest, ytest, auxtest, configs: Configuration) -> float:
     def compute_stderror(vec: np.ndarray) -> float:
         popstd = vec.std()
         n = len(vec)
@@ -204,4 +204,4 @@ def test_config(params, prob, model, xtrain, ytrain, xtest, ytest, auxtest, test
     itertestsmac = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
 
 
-    return (itertestsmac - testdltrue).mean(), compute_stderror((itertestsmac - testdltrue))
+    return itertestsmac.mean(), compute_stderror((itertestsmac))
