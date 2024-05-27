@@ -164,7 +164,7 @@ if __name__ == "__main__":
     heldvalues = []
     for i in range(args.topk):
         conf = records[i][1]
-        testdl, _ = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, auxheld, helddltrue, conf)
+        testdl, _ = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, auxheld, conf)
         heldvalues.append(testdl)
 
     pickind = np.argmin(heldvalues)
