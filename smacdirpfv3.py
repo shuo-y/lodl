@@ -45,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument("--end-time", type=str, default="dt.datetime(2017, 1, 1)")
     parser.add_argument("--n-trials", type=int, default=200)
     parser.add_argument("--stocks", type=int, default=50)
-    parser.add_argument("--stockalpha", type=float, default=1)
+    parser.add_argument("--stockalpha", type=float, default=0.1)
     parser.add_argument("--param-low", type=float, default=0.0001)
     parser.add_argument("--param-upp", type=float, default=0.01)
     parser.add_argument("--param-def", type=float, default=0.001)
