@@ -39,12 +39,10 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="two_quad_example")
     parser.add_argument("--num-train", type=int, default=200)
     parser.add_argument("--num-val", type=int, default=200)
-    parser.add_argument("--num-frac", type=float, default=0.1)
     parser.add_argument("--num-test", type=int, default=400)
     parser.add_argument("--start-time", type=str, default="dt.datetime(2004, 1, 1)")
     parser.add_argument("--end-time", type=str, default="dt.datetime(2017, 1, 1)")
     parser.add_argument("--n-trials", type=int, default=200)
-    parser.add_argument("--n-trials-2nd", type=int, default=20)
     parser.add_argument("--stocks", type=int, default=50)
     parser.add_argument("--stockalpha", type=float, default=0.1)
     parser.add_argument("--param-low", type=float, default=0.0001)
@@ -81,18 +79,17 @@ if __name__ == "__main__":
     indices = list(range(total_num))
     np.random.shuffle(indices)
 
-    xtrain = X[indices[:args.num_train]]
-    ytrain = Y[indices[:args.num_train]]
-    auxtrain = Aux[indices[:args.num_train]]
+    xtrain = X[indices[:params["num_train"]]]
+    ytrain = Y[indices[:params["num_train"]]]
+    auxtrain = Aux[indices[:params["num_train"]]]
 
-    xvalall = X[indices[args.num_train:(args.num_train + args.num_val)]]
-    yvalall = Y[indices[args.num_train:(args.num_train + args.num_val)]]
-    auxvalall = Aux[indices[args.num_train:(args.num_train + args.num_val)]]
+    xval = X[indices[params["num_train"] : (params["num_train"] + params["num_val"])]]
+    yval = Y[indices[params["num_train"] : (params["num_train"] + params["num_val"])]]
+    auxval = Aux[indices[params["num_train"] : (params["num_train"] + params["num_val"])]]
 
-    xval = xvalall[:int(params["num_frac"] * params["num_val"])]
-    yval = yvalall[:int(params["num_frac"] * params["num_val"])]
-    auxval = auxvalall[:int(params["num_frac"] * params["num_val"])]
-
+    xtrainvalall = X[indices[:(params["num_train"] + params["num_val"])]]
+    ytrainvalall = Y[indices[:(params["num_train"] + params["num_val"])]]
+    auxtrainvalall = Aux[indices[:(params["num_train"] + params["num_val"])]]
 
     xtest = X[indices[(args.num_train + args.num_val):]]
     ytest = Y[indices[(args.num_train + args.num_val):]]
@@ -101,8 +98,7 @@ if __name__ == "__main__":
 
     # Check a baseline first
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
-    reg.fit(xtrain, ytrain)
-
+    reg.fit(xtrainvalall, ytrainvalall)
 
     ytrainpred = reg.predict(xtrain)
     traindl2st = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
@@ -110,32 +106,26 @@ if __name__ == "__main__":
     yvalpred = reg.predict(xval)
     valdl2st = prob.dec_loss(yvalpred, yval, aux_data=auxval).flatten()
 
-    yvalallpred = reg.predict(xvalall)
-    valdl2stall = prob.dec_loss(yvalallpred, yvalall, aux_data=auxvalall).flatten()
-
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
 
     traindltrue = prob.dec_loss(ytrain, ytrain, aux_data=auxtrain).flatten()
     valdltrue = prob.dec_loss(yval, yval, aux_data=auxval).flatten()
     testdltrue = prob.dec_loss(ytest, ytest, aux_data=auxtest).flatten()
-    valdltrueall = prob.dec_loss(yvalall, yvalall, aux_data=auxvalall).flatten()
 
-    print(f"2st train test val valall obj, {traindl2st.mean()}, {compute_stderror(traindl2st)}, "
+    print(f"2st(trained on both train and val) train test val obj, {traindl2st.mean()}, {compute_stderror(traindl2st)}, "
           f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, "
-          f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, "
-          f"{valdl2stall.mean()}, {compute_stderror(valdl2stall)}, ")
+          f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, ")
 
     # The shape of decision is the same as label Y
     traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain), Y_aux=torch.tensor(auxtrain), trials=10).numpy().flatten()
     testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest), Y_aux=torch.tensor(auxtest), trials=10).numpy().flatten()
     valdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(yval), Y_aux=torch.tensor(auxval), trials=10).numpy().flatten()
-    valdlrandall = -1.0 * perfrandomdq(prob, Y=torch.tensor(yvalall), Y_aux=torch.tensor(auxvalall), trials=10).numpy().flatten()
 
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
     search_model = search_map[args.search_method]
 
-    model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval, args.param_low, args.param_upp, args.param_def, reg2st=reg)
+    model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval, args.param_low, args.param_upp, args.param_def)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
@@ -161,38 +151,9 @@ if __name__ == "__main__":
     records.sort()
     incumbent = records[0][1]
     params_vec = model.get_vec(incumbent)
-    print(f"1st step Choose {params_vec}")
-
-    model = search_model(prob, params, xtrain, ytrain, xvalall, yvalall, valdltrueall, auxvalall, args.param_low, args.param_upp, args.param_def, use_vec=True, initvec=params_vec)
-    scenario = Scenario(model.configspace, n_trials=args.n_trials_2nd)
-    intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
-    smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
-
-    records2 = []
-    start_time = time.time()
-    for cnt in range(params["n_trials_2nd"]):
-        info = smac.ask()
-        assert info.seed is not None
-
-        cost = model.train(info.config, seed=info.seed)
-        value = TrialValue(cost=cost)
-        records2.append((value.cost, info.config))
-
-        smac.tell(info, value)
-
-        if args.test_history:
-            testdl, teststderr = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, auxtest, info.config)
-            print(f"2nd step history vol test teststderr, {cost}, {testdl}, {teststderr}")
-
-    print(f"2nd step search takes {time.time() - start_time} seconds")
-
-    records2.sort()
-    incumbent = records2[0][1]
-    params_vec = model.get_vec(incumbent)
-    print(f"2nd step Choose {params_vec}")
-
+    print(f"Seaerch Choose {params_vec}")
     cusloss = model.get_loss_fn(incumbent)
-    Xy = xgb.DMatrix(xtrain, ytrain)
+    Xy = xgb.DMatrix(xtrainvalall, ytrainvalall)
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
 
     smacytrainpred = booster.inplace_predict(xtrain)
@@ -201,8 +162,6 @@ if __name__ == "__main__":
     smacyvalpred = booster.inplace_predict(xval)
     valsmac = prob.dec_loss(smacyvalpred, yval, aux_data=auxval).flatten()
 
-    smacyvalallpred = booster.inplace_predict(xvalall)
-    valsmacall = prob.dec_loss(smacyvalallpred, yvalall, aux_data=auxvalall).flatten()
 
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest, aux_data=auxtest).flatten()
@@ -210,10 +169,10 @@ if __name__ == "__main__":
 
 
     sanity_check(traindl2st - traindltrue, "train2st")
-    sanity_check(valdl2stall - valdltrueall, "val2stall")
+    sanity_check(valdl2st - valdltrue, "val2stall")
     sanity_check(testdl2st - testdltrue, "test2st")
     sanity_check(trainsmac - traindltrue, "trainsmac")
-    sanity_check(valsmacall - valdltrueall, "valsmacall")
+    sanity_check(valsmac - valdltrue, "valsmacall")
     sanity_check(testsmac - testdltrue, "testsmac")
     sanity_check(traindlrand - traindltrue, "trainrand")
     sanity_check(valdlrand - valdltrue, "valrand")
@@ -221,20 +180,20 @@ if __name__ == "__main__":
 
 
 
-    print("DQ, 2stagetrainobj, 2stagetestobj, 2statevalobj, 2stagevalallobj, "
-          "smactrainobj, smactestobj, smacvalobj, smacvalallobj, "
-          "randtrainobj, randtestobj, randvalobj, randvalallobj, "
-          "truetrainobj, truetestobj, truevalobj, truevalallobj, ")
-    print(f"DQ, {-1 * traindl2st.mean()}, {-1 * testdl2st.mean()}, {-1 * valdl2st.mean()}, {-1 * valdl2stall.mean()}, "
-          f"{-1 * trainsmac.mean()}, {-1 * testsmac.mean()}, {-1 * valsmac.mean()}, {-1 * valsmacall.mean()}, "
-          f"{-1 * traindlrand.mean()}, {-1 * testdlrand.mean()}, {-1 * valdlrand.mean()}, {-1 * valdlrandall.mean()}, "
-          f"{-1 * traindltrue.mean()}, {-1 * testdltrue.mean()}, {-1 * valdltrue.mean()}, {-1 * valdltrueall.mean()}, ")
+    print("DQ, 2stagetrainobj, 2stagetestobj, 2statevalobj, "
+          "smactrainobj, smactestobj, smacvalobj, "
+          "randtrainobj, randtestobj, randvalobj, "
+          "truetrainobj, truetestobj, truevalobj, ")
+    print(f"DQ, {-1 * traindl2st.mean()}, {-1 * testdl2st.mean()}, {-1 * valdl2st.mean()}, "
+          f"{-1 * trainsmac.mean()}, {-1 * testsmac.mean()}, {-1 * valsmac.mean()}, "
+          f"{-1 * traindlrand.mean()}, {-1 * testdlrand.mean()}, {-1 * valdlrand.mean()}, "
+          f"{-1 * traindltrue.mean()}, {-1 * testdltrue.mean()}, {-1 * valdltrue.mean()}, ")
 
-    print("NorDQ, 2stagetest, smactest, 2stageval, smacval, 2stagetrain, smactrain, 2stagevalall, smacvalall, ")
+    print("NorDQ, 2stagetest, smactest, 2stageval, smacval, 2stagetrain, smactrain, ")
     print(f"NorDQ, {((-testdl2st + testdlrand)/(-testdltrue + testdlrand)).mean()}, {((-testsmac + testdlrand)/(-testdltrue + testdlrand)).mean()}, "
           f"{((-valdl2st + valdlrand)/(-valdltrue + valdlrand)).mean()}, {((-valsmac + valdlrand)/(-valdltrue + valdlrand)).mean()}, "
-          f"{((-traindl2st + traindlrand)/(-traindltrue + traindlrand)).mean()}, {((-trainsmac + traindlrand)/(-traindltrue + traindlrand)).mean()}, "
-          f"{((-valdl2stall + valdlrandall)/(-valdltrueall + valdlrandall)).mean()}, {((-valsmacall + valdlrandall)/(-valdltrueall + valdlrandall)).mean()}, ")
+          f"{((-traindl2st + traindlrand)/(-traindltrue + traindlrand)).mean()}, {((-trainsmac + traindlrand)/(-traindltrue + traindlrand)).mean()}, ")
+
 
 
 
