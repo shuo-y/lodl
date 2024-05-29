@@ -16,7 +16,7 @@ from PThenO import PThenO
 
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class DirectedLoss:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def, reg2st=None):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def, reg2st=None, use_vec=False, initvec=None):
         self.Xy = xgb.DMatrix(xtrain, ytrain)
         self.xval = xval
         self.yval = yval
@@ -28,13 +28,18 @@ class DirectedLoss:
         self.param_upp = param_upp
         self.param_def = param_def
         self.reg2stmodel = reg2st
+        self.use_vec = use_vec
+        self.initvec = initvec
         # 0.0001, 0.01, 0.001
 
 
     @property
     def configspace(self) -> ConfigurationSpace:
         cs = ConfigurationSpace()
-        configs = [Float(f"w{i}", (self.param_low, self.param_upp), default=self.param_def) for i in range(2 * self.yval.shape[1])]
+        if self.use_vec == True:
+            configs = [Float(f"w{i}", (self.param_low, self.param_upp), default=self.initvec[i]) for i in range(len(self.initvec))]
+        else:
+            configs = [Float(f"w{i}", (self.param_low, self.param_upp), default=self.param_def) for i in range(2 * self.yval.shape[1])]
         cs.add_hyperparameters(configs)
         return cs
 

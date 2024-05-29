@@ -50,6 +50,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-upp", type=float, default=0.01)
     parser.add_argument("--param-def", type=float, default=0.001)
     parser.add_argument("--test-history", action="store_true", help="Check test dl of the history")
+    parser.add_argument("--con-2st", action="store_true", help="continue training based on 2st")
 
     args = parser.parse_args()
     params = vars(args)
@@ -134,7 +135,10 @@ if __name__ == "__main__":
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
     search_model = search_map[args.search_method]
 
-    model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval, args.param_low, args.param_upp, args.param_def, reg2st=reg)
+    if params["con_2st"]:
+          model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval, args.param_low, args.param_upp, args.param_def, reg2st=reg)
+    else:
+          model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval, args.param_low, args.param_upp, args.param_def)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
@@ -190,23 +194,6 @@ if __name__ == "__main__":
     sanity_check(valdlrand - valdltrue, "valrand")
     sanity_check(testdlrand - testdltrue, "testrand")
 
-
-    print("DLdiff,2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
-          "smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
-          "randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr,"
-          "held2st,held2ststderr,heldsmac,heldsmacstderr,heldrand,heldrandstderr")
-    print(f"DLdiff, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
-          f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
-          f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
-          f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
-          f"{(valsmac - valdltrue).mean()}, {compute_stderror(valsmac - valdltrue)}, "
-          f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)}, "
-          f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
-          f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
-          f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}, "
-          f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, "
-          f"{(heldsmac - helddltrue).mean()}, {compute_stderror(heldsmac - helddltrue)}, "
-          f"{(helddlrand - helddltrue).mean()}, {compute_stderror(helddlrand - helddltrue)}")
 
     print("DQ, 2stagetrainobj, 2stagetestobj, 2statevalobj, 2stageheldobj, "
           "smactrainobj, smactestobj, smacvalobj, smacheldobj, "
