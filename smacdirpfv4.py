@@ -143,8 +143,9 @@ if __name__ == "__main__":
         smac.tell(info, value)
 
         if args.test_history:
+            trainvaldl, trainvaldlstderr = test_config(params, prob, model, xtrainvalall, ytrainvalall, xtest, ytest, auxtest, info.config)
             testdl, teststderr = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, auxtest, info.config)
-            print(f"history vol test teststderr, {cost}, {testdl}, {teststderr}")
+            print(f"history vol test teststderr, {cost}, {trainvaldl}, {trainvaldlstderr}, {testdl}, {teststderr}")
 
     print(f"Search takes {time.time() - start_time} seconds")
 
