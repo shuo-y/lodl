@@ -59,8 +59,7 @@ class DirectedLoss:
         yvalpred = booster.inplace_predict(self.xval)
         valdl = self.prob.dec_loss(yvalpred, self.yval, aux_data=self.aux_data)
 
-        cost = (valdl - self.valtruedl).mean()
-        return cost
+        return valdl.mean()
 
     def get_vec(self, incumbent) -> np.ndarray:
         # Get the weight vector from incumbent
@@ -114,8 +113,7 @@ class DirectedLossMag:
         yvalpred = booster.inplace_predict(self.xval)
         valdl = self.prob.dec_loss(yvalpred, self.yval, aux_data=self.aux_data)
 
-        cost = (valdl - self.valtruedl).mean()
-        return cost
+        return valdl.mean()
 
     def get_vec(self, incumbent) -> np.ndarray:
         # Get the weight vector from incumbent
@@ -173,8 +171,7 @@ class QuadSearch:
         yvalpred = booster.inplace_predict(self.xval)
         valdl = self.prob.dec_loss(yvalpred, self.yval, aux_data=self.aux_data)
 
-        cost = (valdl - self.valtruedl).mean()
-        return cost
+        return valdl.mean()
 
     def get_vec(self, incumbent) -> np.ndarray:
         # Get the weight vector from incumbent
