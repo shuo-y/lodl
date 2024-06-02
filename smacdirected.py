@@ -76,6 +76,76 @@ class DirectedLoss:
         return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]}
 
 
+class DirectedLossCrossValidation:
+    def __init__(self, prob, params, X, Y, truedl, auxdata, param_low, param_upp, param_def, nfold=2, reg2st=None, use_vec=False, initvec=None):
+        # directed loss with cross validation
+        # just do not use xtrain ytrain and valtruedl
+        self.params = params
+        self.prob = prob
+        self.param_low = param_low
+        self.param_upp = param_upp
+        self.param_def = param_def
+        self.reg2stmodel = reg2st
+        self.use_vec = use_vec
+        self.initvec = initvec
+        # 0.0001, 0.01, 0.001
+        self.Xys = []
+        self.auxdatas = []
+        self.valdatas = []
+        N = len(X)
+        cnt = N // nfold
+        self.nfold = nfold
+        self.ydim = Y.shape[1]
+
+        for i in range(self.nfold):
+            testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
+            otherind = [idx for idx in range(N) if idx < i * cnt or idx >= (i + 1) * cnt]
+            self.Xys.append(xgb.DMatrix(X[otherind], Y[otherind]))
+            self.auxdatas.append(auxdata[testind])
+            self.valdatas.append((X[testind], Y[testind]))
+
+
+    @property
+    def configspace(self) -> ConfigurationSpace:
+        cs = ConfigurationSpace()
+        if self.use_vec == True:
+            configs = [Float(f"w{i}", (self.param_low, self.param_upp), default=self.initvec[i]) for i in range(len(self.initvec))]
+        else:
+            configs = [Float(f"w{i}", (self.param_low, self.param_upp), default=self.param_def) for i in range(2 * self.ydim)]
+        cs.add_hyperparameters(configs)
+        return cs
+
+    def train(self, configs: Configuration, seed: int) -> float:
+        configarray = [configs[f"w{i}"] for i in range(2 * self.ydim)]
+        weight_vec = np.array(configarray)
+
+        costs = []
+        for i in range(self.nfold):
+            cusloss = search_weights_directed_loss(weight_vec)
+            booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.ydim},
+                                    dtrain = self.Xys[i], num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
+
+            yvalpred = booster.inplace_predict(self.valdatas[i][0])
+            valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1], aux_data=self.auxdatas[i])
+            costs.append(valdl.mean())
+
+        return np.mean(costs)
+
+    def get_vec(self, incumbent) -> np.ndarray:
+        # Get the weight vector from incumbent
+        arr = [incumbent[f"w{i}"] for i in range(2 * self.ydim)]
+        return np.array(arr)
+
+    def get_loss_fn(self, incumbent):
+        arr = [incumbent[f"w{i}"] for i in range(2 * self.ydim)]
+        weight_vec = np.array(arr)
+        cusloss = search_weights_directed_loss(weight_vec)
+        return cusloss
+
+    def get_xgb_params(self):
+        return {"tree_method": self.params["tree_method"], "num_target": self.ydim}
+
+
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class DirectedLossMag:
     def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def):

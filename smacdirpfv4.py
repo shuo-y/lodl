@@ -15,7 +15,7 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from PortfolioOpt import PortfolioOpt
-from smacdirected import DirectedLoss, QuadSearch, test_config
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, test_config
 from utils import perfrandomdq
 
 def compute_stderror(vec: np.ndarray) -> float:
@@ -49,6 +49,8 @@ if __name__ == "__main__":
     parser.add_argument("--param-upp", type=float, default=0.01)
     parser.add_argument("--param-def", type=float, default=0.001)
     parser.add_argument("--test-history", action="store_true", help="Check test dl of the history")
+    parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
+    parser.add_argument("--cv-fold", type=int, default=5)
 
     args = parser.parse_args()
     params = vars(args)
@@ -123,9 +125,15 @@ if __name__ == "__main__":
     valdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(yval), Y_aux=torch.tensor(auxval), trials=10).numpy().flatten()
 
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
-    search_model = search_map[args.search_method]
+    search_map_cv = {"mse++": DirectedLossCrossValidation}
 
-    model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval, args.param_low, args.param_upp, args.param_def)
+
+    if params["cross_valid"] == True:
+          search_model = search_map_cv[args.search_method]
+          model = search_model(prob, params, xtrainvalall, ytrainvalall, None, auxtrainvalall, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"])
+    else:
+          search_model = search_map[args.search_method]
+          model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, auxval, args.param_low, args.param_upp, args.param_def)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
