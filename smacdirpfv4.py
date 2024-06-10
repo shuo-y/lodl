@@ -138,6 +138,7 @@ if __name__ == "__main__":
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
 
+
     records = []
     start_time = time.time()
     for cnt in range(params["n_trials"]):
@@ -147,12 +148,13 @@ if __name__ == "__main__":
         cost = model.train(info.config, seed=info.seed)
         value = TrialValue(cost=cost)
         records.append((value.cost, info.config))
+        print(f"Vec {model.get_vec(info.config)}")
 
         smac.tell(info, value)
 
         if args.test_history:
-            trainvaldl, trainvaldlstderr = test_config(params, prob, model, xtrainvalall, ytrainvalall, xtest, ytest, auxtest, info.config)
-            testdl, teststderr = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, auxtest, info.config)
+            _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+            _, testdl, teststderr = test_config(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config), xtrain, ytrain, xtest, ytest, auxtest)
             print(f"history vol test teststderr, {cost}, {trainvaldl}, {trainvaldlstderr}, {testdl}, {teststderr}")
 
     print(f"Search takes {time.time() - start_time} seconds")

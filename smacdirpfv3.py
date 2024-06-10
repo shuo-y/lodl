@@ -156,8 +156,8 @@ if __name__ == "__main__":
         smac.tell(info, value)
 
         if args.test_history:
-            testdl, testvar = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, auxtest, info.config)
-            helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, auxheld, info.config)
+            _, testdl, testvar = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, auxtest, info.config)
+            _, helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, auxheld, info.config)
             print(f"history, {cost}, {testdl}, {testvar}, {helddl}, {heldvar}")
 
     print(f"Search takes {time.time() - start_time} seconds")
