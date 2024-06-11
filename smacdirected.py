@@ -77,7 +77,7 @@ class DirectedLoss:
 
 
 class DirectedLossCrossValidation:
-    def __init__(self, prob, params, X, Y, truedl, auxdata, param_low, param_upp, param_def, nfold=2, reg2st=None, use_vec=False, initvec=None):
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None):
         # directed loss with cross validation
         # just do not use xtrain ytrain and valtruedl
         self.params = params
@@ -101,7 +101,8 @@ class DirectedLossCrossValidation:
             testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
             otherind = [idx for idx in range(N) if idx < i * cnt or idx >= (i + 1) * cnt]
             self.Xys.append(xgb.DMatrix(X[otherind], Y[otherind]))
-            self.auxdatas.append(auxdata[testind])
+            if auxdata is not None:
+                self.auxdatas.append(auxdata[testind])
             self.valdatas.append((X[testind], Y[testind]))
 
 
@@ -126,7 +127,10 @@ class DirectedLossCrossValidation:
                                     dtrain = self.Xys[i], num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
 
             yvalpred = booster.inplace_predict(self.valdatas[i][0])
-            valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1], aux_data=self.auxdatas[i])
+            if len(self.auxdatas) > 0:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1], aux_data=self.auxdatas[i])
+            else:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1])
             costs.append(valdl.mean())
 
         return np.mean(costs)
