@@ -15,7 +15,7 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from ShortestPath import ShortestPath
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, test_config
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, test_config, test_dir_weight
 from utils import perfrandomdq
 
 def compute_stderror(vec: np.ndarray) -> float:
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-test", type=int, default=400)
     parser.add_argument("--n-trials", type=int, default=200)
     parser.add_argument("--solver", type=str, choices=["scip", "gurobi", "glpk"], default="scip", help="optimization solver to use")
-    parser.add_argument("--numfeatures", type=int, default=4)
+    parser.add_argument("--numfeatures", type=int, default=5)
     parser.add_argument("--spgrid", type=str, default="(5, 5)")
     parser.add_argument("--param-low", type=float, default=0.001)
     parser.add_argument("--param-upp", type=float, default=2.5)
@@ -69,6 +69,7 @@ if __name__ == "__main__":
                                grid=eval(args.spgrid),
                                solver=args.solver)
     # Generate data based on https://github.com/facebookresearch/LANCER/blob/main/DFL/scripts/run_lancer_dfl.py
+    # Y shape *, 40  X shape *, 5
     X, Y = prob.generate_dataset(N=args.num_train + args.num_val + args.num_test, deg=6, noise_width=0.5)
 
 
@@ -109,9 +110,13 @@ if __name__ == "__main__":
     valdltrue = prob.dec_loss(yval, yval).flatten()
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
+
     print(f"2st(trained on both train and val) train test val obj, {traindl2st.mean()}, {compute_stderror(traindl2st)}, "
           f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, "
           f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, ")
+
+    _, testdl, teststderr = test_dir_weight(params, prob, xtrain, ytrain, xtest, ytest, None)
+    print(f"Def test def directed weight, {testdl}, {teststderr}")
 
     # The shape of decision is the same as label Y
     traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain).float(), Y_aux=None, trials=10).numpy().flatten()

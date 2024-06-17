@@ -16,12 +16,11 @@ from PThenO import PThenO
 
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class DirectedLoss:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def, reg2st=None, use_vec=False, initvec=None):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, param_low, param_upp, param_def, auxdata=None, reg2st=None, use_vec=False, initvec=None):
         self.Xy = xgb.DMatrix(xtrain, ytrain)
         self.xval = xval
         self.yval = yval
         self.params = params
-        self.valtruedl = valtruedl
         self.prob = prob
         self.aux_data = auxdata
         self.param_low = param_low
@@ -267,16 +266,26 @@ class QuadSearch:
     def get_xgb_params(self):
         return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1], "eta": 0.03}
 
+def compute_stderror(vec: np.ndarray) -> float:
+    popstd = vec.std()
+    n = len(vec)
+    return (popstd * np.sqrt(n / (n - 1.0))) / np.sqrt(n)
 
-def test_config(params, prob, xgb_params, cusloss, xtrain, ytrain, xtest, ytest, auxtest) -> float:
-    def compute_stderror(vec: np.ndarray) -> float:
-        popstd = vec.std()
-        n = len(vec)
-        return (popstd * np.sqrt(n / (n - 1.0))) / np.sqrt(n)
+def test_config(params, prob, xgb_params, cusloss, xtrain, ytrain, xtest, ytest, auxtest):
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train(xgb_params, dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
     testpred = booster.inplace_predict(xtest)
     itertestsmac = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
+    return booster, itertestsmac.mean(), compute_stderror((itertestsmac))
 
-
+def test_dir_weight(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
+    Xy = xgb.DMatrix(xtrain, ytrain)
+    weight_vec = np.array([params["param_def"] for _  in range(2 * ytrain.shape[1])])
+    dir_loss = search_weights_directed_loss(weight_vec)
+    booster = xgb.train({"tree_method": params["tree_method"], "num_target": ytrain.shape[1]},
+                        dtrain = Xy,
+                        num_boost_round = params["search_estimators"],
+                        obj = dir_loss.get_obj_fn())
+    testpred = booster.inplace_predict(xtest)
+    itertestsmac = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
     return booster, itertestsmac.mean(), compute_stderror((itertestsmac))
