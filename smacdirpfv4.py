@@ -120,7 +120,7 @@ if __name__ == "__main__":
           f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, "
           f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, ")
 
-     _, testdl, teststderr = test_dir_weight(params, prob, xtrain, ytrain, xtest, ytest, auxtest)
+    _, testdl, teststderr = test_dir_weight(params, prob, xtrain, ytrain, xtest, ytest, auxtest)
     print(f"Def test def directed weight, {testdl}, {teststderr}")
 
     # The shape of decision is the same as label Y
