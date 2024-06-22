@@ -4,6 +4,7 @@
 
 import pandas as pd
 from sklearn.metrics import mean_squared_error
+from sklearn.multioutput import MultiOutputRegressor
 import numpy as np
 import lightgbm as lgb
 #from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
@@ -11,17 +12,28 @@ import lightgbm as lgb
 print("Loading data...")
 # load or create your dataset
 #regression_example_dir = Path(__file__).absolute().parents[1] / "regression"
-df_train = pd.read_csv("regression.train", header=None, sep="\t")
-df_test = pd.read_csv("regression.test", header=None, sep="\t")
+df_train = pd.read_csv("regression.train", header=None, sep="\t").to_numpy()
+df_test = pd.read_csv("regression.test", header=None, sep="\t").to_numpy()
 
-y_train = df_train[0]
-y_test = df_test[0]
-X_train = df_train.drop(0, axis=1)
-X_test = df_test.drop(0, axis=1)
+y_train = df_train[:, :2]
+y_test = df_test[:, :2]
+X_train = df_train[:, 2:]
+X_test = df_test[:, 2:]
 
 # create dataset for lightgbm
 lgb_train = lgb.Dataset(X_train, y_train)
 lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+
+#gbm_def2 = lgb.LGBMRegressor(n_estimators=50, verbose=-1, random_state=0)
+#gbm_def2.fit(X_train, y_train)
+# Based on https://forecastegy.com/posts/lightgbm-multi-output-regression-classification-python/
+
+lgb_model = lgb.LGBMRegressor(n_estimators=100)
+lgb_multi = MultiOutputRegressor(lgb_model)
+lgb_multi.fit(X_train, y_train)
+
+import pdb
+pdb.set_trace()
 
 # specify your configurations as a dict
 params = {
@@ -80,8 +92,7 @@ def grad_fn(predt, tdata):
 # Check document
 # https://lightgbm.readthedocs.io/en/latest/pythonapi/lightgbm.LGBMRegressor.html#lightgbm.LGBMRegressor
 
-gbm_def2 = lgb.LGBMRegressor(n_estimators=50, verbose=-1, random_state=0)
-gbm_def2.fit(X_train, y_train)
+
 
 
 

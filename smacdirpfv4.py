@@ -16,6 +16,7 @@ from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PortfolioOpt import PortfolioOpt
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, test_config, test_dir_weight, test_reg, test_weightmse, test_square_log
+from smacdirected import smac_search_lgb, eval_config_lgb, test_reg_lgb
 from utils import perfrandomdq
 
 def compute_stderror(vec: np.ndarray) -> float:
@@ -99,6 +100,7 @@ if __name__ == "__main__":
 
 
     # Check a baseline first
+
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
     reg.fit(xtrainvalall, ytrainvalall)
 
@@ -120,13 +122,12 @@ if __name__ == "__main__":
           f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, "
           f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, ")
 
-    _, testdl, teststderr = test_dir_weight(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-    print(f"Def test def directed weight, {testdl}, {teststderr}")
+
+    _, testdl, teststderr = test_reg_lgb(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+    print(f"Def lightGBM 2st , {testdl}, {teststderr}")
 
     # The shape of decision is the same as label Y
-    traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain), Y_aux=torch.tensor(auxtrain), trials=10).numpy().flatten()
-    testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest), Y_aux=torch.tensor(auxtest), trials=10).numpy().flatten()
-    valdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(yval), Y_aux=torch.tensor(auxval), trials=10).numpy().flatten()
+
 
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
     search_map_cv = {"mse++": DirectedLossCrossValidation}
@@ -138,11 +139,14 @@ if __name__ == "__main__":
     else:
           search_model = search_map[args.search_method]
           model = search_model(prob, params, xtrain, ytrain, xval, yval, args.param_low, args.param_upp, args.param_def, auxdata=auxval)
+
+    #chosen_loss = smac_search_lgb(params, prob, model, params["n_trials"], xtrain, ytrain, xtest, ytest, auxtest)
+    #lgb_model, trainsmacpred, valsmacpred, testsmacpred = eval_config_lgb(params, prob, xgb_params, chosen_loss, xtrain, ytrain, xval, xtest)
+
+
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
-
-
     records = []
     start_time = time.time()
     for cnt in range(params["n_trials"]):
@@ -183,6 +187,9 @@ if __name__ == "__main__":
     testsmac = prob.dec_loss(smacytestpred, ytest, aux_data=auxtest).flatten()
 
 
+    traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain), Y_aux=torch.tensor(auxtrain), trials=10).numpy().flatten()
+    testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest), Y_aux=torch.tensor(auxtest), trials=10).numpy().flatten()
+    valdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(yval), Y_aux=torch.tensor(auxval), trials=10).numpy().flatten()
 
     sanity_check(traindl2st - traindltrue, "train2st")
     sanity_check(valdl2st - valdltrue, "val2stall")
@@ -193,7 +200,6 @@ if __name__ == "__main__":
     sanity_check(traindlrand - traindltrue, "trainrand")
     sanity_check(valdlrand - valdltrue, "valrand")
     sanity_check(testdlrand - testdltrue, "testrand")
-
 
 
     print("DQ, 2stagetrainobj, 2stagetestobj, 2statevalobj, "

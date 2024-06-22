@@ -29,7 +29,7 @@ class search_weights_loss():
 
 
     def get_obj_fn(self):
-        def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+        def grad_fn(predt, dtrain):
             y = dtrain.get_label().reshape(predt.shape)
 
             diff = (predt - y) #/ self.ypred_dim
@@ -44,7 +44,7 @@ class search_weights_loss():
         return grad_fn
 
     def get_eval_fn(self):
-        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+        def eval_fn(predt, dtrain):
             y = dtrain.get_label().reshape(predt.shape)
             diff = self.weights_vec * ((predt - y) ** 2)
             loss = diff.mean()
@@ -60,7 +60,7 @@ class search_weights_directed_loss():
         self.weights_neg = weights_vec[self.ypred_dim:]
 
     def get_obj_fn(self):
-        def grad_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+        def grad_fn(predt, dtrain):
             y = dtrain.get_label().reshape(predt.shape)
 
             diff = (predt - y)
@@ -78,7 +78,7 @@ class search_weights_directed_loss():
         return grad_fn
 
     def get_eval_fn(self):
-        def eval_fn(predt: np.ndarray, dtrain: xgb.DMatrix):
+        def eval_fn(predt, dtrain):
             y = dtrain.get_label().reshape(predt.shape)
             y = y.flatten()
 
