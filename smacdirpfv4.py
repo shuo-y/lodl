@@ -13,9 +13,9 @@ from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
-from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
+from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PortfolioOpt import PortfolioOpt
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, test_config, test_dir_weight
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, test_config, test_dir_weight, test_reg, test_weightmse, test_square_log
 from utils import perfrandomdq
 
 def compute_stderror(vec: np.ndarray) -> float:
@@ -120,7 +120,7 @@ if __name__ == "__main__":
           f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, "
           f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, ")
 
-    _, testdl, teststderr = test_dir_weight(params, prob, xtrain, ytrain, xtest, ytest, auxtest)
+    _, testdl, teststderr = test_dir_weight(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
     print(f"Def test def directed weight, {testdl}, {teststderr}")
 
     # The shape of decision is the same as label Y

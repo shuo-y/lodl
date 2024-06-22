@@ -289,3 +289,63 @@ def test_dir_weight(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
     testpred = booster.inplace_predict(xtest)
     itertestsmac = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
     return booster, itertestsmac.mean(), compute_stderror((itertestsmac))
+
+def test_weightmse(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
+    Xy = xgb.DMatrix(xtrain, ytrain)
+    weight_vec = np.array([params["param_def"] for _  in range(ytrain.shape[1])])
+    dir_loss = search_weights_loss(weight_vec)
+    booster = xgb.train({"tree_method": params["tree_method"], "num_target": ytrain.shape[1]},
+                        dtrain = Xy,
+                        num_boost_round = params["search_estimators"],
+                        obj = dir_loss.get_obj_fn())
+    testpred = booster.inplace_predict(xtest)
+    itertestsmac = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
+    return booster, itertestsmac.mean(), compute_stderror((itertestsmac))
+
+def test_reg(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
+    Xy = xgb.DMatrix(xtrain, ytrain)
+    tree = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
+    tree.fit(xtrain, ytrain)
+    testpred = tree.predict(xtest)
+    itertestsmac = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
+    return tree.get_booster(), itertestsmac.mean(), compute_stderror((itertestsmac))
+
+
+def test_square_log(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
+    '''Following code is from https://xgboost.readthedocs.io/en/stable/python/examples/custom_rmsle.html#sphx-glr-python-examples-custom-rmsle-py'''
+    '''Train using Python implementation of Squared Log Error.'''
+    def gradient(predt: np.ndarray, dtrain: xgb.DMatrix) -> np.ndarray:
+        '''Compute the gradient squared log error.'''
+        y = dtrain.get_label()
+        return (np.log1p(predt) - np.log1p(y)) / (predt + 1)
+
+    def hessian(predt: np.ndarray, dtrain: xgb.DMatrix) -> np.ndarray:
+        '''Compute the hessian for squared log error.'''
+        y = dtrain.get_label()
+        return ((-np.log1p(predt) + np.log1p(y) + 1) /
+                np.power(predt + 1, 2))
+
+    def squared_log(predt: np.ndarray,
+                    dtrain: xgb.DMatrix):
+        '''Squared Log Error objective. A simplified version for RMSLE used as
+        objective function.
+
+        :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`
+
+        '''
+        predt = predt.flatten()
+        predt[predt < -1] = -1 + 1e-6
+        grad = gradient(predt, dtrain)
+        hess = hessian(predt, dtrain)
+        return grad, hess
+
+    Xy = xgb.DMatrix(xtrain, ytrain)
+    booster = xgb.train({"tree_method": params["tree_method"], "num_target": ytrain.shape[1]},
+              dtrain=Xy,
+              num_boost_round=params["search_estimators"],
+              obj=squared_log)
+    testpred = booster.inplace_predict(xtest)
+    itertestsmac = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
+    return booster, itertestsmac.mean(), compute_stderror((itertestsmac))
+
+
