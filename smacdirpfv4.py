@@ -15,7 +15,7 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PortfolioOpt import PortfolioOpt
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, test_config, test_dir_weight, test_reg, test_weightmse, test_square_log
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstance, test_config, test_dir_weight, test_reg, test_weightmse, test_square_log
 from smacdirected import smac_search_lgb, eval_config_lgb, test_reg_lgb
 from utils import perfrandomdq
 
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
-    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad"])
+    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad", "idx"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
     parser.add_argument("--num-train", type=int, default=200)
@@ -123,13 +123,13 @@ if __name__ == "__main__":
           f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, ")
 
 
-    _, testdl, teststderr = test_reg_lgb(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-    print(f"Def lightGBM 2st , {testdl}, {teststderr}")
+    #_, testdl, teststderr = test_reg_lgb(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+    #print(f"Def lightGBM 2st , {testdl}, {teststderr}")
 
     # The shape of decision is the same as label Y
 
 
-    search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
+    search_map = {"mse++": DirectedLoss, "quad": QuadSearch, "idx": SearchbyInstance}
     search_map_cv = {"mse++": DirectedLossCrossValidation}
 
 
@@ -161,10 +161,12 @@ if __name__ == "__main__":
         smac.tell(info, value)
 
         if args.test_history:
-            _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-            _, testdl, teststderr = test_config(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config), xtrain, ytrain, xtest, ytest, auxtest)
             print(f"Vec {model.get_vec(info.config)}")
-            print(f"history vol test teststderr, {cost}, {trainvaldl}, {trainvaldlstderr}, {testdl}, {teststderr}")
+            if params["cross_valid"] == True:
+                  _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+                  print(f"history:train val set all, {trainvaldl}, {trainvaldlstderr}")
+            _, testdl, teststderr = test_config(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config), xtrain, ytrain, xtest, ytest, auxtest)
+            print(f"history val test teststderr, {cost}, {testdl}, {teststderr}")
 
     print(f"Search takes {time.time() - start_time} seconds")
 
@@ -173,7 +175,10 @@ if __name__ == "__main__":
     params_vec = model.get_vec(incumbent)
     print(f"Seaerch Choose {params_vec}")
     cusloss = model.get_loss_fn(incumbent)
-    Xy = xgb.DMatrix(xtrainvalall, ytrainvalall)
+    if params["cross_valid"] == True:
+        Xy = xgb.DMatrix(xtrainvalall, ytrainvalall)
+    else:
+        Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
 
     smacytrainpred = booster.inplace_predict(xtrain)

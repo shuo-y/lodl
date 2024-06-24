@@ -51,6 +51,31 @@ class search_weights_loss():
             return "evalloss", loss
         return eval_fn
 
+class search_full_weights():
+    def __init__(self, weights_mat, **kwargs):
+        # Make weights the same shape as y
+        self.weights_mat = weights_mat
+
+    def get_obj_fn(self):
+        def grad_fn(predt, dtrain):
+            y = dtrain.get_label().reshape(predt.shape)
+
+            diff = (predt - y)
+            grad = 2 * self.weights_mat * diff
+            hess = 2 * self.weights_mat
+
+            grad = grad.flatten()
+            hess = hess.flatten()
+            return grad, hess
+        return grad_fn
+
+    def get_eval_fn(self):
+        def eval_fn(predt, dtrain):
+            y = dtrain.get_label().reshape(predt.shape)
+
+            diff = (predt - y)
+            return (2 * self.weights_mat * (diff ** 2))
+        return eval_fn
 
 class search_weights_directed_loss():
     def __init__(self, weights_vec, **kwargs):

@@ -32,8 +32,14 @@ lgb_model = lgb.LGBMRegressor(n_estimators=100)
 lgb_multi = MultiOutputRegressor(lgb_model)
 lgb_multi.fit(X_train, y_train)
 
-import pdb
-pdb.set_trace()
+y_train = df_train[:, :1]
+y_test = df_test[:, :1]
+X_train = df_train[:, 1:]
+X_test = df_test[:, 1:]
+
+# create dataset for lightgbm
+lgb_train = lgb.Dataset(X_train, y_train)
+lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
 
 # specify your configurations as a dict
 params = {
@@ -92,9 +98,35 @@ def grad_fn(predt, tdata):
 # Check document
 # https://lightgbm.readthedocs.io/en/latest/pythonapi/lightgbm.LGBMRegressor.html#lightgbm.LGBMRegressor
 
+class CusEstimator():
+    def __init__(self):
+        self.models = []
+
+
+    def get_params(self, **kwargs):
+        return {}
+
+    def fit(self, xtrain, ytrain):
+        lgb_train = lgb.Dataset(xtrain, ytrain)
+        self.gbm_tree = lgb.train({"boosting_type": "gbdt", "objective": grad_fn, "seed": 0}, lgb_train, num_boost_round=20)
+
+
+    def predict(self, xtrain):
+        ypred = self.gbm_tree.predict(xtrain)
+        return ypred
+
+
+y_train = df_train[:, :2]
+y_test = df_test[:, :2]
+X_train = df_train[:, 2:]
+X_test = df_test[:, 2:]
+
+cuslgb = CusEstimator()
+multicuslgb = MultiOutputRegressor(cuslgb)
+multicuslgb.fit(X_train, y_train)
 
 
 
 
-gbm_cus3 = lgb.train({"boosting_type": "gbdt", "objective": grad_fn, "seed": 0}, lgb_train, num_boost_round=20, valid_sets=lgb_eval)
+#gbm_cus3 = lgb.train({"boosting_type": "gbdt", "objective": grad_fn, "seed": 0}, lgb_train, num_boost_round=20, valid_sets=lgb_eval)
 

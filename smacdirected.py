@@ -13,7 +13,7 @@ from ConfigSpace import Configuration, ConfigurationSpace, Float
 from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
-from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_quadratic_loss
+from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_quadratic_loss, search_full_weights
 from PThenO import PThenO
 from sklearn.multioutput import MultiOutputRegressor
 
@@ -91,6 +91,56 @@ class DirectedLoss:
     def get_xgb_params(self):
         return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]}
 
+class SearchbyInstance:
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, param_low, param_upp, param_def, auxdata=None):
+        self.xtrain = xtrain
+        self.ytrain = ytrain
+        self.xval = xval
+        self.yval = yval
+        self.params = params
+        self.prob = prob
+        self.aux_data = auxdata
+        self.param_low = param_low
+        self.param_upp = param_upp
+        self.param_def = param_def
+        # 0.0001, 0.01, 0.001
+
+    @property
+    def configspace(self) -> ConfigurationSpace:
+        cs = ConfigurationSpace()
+        configs = [Float(f"w{i}", (self.param_low, self.param_upp), default=self.param_def) for i in range(self.ytrain.shape[0])]
+        cs.add_hyperparameters(configs)
+        return cs
+
+    def train(self, configs: Configuration, seed: int) -> float:
+        configarray = [configs[f"w{i}"] for i in range(self.ytrain.shape[0])]
+        weight_vec = np.array(configarray)
+        weight_mat = np.tile(weight_vec, (self.ytrain.shape[1], 1)).T
+        Xy = xgb.DMatrix(self.xtrain, self.ytrain)
+        cusloss = search_full_weights(weight_mat)
+        booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]},
+                                dtrain = Xy, num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
+
+        yvalpred = booster.inplace_predict(self.xval)
+        valdl = self.prob.dec_loss(yvalpred, self.yval, aux_data=self.aux_data)
+
+        return valdl.mean()
+
+
+    def get_vec(self, incumbent) -> np.ndarray:
+        # Get the weight vector from incumbent
+        arr = [incumbent[f"w{i}"] for i in range(self.ytrain.shape[0])]
+        return np.array(arr)
+
+    def get_loss_fn(self, incumbent):
+        configarray = [incumbent[f"w{i}"] for i in range(self.ytrain.shape[0])]
+        weight_vec = np.array(configarray)
+        weight_mat = np.tile(weight_vec, (self.ytrain.shape[1], 1)).T
+        cusloss = search_full_weights(weight_mat)
+        return cusloss
+
+    def get_xgb_params(self):
+        return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]}
 
 class DirectedLossCrossValidation:
     def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None):
