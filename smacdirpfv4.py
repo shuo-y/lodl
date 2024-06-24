@@ -102,7 +102,10 @@ if __name__ == "__main__":
     # Check a baseline first
 
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
-    reg.fit(xtrainvalall, ytrainvalall)
+    if params["cross_valid"] == True:
+        reg.fit(xtrainvalall, ytrainvalall)
+    else:
+        reg.fit(xtrain, ytrain)
 
     ytrainpred = reg.predict(xtrain)
     traindl2st = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
