@@ -14,7 +14,7 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from ShortestPath import ShortestPath
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossMag, test_config
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossMag, SearchbyInstance, test_config
 
 def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
-    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "msemag++", "quad"])
+    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "msemag++", "quad", "idx"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
     parser.add_argument("--num-train", type=int, default=200)
@@ -112,22 +112,22 @@ if __name__ == "__main__":
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
 
-    print(f"2st train val test held, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
-          f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
-          f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
-          f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, ")
+    print(f"2st train val test held, {(traindl2st).mean()}, {compute_stderror(traindl2st)}, "
+          f"{(valdl2st).mean()}, {compute_stderror(valdl2st)}, "
+          f"{(testdl2st).mean()}, {compute_stderror(testdl2st)}, "
+          f"{(held2st).mean()}, {compute_stderror(held2st)}, ")
 
 
     # The shape of decision is the same as label Y
-    traindlrand = -1.0 * prob.get_objective(torch.tensor(ytrain).float(), torch.rand(ytrain.shape)).numpy().flatten()
-    valdlrand = -1.0 * prob.get_objective(torch.tensor(yval).float(), torch.rand(yval.shape)).numpy().flatten()
-    testdlrand = -1.0 * prob.get_objective(torch.tensor(ytest).float(), torch.rand(ytest.shape)).numpy().flatten()
-    helddlrand = -1.0 * prob.get_objective(torch.tensor(yheld).float(), torch.rand(yheld.shape)).numpy().flatten()
+    #traindlrand = -1.0 * prob.get_objective(torch.tensor(ytrain).float(), torch.rand(ytrain.shape)).numpy().flatten()
+    #valdlrand = -1.0 * prob.get_objective(torch.tensor(yval).float(), torch.rand(yval.shape)).numpy().flatten()
+    #testdlrand = -1.0 * prob.get_objective(torch.tensor(ytest).float(), torch.rand(ytest.shape)).numpy().flatten()
+    #helddlrand = -1.0 * prob.get_objective(torch.tensor(yheld).float(), torch.rand(yheld.shape)).numpy().flatten()
 
-    search_map = {"mse++": DirectedLoss, "quad": QuadSearch, "msemag++": DirectedLossMag}
+    search_map = {"mse++": DirectedLoss, "quad": QuadSearch, "msemag++": DirectedLossMag, "idx": SearchbyInstance}
     search_model = search_map[args.search_method]
 
-    model = search_model(prob, params, xtrain, ytrain, xval, yval, valdltrue, None, args.param_low, args.param_upp, args.param_def)
+    model = search_model(prob, params, xtrain, ytrain, xval, yval, args.param_low, args.param_upp, args.param_def)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)  # We basically use one seed per config only
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
@@ -145,10 +145,10 @@ if __name__ == "__main__":
 
         smac.tell(info, value)
 
-        if args.test_history:
-            testdl, testvar = test_config(params, prob, model, xtrain, ytrain, xtest, ytest, None, testdltrue, info.config)
-            helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, None, helddltrue, info.config)
-            print(f"history, {cost}, {testdl}, {testvar}, {helddl}, {heldvar}")
+        if args.test_history or cnt == args.n_trials - 1:
+            _, testdl, testvar = test_config(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config), xtrain, ytrain, xtest, ytest, None)
+            #helddl, heldvar = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, None, helddltrue, info.config)
+            print(f"history, {cost}, {testdl}, {testvar}")
 
     print(f"Search takes {time.time() - start_time} seconds")
 
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     heldvalues = []
     for i in range(args.topk):
         conf = records[i][1]
-        testdl, _ = test_config(params, prob, model, xtrain, ytrain, xheld, yheld, helddltrue, conf)
+        _, testdl, testvar = test_config(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config), xtrain, ytrain, xheld, yheld, None)
         heldvalues.append(testdl)
 
     pickind = np.argmin(heldvalues)
@@ -181,6 +181,8 @@ if __name__ == "__main__":
     smacyheldpred = booster.inplace_predict(xheld)
     heldsmac = prob.dec_loss(smacyheldpred, yheld).flatten()
 
+    print(f"final train val test held, {trainsmac.mean()}, {valsmac.mean()}, {testsmac.mean()}, {heldsmac.mean()}")
+
 
     sanity_check(traindl2st - traindltrue, "train2st")
     sanity_check(valdl2st - valdltrue, "val2st")
@@ -188,27 +190,13 @@ if __name__ == "__main__":
     sanity_check(trainsmac - traindltrue, "trainsmac")
     sanity_check(valsmac - valdltrue, "valsmac")
     sanity_check(testsmac - testdltrue, "testsmac")
+    """
     sanity_check(traindlrand - traindltrue, "trainrand")
     sanity_check(valdlrand - valdltrue, "valrand")
     sanity_check(testdlrand - testdltrue, "testrand")
+    """
 
 
-    print("res,2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
-          "smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
-          "randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr,"
-          "held2st,held2ststderr,heldsmac,heldsmacstderr,heldrand,heldrandstderr")
-    print((f"res, {(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
-           f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
-           f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)}, "
-           f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
-           f"{(valsmac - valdltrue).mean()}, {compute_stderror(valsmac - valdltrue)}, "
-           f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)}, "
-           f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
-           f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
-           f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}, "
-           f"{(held2st - helddltrue).mean()}, {compute_stderror(held2st - helddltrue)}, "
-           f"{(heldsmac - helddltrue).mean()}, {compute_stderror(heldsmac - helddltrue)}, "
-           f"{(helddlrand - helddltrue).mean()}, {compute_stderror(helddlrand - helddltrue)}"))
 
 
 
