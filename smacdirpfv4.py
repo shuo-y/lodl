@@ -15,7 +15,7 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PortfolioOpt import PortfolioOpt
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstance, test_config, test_dir_weight, test_reg, test_weightmse, test_square_log
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstance, SearchbyInstanceCrossValid, test_config, test_dir_weight, test_reg, test_weightmse, test_square_log
 from smacdirected import smac_search_lgb, eval_config_lgb, test_reg_lgb
 from utils import perfrandomdq
 
@@ -38,8 +38,8 @@ if __name__ == "__main__":
     parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad", "idx"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
-    parser.add_argument("--num-train", type=int, default=200)
-    parser.add_argument("--num-val", type=int, default=200)
+    parser.add_argument("--num-train", type=int, default=150)
+    parser.add_argument("--num-val", type=int, default=50)
     parser.add_argument("--num-test", type=int, default=400)
     parser.add_argument("--start-time", type=str, default="dt.datetime(2004, 1, 1)")
     parser.add_argument("--end-time", type=str, default="dt.datetime(2017, 1, 1)")
@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
 
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch, "idx": SearchbyInstance}
-    search_map_cv = {"mse++": DirectedLossCrossValidation}
+    search_map_cv = {"mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid}
 
 
     if params["cross_valid"] == True:
@@ -167,9 +167,10 @@ if __name__ == "__main__":
             print(f"Vec {model.get_vec(info.config)}")
             if params["cross_valid"] == True:
                   _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-                  print(f"history:train val set all, {trainvaldl}, {trainvaldlstderr}")
-            _, testdl, teststderr = test_config(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config), xtrain, ytrain, xtest, ytest, auxtest)
-            print(f"history val test teststderr, {cost}, {testdl}, {teststderr}")
+                  print(f"history:val train_val_all, {cost}, {trainvaldl}, {trainvaldlstderr}")
+            else:
+                _, testdl, teststderr = test_config(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config), xtrain, ytrain, xtest, ytest, auxtest)
+                print(f"history val test teststderr, {cost}, {testdl}, {teststderr}")
 
     print(f"Search takes {time.time() - start_time} seconds")
 

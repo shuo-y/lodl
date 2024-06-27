@@ -142,6 +142,81 @@ class SearchbyInstance:
     def get_xgb_params(self):
         return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]}
 
+
+class SearchbyInstanceCrossValid:
+    def __init__(self, prob, params, X, y, param_low, param_upp, param_def, auxdata=None, nfold=5):
+        self.params = params
+        self.prob = prob
+        self.aux_data = auxdata
+        self.param_low = param_low
+        self.param_upp = param_upp
+        self.param_def = param_def
+        self.Xys = []
+        self.auxdatas = []
+        self.valdatas = []
+        N = len(X)
+        cnt = N // nfold
+        if N % nfold != 0:
+            print("Warning: number of trainning items is not a multiple of the number of fold")
+        self.nfold = nfold
+        self.ydim = y.shape[1]
+        self.nitems = N
+        self.X = X
+        self.y = y
+
+        for i in range(self.nfold):
+            testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
+            otherind = [idx for idx in range(self.nitems) if idx < i * cnt or idx >= (i + 1) * cnt]
+            self.Xys.append(xgb.DMatrix(X[otherind], y[otherind]))
+            if auxdata is not None:
+                self.auxdatas.append(auxdata[testind])
+            self.valdatas.append((X[testind], y[testind]))
+
+    @property
+    def configspace(self) -> ConfigurationSpace:
+        cs = ConfigurationSpace()
+        configs = [Float(f"w{i}", (self.param_low, self.param_upp), default=self.param_def) for i in range(self.nitems)]
+        cs.add_hyperparameters(configs)
+        return cs
+
+    def train(self, configs: Configuration, seed: int) -> float:
+        configarray = [configs[f"w{i}"] for i in range(self.nitems)]
+        weight_vec = np.array(configarray)
+        weight_mat = np.tile(weight_vec, (self.ydim, 1)).T
+
+        costs = []
+        cnt = self.nitems // self.nfold
+        for i in range(self.nfold):
+            otherind = [idx for idx in range(self.nitems) if idx < i * cnt or idx >= (i + 1) * cnt]
+            cusloss = search_full_weights(weight_mat[otherind])
+            booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.ydim},
+                                    dtrain = self.Xys[i], num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
+
+            yvalpred = booster.inplace_predict(self.valdatas[i][0])
+            if len(self.auxdatas) > 0:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1], aux_data=self.auxdatas[i])
+            else:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1])
+            costs.append(valdl.mean())
+
+        return np.mean(costs)
+
+
+    def get_vec(self, incumbent) -> np.ndarray:
+        # Get the weight vector from incumbent
+        arr = [incumbent[f"w{i}"] for i in range(self.nitems)]
+        return np.array(arr)
+
+    def get_loss_fn(self, incumbent):
+        configarray = [incumbent[f"w{i}"] for i in range(self.nitems)]
+        weight_vec = np.array(configarray)
+        weight_mat = np.tile(weight_vec, (self.ydim, 1)).T
+        cusloss = search_full_weights(weight_mat)
+        return cusloss
+
+    def get_xgb_params(self):
+        return {"tree_method": self.params["tree_method"], "num_target": self.ydim}
+
 class DirectedLossCrossValidation:
     def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None):
         # directed loss with cross validation
