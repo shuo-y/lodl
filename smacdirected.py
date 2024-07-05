@@ -201,6 +201,12 @@ class SearchbyInstanceCrossValid:
 
         return np.mean(costs)
 
+    def get_def_loss_fn(self):
+        weight_vec = np.array([self.param_def for _ in range(self.nitems)])
+        weight_mat = np.tile(weight_vec, (self.ydim, 1)).T
+        cusloss = search_full_weights(weight_mat)
+        return cusloss
+
 
     def get_vec(self, incumbent) -> np.ndarray:
         # Get the weight vector from incumbent

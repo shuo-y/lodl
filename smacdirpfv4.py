@@ -1,4 +1,5 @@
 import random
+import sys
 import argparse
 import time
 import numpy as np
@@ -17,7 +18,7 @@ from losses import search_weights_loss, search_quadratic_loss, search_weights_di
 from PortfolioOpt import PortfolioOpt
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstance, SearchbyInstanceCrossValid, test_config, test_dir_weight, test_reg, test_weightmse, test_square_log
 from smacdirected import smac_search_lgb, eval_config_lgb, test_reg_lgb
-from utils import perfrandomdq
+from utils import perfrandomdq, print_train_test, print_train_val_test
 
 def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     params = vars(args)
 
     # Load problem
-    print(f"Hyperparameters: {args}\n")
+    print(f"File:{sys.argv[0]} Hyperparameters: {args}\n")
 
 
     random.seed(args.seed)
@@ -116,8 +117,12 @@ if __name__ == "__main__":
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
 
+    ytrainvalpred = reg.predict(xtrainvalall)
+    trainvaldl2st = prob.dec_loss(ytrainvalpred, ytrainvalall, aux_data=auxtrainvalall).flatten()
+
     traindltrue = prob.dec_loss(ytrain, ytrain, aux_data=auxtrain).flatten()
     valdltrue = prob.dec_loss(yval, yval, aux_data=auxval).flatten()
+    trainvaldltrue = prob.dec_loss(ytrainvalall, ytrainvalall, aux_data=auxtrainvalall).flatten()
     testdltrue = prob.dec_loss(ytest, ytest, aux_data=auxtest).flatten()
 
 
@@ -125,9 +130,6 @@ if __name__ == "__main__":
           f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, "
           f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, ")
 
-
-    #_, testdl, teststderr = test_reg_lgb(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-    #print(f"Def lightGBM 2st , {testdl}, {teststderr}")
 
     # The shape of decision is the same as label Y
 
@@ -139,6 +141,8 @@ if __name__ == "__main__":
     if params["cross_valid"] == True:
           search_model = search_map_cv[args.search_method]
           model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, auxdata=auxtrainvalall, nfold=params["cv_fold"])
+          _, bltestdl, bldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+          print(f"Baseline:val train_val_all, {bltestdl}, {bldlstderr}")
     else:
           search_model = search_map[args.search_method]
           model = search_model(prob, params, xtrain, ytrain, xval, yval, args.param_low, args.param_upp, args.param_def, auxdata=auxval)
@@ -191,42 +195,22 @@ if __name__ == "__main__":
     smacyvalpred = booster.inplace_predict(xval)
     valsmac = prob.dec_loss(smacyvalpred, yval, aux_data=auxval).flatten()
 
+    smactrainvalpred = booster.inplace_predict(xtrainvalall)
+    trainvalsmac = prob.dec_loss(smactrainvalpred, ytrainvalall, aux_data=auxtrainvalall).flatten()
 
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest, aux_data=auxtest).flatten()
 
-
-    traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain), Y_aux=torch.tensor(auxtrain), trials=10).numpy().flatten()
     testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest), Y_aux=torch.tensor(auxtest), trials=10).numpy().flatten()
-    valdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(yval), Y_aux=torch.tensor(auxval), trials=10).numpy().flatten()
 
-    sanity_check(traindl2st - traindltrue, "train2st")
-    sanity_check(valdl2st - valdltrue, "val2stall")
-    sanity_check(testdl2st - testdltrue, "test2st")
-    sanity_check(trainsmac - traindltrue, "trainsmac")
-    sanity_check(valsmac - valdltrue, "valsmacall")
-    sanity_check(testsmac - testdltrue, "testsmac")
-    sanity_check(traindlrand - traindltrue, "trainrand")
-    sanity_check(valdlrand - valdltrue, "valrand")
-    sanity_check(testdlrand - testdltrue, "testrand")
+    if params["cross_valid"] == True:
+        trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall), Y_aux=torch.tensor(auxtrainvalall), trials=10).numpy().flatten()
+        print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvaldlrand, testdlrand, trainvaldltrue, testdltrue, bltestdl)
+    else:
+        traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain), Y_aux=torch.tensor(auxtrain), trials=10).numpy().flatten()
+        valdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(yval), Y_aux=torch.tensor(auxval), trials=10).numpy().flatten()
+        print_train_val_test(traindl2st, valdl2st, testdl2st, trainsmac, valsmac, testsmac, traindlrand, valdlrand, testdlrand, traindltrue, valdltrue, testdltrue, bltestdl)
 
-
-    print("DQ, 2stagetrainobj, 2stagetestobj, 2statevalobj, "
-          "smactrainobj, smactestobj, smacvalobj, "
-          "randtrainobj, randtestobj, randvalobj, "
-          "truetrainobj, truetestobj, truevalobj, ")
-    print(f"DQ, {-1 * traindl2st.mean()}, {-1 * testdl2st.mean()}, {-1 * valdl2st.mean()}, "
-          f"{-1 * trainsmac.mean()}, {-1 * testsmac.mean()}, {-1 * valsmac.mean()}, "
-          f"{-1 * traindlrand.mean()}, {-1 * testdlrand.mean()}, {-1 * valdlrand.mean()}, "
-          f"{-1 * traindltrue.mean()}, {-1 * testdltrue.mean()}, {-1 * valdltrue.mean()}, ")
-
-    print("NorDQ, 2stagetest, smactest, 2stageval, smacval, 2stagetrain, smactrain, ")
-    print(f"NorDQ, {((-testdl2st + testdlrand)/(-testdltrue + testdlrand)).mean()}, {((-testsmac + testdlrand)/(-testdltrue + testdlrand)).mean()}, "
-          f"{((-valdl2st + valdlrand)/(-valdltrue + valdlrand)).mean()}, {((-valsmac + valdlrand)/(-valdltrue + valdlrand)).mean()}, "
-          f"{((-traindl2st + traindlrand)/(-traindltrue + traindlrand)).mean()}, {((-trainsmac + traindlrand)/(-traindltrue + traindlrand)).mean()}, ")
-
-    import sys
-    print(sys.argv[0])
 
 
 

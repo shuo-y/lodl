@@ -1,4 +1,5 @@
 import random
+import sys
 import argparse
 import time
 import numpy as np
@@ -16,18 +17,7 @@ from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from ShortestPath import ShortestPath
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, test_config, test_dir_weight
-from utils import perfrandomdq
-
-def compute_stderror(vec: np.ndarray) -> float:
-    popstd = vec.std()
-    n = len(vec)
-    return (popstd * np.sqrt(n / (n - 1.0))) / np.sqrt(n)
-
-def sanity_check(vec: np.ndarray, msg: str) -> None:
-    if (vec < 0).any():
-        print(f"{msg}: check some negative value {vec}")
-
-
+from utils import perfrandomdq, print_train_test
 
 
 if __name__ == "__main__":
@@ -47,7 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-low", type=float, default=0.001)
     parser.add_argument("--param-upp", type=float, default=2.5)
     parser.add_argument("--param-def", type=float, default=0.05)
-    parser.add_argument("--test-history", action="store_true", help="Check test dl of the history")
+    parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
     parser.add_argument("--cv-fold", type=int, default=5)
 
@@ -55,7 +45,7 @@ if __name__ == "__main__":
     params = vars(args)
 
     # Load problem
-    print(f"Hyperparameters: {args}\n")
+    print(f"File:{sys.argv[0]} Hyperparameters: {args}\n")
 
 
     random.seed(args.seed)
@@ -97,35 +87,27 @@ if __name__ == "__main__":
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
     reg.fit(xtrainvalall, ytrainvalall)
 
-    ytrainpred = reg.predict(xtrain)
-    traindl2st = prob.dec_loss(ytrainpred, ytrain).flatten()
-
-    yvalpred = reg.predict(xval)
-    valdl2st = prob.dec_loss(yvalpred, yval).flatten()
-
+    ytrainvalpred = reg.predict(xtrainvalall)
+    trainvaldl2st = prob.dec_loss(ytrainvalpred, ytrainvalall).flatten()
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest).flatten()
 
-    traindltrue = prob.dec_loss(ytrain, ytrain).flatten()
-    valdltrue = prob.dec_loss(yval, yval).flatten()
+    trainvaldltrue = prob.dec_loss(ytrainvalall, ytrainvalall).flatten()
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
 
-    print(f"2st(trained on both train and val) train test val obj, {traindl2st.mean()}, {compute_stderror(traindl2st)}, "
-          f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, "
-          f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, ")
+    print(f"2st(trained on both train and val) trainval test val obj, {trainvaldl2st.mean()}, {compute_stderror(trainvaldl2st)}, "
+          f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, ")
 
-    _, testdl, teststderr = test_dir_weight(params, prob, xtrain, ytrain, xtest, ytest, None)
-    print(f"Def test def directed weight, {testdl}, {teststderr}")
+    _, bltestdl, bldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+    print(f"Baseline:val train_val_all, {bltestdl}, {bldlstderr}")
 
     # The shape of decision is the same as label Y
-    traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain).float(), Y_aux=None, trials=10).numpy().flatten()
+    trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall).float(), Y_aux=None, trials=10).numpy().flatten()
     testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest).float(), Y_aux=None, trials=10).numpy().flatten()
-    valdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(yval).float(), Y_aux=None, trials=10).numpy().flatten()
 
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
     search_map_cv = {"mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid}
-
 
     search_model = search_map_cv[args.search_method]
     model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"])
@@ -147,7 +129,7 @@ if __name__ == "__main__":
 
         smac.tell(info, value)
 
-        if args.test_history:
+        if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
             _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
             print(f"Vec {model.get_vec(info.config)}")
             print(f"history vol test teststderr, {cost}, {trainvaldl}, {trainvaldlstderr}")
@@ -162,44 +144,16 @@ if __name__ == "__main__":
     Xy = xgb.DMatrix(xtrainvalall, ytrainvalall)
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
 
-    smacytrainpred = booster.inplace_predict(xtrain)
-    trainsmac = prob.dec_loss(smacytrainpred, ytrain).flatten()
-
-    smacyvalpred = booster.inplace_predict(xval)
-    valsmac = prob.dec_loss(smacyvalpred, yval).flatten()
+    smacytrainvalpred = booster.inplace_predict(xtrainvalall)
+    trainvalsmac = prob.dec_loss(smacytrainvalpred, ytrainvalall).flatten()
 
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
 
-
-    sanity_check(traindl2st - traindltrue, "train2st")
-    sanity_check(valdl2st - valdltrue, "val2stall")
-    sanity_check(testdl2st - testdltrue, "test2st")
-    sanity_check(trainsmac - traindltrue, "trainsmac")
-    sanity_check(valsmac - valdltrue, "valsmacall")
-    sanity_check(testsmac - testdltrue, "testsmac")
-    sanity_check(traindlrand - traindltrue, "trainrand")
-    sanity_check(valdlrand - valdltrue, "valrand")
-    sanity_check(testdlrand - testdltrue, "testrand")
+    print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvaldlrand, testdlrand, trainvaldltrue, testdltrue, bltestdl)
 
 
 
-    print("DQ, 2stagetrainobj, 2stagetestobj, 2statevalobj, "
-          "smactrainobj, smactestobj, smacvalobj, "
-          "randtrainobj, randtestobj, randvalobj, "
-          "truetrainobj, truetestobj, truevalobj, ")
-    print(f"DQ, {-1 * traindl2st.mean()}, {-1 * testdl2st.mean()}, {-1 * valdl2st.mean()}, "
-          f"{-1 * trainsmac.mean()}, {-1 * testsmac.mean()}, {-1 * valsmac.mean()}, "
-          f"{-1 * traindlrand.mean()}, {-1 * testdlrand.mean()}, {-1 * valdlrand.mean()}, "
-          f"{-1 * traindltrue.mean()}, {-1 * testdltrue.mean()}, {-1 * valdltrue.mean()}, ")
-
-    print("NorDQ, 2stagetest, smactest, 2stageval, smacval, 2stagetrain, smactrain, ")
-    print(f"NorDQ, {((-testdl2st + testdlrand)/(-testdltrue + testdlrand)).mean()}, {((-testsmac + testdlrand)/(-testdltrue + testdlrand)).mean()}, "
-          f"{((-valdl2st + valdlrand)/(-valdltrue + valdlrand)).mean()}, {((-valsmac + valdlrand)/(-valdltrue + valdlrand)).mean()}, "
-          f"{((-traindl2st + traindlrand)/(-traindltrue + traindlrand)).mean()}, {((-trainsmac + traindlrand)/(-traindltrue + traindlrand)).mean()}, ")
-
-    import sys
-    print(sys.argv[0])
 
 
 
