@@ -16,20 +16,9 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PortfolioOpt import PortfolioOpt
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstance, SearchbyInstanceCrossValid, test_config, test_dir_weight, test_reg, test_weightmse, test_square_log
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstance, SearchbyInstanceCrossValid, test_config, test_config_vec, test_dir_weight, test_reg, test_weightmse, test_square_log
 from smacdirected import smac_search_lgb, eval_config_lgb, test_reg_lgb
-from utils import perfrandomdq, print_train_test, print_train_val_test
-
-def compute_stderror(vec: np.ndarray) -> float:
-    popstd = vec.std()
-    n = len(vec)
-    return (popstd * np.sqrt(n / (n - 1.0))) / np.sqrt(n)
-
-def sanity_check(vec: np.ndarray, msg: str) -> None:
-    if (vec < 0).any():
-        print(f"{msg}: check some negative value {vec}")
-
-
+from utils import perfrandomdq, print_train_test, print_train_val_test, compute_stderror, sanity_check
 
 
 if __name__ == "__main__":
@@ -50,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-low", type=float, default=0.008)
     parser.add_argument("--param-upp", type=float, default=2)
     parser.add_argument("--param-def", type=float, default=0.04)
-    parser.add_argument("--test-history", action="store_true", help="Check test dl of the history")
+    parser.add_argument("--n-test-history", type=int, default=0, help="Check test dl of the history")
     parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
     parser.add_argument("--cv-fold", type=int, default=5)
 
@@ -141,8 +130,8 @@ if __name__ == "__main__":
     if params["cross_valid"] == True:
           search_model = search_map_cv[args.search_method]
           model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, auxdata=auxtrainvalall, nfold=params["cv_fold"])
-          _, bltestdl, bldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-          print(f"Baseline:val train_val_all, {bltestdl}, {bldlstderr}")
+          _, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+          print(f"Baseline:val train_val_all, {bltestdl.mean()}, {compute_stderror(bltestdl)}")
     else:
           search_model = search_map[args.search_method]
           model = search_model(prob, params, xtrain, ytrain, xval, yval, args.param_low, args.param_upp, args.param_def, auxdata=auxval)
@@ -167,7 +156,7 @@ if __name__ == "__main__":
 
         smac.tell(info, value)
 
-        if args.test_history:
+        if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
             print(f"Vec {model.get_vec(info.config)}")
             if params["cross_valid"] == True:
                   _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)

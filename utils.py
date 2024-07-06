@@ -46,7 +46,7 @@ def print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvald
           "truetrainvalobjstderr, truetestobjstderr, ",
           "bltestdlobj, bltestdlobjstderr")
     print(f"DQ, {-1 * trainvaldl2st.mean()}, {-1 * testdl2st.mean()}, "
-          f"{-1 * compute_stderror(trainvaldl2st)}. {-1 compute_stderror(testdl2st)}, "
+          f"{-1 * compute_stderror(trainvaldl2st)}, {-1 * compute_stderror(testdl2st)}, "
           f"{-1 * trainvalsmac.mean()}, {-1 * testsmac.mean()}, "
           f"{-1 * compute_stderror(trainvalsmac)}, {-1 * compute_stderror(testsmac)}, "
           f"{-1 * trainvaldlrand.mean()}, {-1 * testdlrand.mean()}, "
@@ -77,7 +77,8 @@ def print_train_val_test(traindl2st, valdl2st, testdl2st, trainsmac, valsmac, te
           "randtrainobj, randvalobj, randtestobj, "
           "randtrainobjstderr, randvalobjstderr, randtestobjstderr, "
           "truetrainobj, truevalobj, truetestobj, "
-          "truetrainobjstderr, truevalobjstderr, truetestobjstderr, ")
+          "truetrainobjstderr, truevalobjstderr, truetestobjstderr, "
+          "bltestdlobj, bltestdlobjstderr")
     print(f"DQ, {-1 * traindl2st.mean()}, {-1 * valdl2st.mean()}, {-1 * testdl2st.mean()}, "
           f"{-1 * compute_stderror(traindl2st)}, {-1 * compute_stderror(valdl2st)}, {-1 * compute_stderror(testdl2st)}, "
           f"{-1 * trainsmac.mean()}, {-1 * valsmac.mean()}, {-1 * testsmac.mean()}, "

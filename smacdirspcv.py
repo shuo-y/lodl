@@ -16,8 +16,8 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from ShortestPath import ShortestPath
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, test_config, test_dir_weight
-from utils import perfrandomdq, print_train_test
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, test_config, test_config_vec, test_dir_weight
+from utils import perfrandomdq, print_train_test, compute_stderror, sanity_check
 
 
 if __name__ == "__main__":
@@ -99,8 +99,8 @@ if __name__ == "__main__":
     print(f"2st(trained on both train and val) trainval test val obj, {trainvaldl2st.mean()}, {compute_stderror(trainvaldl2st)}, "
           f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, ")
 
-    _, bltestdl, bldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-    print(f"Baseline:val train_val_all, {bltestdl}, {bldlstderr}")
+    _, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+    print(f"Baseline:val train_val_all, {bltestdl.mean()}, {compute_stderror(bltestl)}")
 
     # The shape of decision is the same as label Y
     trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall).float(), Y_aux=None, trials=10).numpy().flatten()
