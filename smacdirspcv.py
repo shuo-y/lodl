@@ -99,8 +99,6 @@ if __name__ == "__main__":
     print(f"2st(trained on both train and val) trainval test val obj, {trainvaldl2st.mean()}, {compute_stderror(trainvaldl2st)}, "
           f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, ")
 
-    _, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-    print(f"Baseline:val train_val_all, {bltestdl.mean()}, {compute_stderror(bltestl)}")
 
     # The shape of decision is the same as label Y
     trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall).float(), Y_aux=None, trials=10).numpy().flatten()
@@ -111,6 +109,9 @@ if __name__ == "__main__":
 
     search_model = search_map_cv[args.search_method]
     model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"])
+
+    _, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+    print(f"Baseline:val train_val_all, {bltestdl.mean()}, {compute_stderror(bltestl)}")
 
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
