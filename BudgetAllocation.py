@@ -18,13 +18,8 @@ class BudgetAllocation(PThenO):
         budget=2,  # number of items that can be picked
         num_fake_targets=500,  # number of random features added to make the task harder
         val_frac=0.2,  # fraction of training data reserved for validation
-        rand_seed=0,  # for reproducibility
     ):
         super(BudgetAllocation, self).__init__()
-        # Do some random seed fu
-        self.rand_seed = rand_seed
-        self._set_seed(self.rand_seed)
-        train_seed, test_seed = random.randrange(2**32), random.randrange(2**32)
 
         # Load train and test labels
         self.num_train_instances = num_train_instances
@@ -172,4 +167,24 @@ class BudgetAllocation(PThenO):
         #   Convert it back to the right shape
         Z = Z.view((*Y_shape[:-2], -1))
         return Z
+
+    def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, w=None, verbose=False, **kwargs) -> np.ndarray:
+        # Function signature is from the https://github.com/facebookresearch/LANCER
+        # TODO Need to check how does SubmodularOptimizer work
+
+        Ypred = torch.tensor(z_pred)
+        Ytrue = torch.tensor(z_true)
+
+        dec = self.get_decision(Ypred)
+        obj = self.get_objective(Ytrue, dec, w=w)
+        return obj.detach().numpy()
+
+if __name__ == "__main__":
+    random.seed(0) # For debug
+    prob = BudgetAllocation()
+
+    Xtrain, Ytrain, _ = prob.get_train_data()
+
+
+
 
