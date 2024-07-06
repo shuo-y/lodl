@@ -110,7 +110,7 @@ if __name__ == "__main__":
     search_model = search_map_cv[args.search_method]
     model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"])
 
-    _, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+    _, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, None)
     print(f"Baseline:val train_val_all, {bltestdl.mean()}, {compute_stderror(bltestl)}")
 
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
