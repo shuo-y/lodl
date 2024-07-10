@@ -131,7 +131,7 @@ if __name__ == "__main__":
         smac.tell(info, value)
 
         if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
-            _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+            _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, None)
             print(f"Vec {model.get_vec(info.config)}")
             print(f"history vol test teststderr, {cost}, {trainvaldl}, {trainvaldlstderr}")
 
