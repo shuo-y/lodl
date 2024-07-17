@@ -156,14 +156,14 @@ if __name__ == "__main__":
 
         smac.tell(info, value)
 
-        if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
+        if cnt == 0 or (params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0):
             print(f"Vec {model.get_vec(info.config)}")
             if params["cross_valid"] == True:
                   _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-                  print(f"history:val train_val_all, {cost}, {trainvaldl}, {trainvaldlstderr}")
+                  print(f"history: iter{cnt} val train_val_all, {cost}, {trainvaldl}, {trainvaldlstderr}")
             else:
                 _, testdl, teststderr = test_config(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config), xtrain, ytrain, xtest, ytest, auxtest)
-                print(f"history val test teststderr, {cost}, {testdl}, {teststderr}")
+                print(f"history iter{cnt} val test teststderr, {cost}, {testdl}, {teststderr}")
 
     print(f"Search takes {time.time() - start_time} seconds")
 

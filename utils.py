@@ -29,13 +29,39 @@ def perfrandomdq(problem, Y, Y_aux, trials):
     randomdqs = torch.stack(objs_rand).mean(axis=0)
     return randomdqs
 
-def print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvaldlrand, testdlrand, trainvaldltrue, testdltrue, bltestdl):
-    sanity_check(testdl2st - testdltrue, "test2st")
-    sanity_check(testsmac - testdltrue, "testsmac")
-    sanity_check(testdlrand - testdltrue, "testrand")
-    sanity_check(bltestdl - testdltrue, "testbl")
+
+#def print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvaldlrand, testdlrand, trainvaldltrue, testdltrue, bltestdl):
+
+def print_dq(dllist, namelist):
+    print("DQ,", end="")
+    assert len(dllist) == len(namelist)
+    for i in range(len(dllist)):
+        dl = dllist[i]
+        col = namelist[i]
+        print(f"{col}, {col}_stderr, ", end="")
+        print(f"{-1 * dl.mean()}, {-1 * compute_stderror(dl)}, ", end="")
+    print()
 
 
+def print_nor_dq(verbose, dllist, namelist, randdl, optdl):
+    assert len(dllist) == len(namelist)
+    for i in range(len(dllist)):
+        dl = dllist[i]
+        col = namelist[i]
+        sanity_check(dl - optdl, f"{verbose}_{col}_nordq")
+
+    print(verbose, end="")
+    for i in range(len(dllist)):
+        dl = dllist[i]
+        col = namelist[i]
+        nordq = (-dl + randdl)/ (-optdl + randdl)
+        print(f"{col}nordq, {col}nordqstderr, ", end="")
+        print(f"{nordq.mean()}, {compute_stderror(nordq)}, ", end="")
+    print()
+
+
+
+"""
     print("DQ, 2stagetrainvalobj, 2stagetestobj, "
           "2stagetrainvalobjstderr, 2stagetestobjstderr, "
           "smactrainvalobj, smactestobj, "
@@ -63,6 +89,7 @@ def print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvald
           "2stageteststderr, smacteststderr, blteststderr, ")
     print(f"NorDQ, {nortest2stage.mean()}, {nortestsmac.mean()}, {nortestbl.mean()}, "
           f"{compute_stderror(nortest2stage)}, {compute_stderror(nortestsmac)}, {compute_stderror(nortestbl)} ")
+"""
 
 def print_train_val_test(traindl2st, valdl2st, testdl2st, trainsmac, valsmac, testsmac, traindlrand, valdlrand, testdlrand, traindltrue, valdltrue, testdltrue, bltestdl):
     sanity_check(testdl2st - testdltrue, "test2st")

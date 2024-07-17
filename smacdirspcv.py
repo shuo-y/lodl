@@ -16,8 +16,8 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from ShortestPath import ShortestPath
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, test_config, test_config_vec, test_dir_weight
-from utils import perfrandomdq, print_train_test, compute_stderror, sanity_check
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, test_config, test_config_vec, test_dir_weight, eval_xgb_hyper
+from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check
 
 
 if __name__ == "__main__":
@@ -38,8 +38,9 @@ if __name__ == "__main__":
     parser.add_argument("--param-upp", type=float, default=2.5)
     parser.add_argument("--param-def", type=float, default=0.05)
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
-    parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
     parser.add_argument("--cv-fold", type=int, default=5)
+    parser.add_argument("--test-hyper", action="store_true", help="Test Hyperparameters")
+    #parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
 
     args = parser.parse_args()
     params = vars(args)
@@ -96,7 +97,7 @@ if __name__ == "__main__":
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
 
-    print(f"2st(trained on both train and val) trainval test val obj, {trainvaldl2st.mean()}, {compute_stderror(trainvaldl2st)}, "
+    print(f"2st(trained on both train and val) trainval test val dl, {trainvaldl2st.mean()}, {compute_stderror(trainvaldl2st)}, "
           f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, ")
 
 
@@ -113,10 +114,21 @@ if __name__ == "__main__":
     _, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, None)
     print(f"Baseline:val train_val_all, {bltestdl.mean()}, {compute_stderror(bltestdl)}")
 
+    print_dq([trainvaldl2st, testdl2st, bltestdl], ["trainvaldl2st", "testdl2st", "bl1"])
+    print_nor_dq("trainvalnor", [trainvaldl2st], ["trainvaldl2st"], trainvaldlrand, trainvaldltrue)
+    print_nor_dq("testnor", [testdl2st, bltestdl], ["testdl2st", "bltestdl"], testdlrand, testdltrue)
+
+    if params["test_hyper"] == True:
+        _, hypertestdl = eval_xgb_hyper(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, None)
+        print(f"Hypertest dl: {hypertestdl.mean()}, {compute_stderror(hypertestdl)}")
+        print_dq([hypertestdl], ["hypertestdl"])
+        print_nor_dq("testnor", [hypertestdl], ["hypertestdl"], testdlrand, testdltrue)
+        exit(0)
+
+
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
-
 
     records = []
     start_time = time.time()
@@ -130,10 +142,13 @@ if __name__ == "__main__":
 
         smac.tell(info, value)
 
+        if cnt == 0:
+            _, blfirst = test_config_vec(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, None)
+
         if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
             _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, None)
             print(f"Vec {model.get_vec(info.config)}")
-            print(f"history vol test teststderr, {cost}, {trainvaldl}, {trainvaldlstderr}")
+            print(f"history iter{cnt} vol test teststderr, {cost}, {trainvaldl}, {trainvaldlstderr}")
 
     print(f"Search takes {time.time() - start_time} seconds")
 
@@ -151,7 +166,9 @@ if __name__ == "__main__":
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
 
-    print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvaldlrand, testdlrand, trainvaldltrue, testdltrue, bltestdl)
+    print_dq([trainvaldl2st, testdl2st, trainvalsmac, testsmac, bltestdl, blfirst], ["trainvaldl2st", "testdl2st", "trainvalsmac", "testsmac", "bl1", "blfirstcnt"])
+    print_nor_dq("trainvalnor", [trainvaldl2st, trainvalsmac], ["trainvaldl2st", "trainvalsmac"], trainvaldlrand, trainvaldltrue)
+    print_nor_dq("testnor", [testdl2st, testsmac, bltestdl, blfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
 
 
 

@@ -9,7 +9,7 @@ import torch
 #import metis
 import pdb
 import cvxpy as cp
-from cvxpylayers.torch import CvxpyLayer
+
 
 
 class BipartiteMatching(PThenO):
@@ -202,6 +202,7 @@ class BipartiteMatching(PThenO):
         isTrain=True,
         gamma=0.1,
     ):
+        from cvxpylayers.torch import CvxpyLayer
         # Variables
         Z = cp.Variable((self.num_nodes, self.num_nodes), nonneg=True)
         Y = cp.Parameter((self.num_nodes, self.num_nodes))

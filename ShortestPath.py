@@ -8,7 +8,6 @@ from PThenO import PThenO
 from sklearn.model_selection import train_test_split
 import torch
 import cvxpy as cp
-from cvxpylayers.torch import CvxpyLayer
 
 class ShortestPath(PThenO):
     def __init__(self,
@@ -26,7 +25,7 @@ class ShortestPath(PThenO):
         self._model = _model
         self._vars = _vars
         self._solverfac = po.SolverFactory(solver)
-        self._cvxlayer = self._build_cvxpylayer()
+        #self._cvxlayer = self._build_cvxpylayer()
 
 
     def _get_arcs(self):
@@ -85,6 +84,7 @@ class ShortestPath(PThenO):
         """
         A model same as build_model but use cvxpy
         """
+        from cvxpylayers.torch import CvxpyLayer
         z = cp.Parameter(len(self.arcs))
         x = cp.Variable(len(self.arcs))
         cons = []
@@ -120,6 +120,7 @@ class ShortestPath(PThenO):
 
     def _dec_loss_cvxpylayer(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
         assert z_pred.shape == z_true.shape
+        self._cvxlayer = self._build_cvxpylayer()
         if verbose:
             print("Solve using cvxpylayer")
         N = z_true.shape[0]
