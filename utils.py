@@ -32,14 +32,14 @@ def perfrandomdq(problem, Y, Y_aux, trials):
 
 #def print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvaldlrand, testdlrand, trainvaldltrue, testdltrue, bltestdl):
 
-def print_dq(dllist, namelist):
+def print_dq(dllist, namelist, cof):
     print("DQ,", end="")
     assert len(dllist) == len(namelist)
     for i in range(len(dllist)):
         dl = dllist[i]
         col = namelist[i]
         print(f"{col}, {col}_stderr, ", end="")
-        print(f"{-1 * dl.mean()}, {-1 * compute_stderror(dl)}, ", end="")
+        print(f"{cof * dl.mean()}, {cof * compute_stderror(dl)}, ", end="")
     print()
 
 

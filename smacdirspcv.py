@@ -114,15 +114,15 @@ if __name__ == "__main__":
     _, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, None)
     print(f"Baseline:val train_val_all, {bltestdl.mean()}, {compute_stderror(bltestdl)}")
 
-    print_dq([trainvaldl2st, testdl2st, bltestdl], ["trainvaldl2st", "testdl2st", "bl1"])
-    print_nor_dq("trainvalnor", [trainvaldl2st], ["trainvaldl2st"], trainvaldlrand, trainvaldltrue)
-    print_nor_dq("testnor", [testdl2st, bltestdl], ["testdl2st", "bltestdl"], testdlrand, testdltrue)
+    print_dq([trainvaldl2st, testdl2st, bltestdl], ["trainval2st", "test2st", "bl1"], -1.0)
+    print_nor_dq("trainvalnor", [trainvaldl2st], ["trainval2st"], trainvaldlrand, trainvaldltrue)
+    print_nor_dq("testnor", [testdl2st, bltestdl], ["test2st", "bltest"], testdlrand, testdltrue)
 
     if params["test_hyper"] == True:
         _, hypertestdl = eval_xgb_hyper(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, None)
         print(f"Hypertest dl: {hypertestdl.mean()}, {compute_stderror(hypertestdl)}")
-        print_dq([hypertestdl], ["hypertestdl"])
-        print_nor_dq("testnor", [hypertestdl], ["hypertestdl"], testdlrand, testdltrue)
+        print_dq([hypertestdl], ["hypertest"], -1.0)
+        print_nor_dq("testnor", [hypertestdl], ["hypertest"], testdlrand, testdltrue)
         exit(0)
 
 
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
 
-    print_dq([trainvaldl2st, testdl2st, trainvalsmac, testsmac, bltestdl, blfirst], ["trainvaldl2st", "testdl2st", "trainvalsmac", "testsmac", "bl1", "blfirstcnt"])
+    print_dq([trainvaldl2st, testdl2st, trainvalsmac, testsmac, bltestdl, blfirst], ["trainval2st", "test2st", "trainvalsmac", "testsmac", "bl1", "blfirstcnt"], -1.0)
     print_nor_dq("trainvalnor", [trainvaldl2st, trainvalsmac], ["trainvaldl2st", "trainvalsmac"], trainvaldlrand, trainvaldltrue)
     print_nor_dq("testnor", [testdl2st, testsmac, bltestdl, blfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
 
