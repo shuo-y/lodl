@@ -13,6 +13,7 @@ from ConfigSpace import Categorical, Configuration, ConfigurationSpace, Float, I
 from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
+from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_quadratic_loss, search_full_weights
 from PThenO import PThenO
 from sklearn.multioutput import MultiOutputRegressor
@@ -84,6 +85,12 @@ class DirectedLoss:
 
     def get_loss_fn(self, incumbent):
         arr = [incumbent[f"w{i}"] for i in range(2 * self.yval.shape[1])]
+        weight_vec = np.array(arr)
+        cusloss = search_weights_directed_loss(weight_vec)
+        return cusloss
+
+    def get_def_loss_fn(self):
+        arr = [self.param_def for i in range(2 * self.yval.shape[1])]
         weight_vec = np.array(arr)
         cusloss = search_weights_directed_loss(weight_vec)
         return cusloss
@@ -475,6 +482,68 @@ class XGBHyperSearch:
         return np.mean(costs)
 
 
+class XGBHyperSearchwDefault:
+    def __init__(self, prob, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=5):
+        self.prob = prob
+        self.Xys = []
+        self.auxdatas = []
+        self.valdatas = []
+        N = len(X)
+        cnt = N // nfold
+        self.nfold = nfold
+        self.ydim = Y.shape[1]
+
+        weight_vec = np.array([param_def for _  in range(Y.shape[1])])
+        self.def_fn = search_weights_loss(weight_vec)
+        for i in range(self.nfold):
+            testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
+            otherind = [idx for idx in range(N) if idx < i * cnt or idx >= (i + 1) * cnt]
+            self.Xys.append(xgb.DMatrix(X[otherind], Y[otherind]))
+            if auxdata is not None:
+                self.auxdatas.append(auxdata[testind])
+            self.valdatas.append((X[testind], Y[testind]))
+
+
+    @property
+    def configspace(self) -> ConfigurationSpace:
+        # Check the parameters from https://xgboost.readthedocs.io/en/stable/parameter.html#parameters-for-tree-booster
+        cs = ConfigurationSpace()
+        eta = Float("eta", (0.01, 10.0), default=0.03)
+        gamma = Float("gamma", (0.0, 100.0), default=0.0)
+        max_depth = Integer("max_depth", (0, 100), default=6)
+        min_child_weight = Float("min_child_weight", (0.0, 100.0), default=1.0)
+        max_delta_step = Float("max_delta_step", (0.0, 100.0), default=0.0)
+        subsample = Float("subsample", (0.00001, 1.0), default=1.0)
+        #sampling_method = Categorical("sampling_method", ["uniform", "gradient_based"], default="uniform")
+        colsample_bytree = Float("colsample_bytree", (0.00001, 1.0), default=1.0)
+        colsample_bylevel = Float("colsample_bylevel", (0.00001, 1.0), default=1.0)
+        colsample_bynode = Float("colsample_bynode", (0.00001, 1.0), default=1.0)
+        reg_lambda = Float("lambda", (0, 100.0), default=1.0)
+        alpha = Float("alpha", (0, 100.0), default=0.0)
+        tree_method = Categorical("tree_method", ["auto", "exact", "approx", "hist"], default="auto")
+        num_boost_round = Integer("num_boost_round", (1, 500), default=50)
+        cs.add_hyperparameters([eta, gamma, max_depth, min_child_weight, max_delta_step, subsample,
+                                colsample_bytree, colsample_bylevel, colsample_bynode, reg_lambda, alpha, tree_method, num_boost_round])
+        return cs
+
+    def train(self, config: Configuration, seed: int) -> float:
+        params_dict = config.get_dictionary()
+        num_boost_round = params_dict["num_boost_round"]
+        del params_dict["num_boost_round"]
+
+        costs = []
+        for i in range(self.nfold):
+            booster = xgb.train(params_dict, dtrain = self.Xys[i], num_boost_round = num_boost_round, obj=self.def_fn.get_obj_fn())
+            yvalpred = booster.inplace_predict(self.valdatas[i][0])
+            if len(self.auxdatas) > 0:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1], aux_data=self.auxdatas[i])
+            else:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1])
+            costs.append(valdl.mean())
+
+        return np.mean(costs)
+
+
 
 def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()
@@ -615,24 +684,42 @@ def eval_config_lgb(params, prob, xgb_params, cusloss, xtrain, ytrain, xval, xte
 
     return lgb_model, trainsmacpred, valsmacpred, testsmacpred
 
-def eval_xgb_hyper(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
-    model = XGBHyperSearch(prob, xtrain, ytrain)
+def eval_xgb_hyper(params, loss_fn, prob, xtrain, ytrain, xtest, ytest, auxtest):
+    if params["test_hyper"] == "hyperonly":
+        model = XGBHyperSearch(prob, xtrain, ytrain)
+    elif params["test_hyper"] == "hyperwdef":
+        model = XGBHyperSearchwDefault(prob, xtrain, ytrain, params["param_low"], params["param_upp"], params["param_def"])
+
     scenario = Scenario(
         model.configspace,
         n_trials=params["n_trials"],  # We want to run max 50 trials (combination of config and seed)
     )
 
-    initial_design = HPOFacade.get_initial_design(scenario, n_configs=5)
+    intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
+    smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
+    records = []
 
-    # Now we use SMAC to find the best hyperparameters
-    smac = HPOFacade(
-        scenario,
-        model.train,
-        initial_design=initial_design,
-        overwrite=True,  # If the run exists, we overwrite it; alternatively, we can continue from last state
-    )
+    for cnt in range(params["n_trials"]):
+        info = smac.ask()
+        assert info.seed is not None
 
-    incumbent = smac.optimize()
+        cost = model.train(info.config, seed=info.seed)
+        value = TrialValue(cost=cost)
+        records.append((value.cost, info.config))
+
+        smac.tell(info, value)
+
+    # records.sort()
+    # TODO check here '<' not supported between instances of 'Configuration' and 'Configuration'
+    candidates = sorted(records, key=lambda x : x[0])
+    select = len(candidates) - 1
+    for i in range(1, len(candidates)):
+        if candidates[i][0] != candidates[0][0]:
+            select = i
+            print(f"from idx 0 to {select} has the same cost randomly pick one")
+            break
+    idx = random.randint(0, select - 1)
+    incumbent = records[idx][1]
     params_dict = incumbent.get_dictionary()
     print(f"Hyper final:{params_dict}")
     num_boost_round = params_dict["num_boost_round"]

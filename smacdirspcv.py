@@ -31,6 +31,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-val", type=int, default=200)
     parser.add_argument("--num-test", type=int, default=400)
     parser.add_argument("--n-trials", type=int, default=200)
+    parser.add_argument("--n-rand-trials", type=int, default=10)
     parser.add_argument("--solver", type=str, choices=["scip", "gurobi", "glpk"], default="scip", help="optimization solver to use")
     parser.add_argument("--numfeatures", type=int, default=5)
     parser.add_argument("--spgrid", type=str, default="(5, 5)")
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-def", type=float, default=0.05)
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cv-fold", type=int, default=5)
-    parser.add_argument("--test-hyper", action="store_true", help="Test Hyperparameters")
+    parser.add_argument("--test-hyper", type=str, help="Ways of testing Hyperparameters")
     #parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
 
     args = parser.parse_args()
@@ -102,8 +103,8 @@ if __name__ == "__main__":
 
 
     # The shape of decision is the same as label Y
-    trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall).float(), Y_aux=None, trials=10).numpy().flatten()
-    testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest).float(), Y_aux=None, trials=10).numpy().flatten()
+    trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall).float(), Y_aux=None, trials=params["n_rand_trials"]).numpy().flatten()
+    testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest).float(), Y_aux=None, trials=params["n_rand_trials"]).numpy().flatten()
 
     search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
     search_map_cv = {"mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid}
@@ -118,8 +119,8 @@ if __name__ == "__main__":
     print_nor_dq("trainvalnor", [trainvaldl2st], ["trainval2st"], trainvaldlrand, trainvaldltrue)
     print_nor_dq("testnor", [testdl2st, bltestdl], ["test2st", "bltest"], testdlrand, testdltrue)
 
-    if params["test_hyper"] == True:
-        _, hypertestdl = eval_xgb_hyper(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, None)
+    if params["test_hyper"] != "none":
+        _, hypertestdl = eval_xgb_hyper(params, model.get_def_loss_fn(), prob, xtrainvalall, ytrainvalall, xtest, ytest, None)
         print(f"Hypertest dl: {hypertestdl.mean()}, {compute_stderror(hypertestdl)}")
         print_dq([hypertestdl], ["hypertest"], -1.0)
         print_nor_dq("testnor", [hypertestdl], ["hypertest"], testdlrand, testdltrue)
@@ -152,8 +153,15 @@ if __name__ == "__main__":
 
     print(f"Search takes {time.time() - start_time} seconds")
 
-    records.sort()
-    incumbent = records[0][1]
+    candidates = sorted(records, key=lambda x : x[0])
+    select = len(candidates) - 1
+    for i in range(1, len(candidates)):
+        if candidates[i][0] != candidates[0][0]:
+            select = i
+            print(f"from idx 0 to {select} has the same cost randomly pick one")
+            break
+    idx = random.randint(0, select - 1)
+    incumbent = records[idx][1]
     params_vec = model.get_vec(incumbent)
     print(f"Seaerch Choose {params_vec}")
     cusloss = model.get_loss_fn(incumbent)

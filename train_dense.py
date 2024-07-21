@@ -84,3 +84,55 @@ def train_dense(args, problem):
     metrics = print_metrics(model, problem, loss_fn if args.loss == args.evalloss else get_loss_fn(args.evalloss, problem), "Final_seed{}".format(args.seed))
 
     return model, metrics
+
+
+def nn2st_iter(xtrain, ytrain, aux_train, xval, yval, lr, iters, model_type="dense"):
+    # model_type is dense or dense_coupled
+    X_train = torch.tensor(xtrain)
+    Y_train = torch.tensor(ytrain)
+    X_val = torch.tensor(xval)
+    Y_val = torch.tensor(yval)
+    if aux_data != None:
+        Y_train_aux = torch.tensor(aux_train)
+
+    ipdim, opdim = problem.get_modelio_shape()
+    model_builder = model_dict[model_type]
+    model = model_builder(
+        num_features = X_train.shape[1:] if model_type == "dense_coupled" else ipdim,
+        num_targets = Y_train.shape[1:] if model_type == "dense_coupled"  else opdim,
+        num_layers = args.layers,
+        intermediate_size=500,
+        output_activation=problem.get_output_activation(),
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    best = (float("inf"), None)
+    time_since_best = 0
+    for iter_idx in range(iters):
+        # Check metrics on val set
+        if iter_idx % args.valfreq == 0:
+            # Compute metrics
+            metrics = print_metrics(model, problem, loss_fn, f"Iter {iter_idx}", isTrain=True)
+
+            # Save model if it's the best one
+            if best[1] is None or metrics['val']['loss'] < best[0]:
+                best = (metrics['val']['loss'], deepcopy(model))
+                time_since_best = 0
+
+            # Stop if model hasn't improved for patience steps
+            if args.earlystopping and time_since_best > args.patience:
+                break
+
+        # Learn
+        losses = []
+        for i in random.sample(range(len(X_train)), min(args.batchsize, len(X_train))):
+            pred = model(X_train[i]).squeeze()
+            losses.append(loss_fn(pred, Y_train[i], aux_data=Y_train_aux[i], partition='train', index=i))
+        loss = torch.stack(losses).mean()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        time_since_best += 1
+
+    if args.earlystopping:
+        model = best[1]
