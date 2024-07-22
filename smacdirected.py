@@ -510,7 +510,7 @@ class XGBHyperSearchwDefault:
         cs = ConfigurationSpace()
         eta = Float("eta", (0.01, 10.0), default=0.03)
         gamma = Float("gamma", (0.0, 100.0), default=0.0)
-        max_depth = Integer("max_depth", (0, 100), default=6)
+        max_depth = Integer("max_depth", (1, 100), default=6)
         min_child_weight = Float("min_child_weight", (0.0, 100.0), default=1.0)
         max_delta_step = Float("max_delta_step", (0.0, 100.0), default=0.0)
         subsample = Float("subsample", (0.00001, 1.0), default=1.0)
