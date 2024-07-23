@@ -17,6 +17,7 @@ from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from ShortestPath import ShortestPath
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, test_config, test_config_vec, test_dir_weight, eval_xgb_hyper
+from train_dense import nn2st_iter, perf_nn
 from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check
 
 
@@ -40,7 +41,13 @@ if __name__ == "__main__":
     parser.add_argument("--param-def", type=float, default=0.05)
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cv-fold", type=int, default=5)
-    parser.add_argument("--test-hyper", type=str, help="Ways of testing Hyperparameters")
+    parser.add_argument("--test-hyper", type=str, default="none", choices=["none", "hyperonly", "hyperwdef"], help="Ways of testing Hyperparameters")
+    parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense", "dense_coupled"], help="Test nn two-stage model")
+    parser.add_argument("--lr", type=float, default=0.1, help="The learning rate for nn")
+    parser.add_argument("--nn-iters", type=int, default=5000, help="Iterations for traning NN")
+    parser.add_argument("--batchsize", type=int, default=1000, help="batchsize when traning NN")
+    parser.add_argument("--n-layers", type=int, default=2, help="num of layers when traning NN") # What happens if n-layers much more than two?
+    parser.add_argument("--int-size", type=int, default=500, help="num of layers when traning NN")
     #parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
 
     args = parser.parse_args()
@@ -126,6 +133,12 @@ if __name__ == "__main__":
         print_nor_dq("testnor", [hypertestdl], ["hypertest"], testdlrand, testdltrue)
         exit(0)
 
+    if params["test_nn2st"] != "none":
+        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"])
+        nntestdl = perf_nn(prob, model, xtest, ytest, None)
+        print_dq([nntestdl], ["NNTestdl"], -1.0)
+        print_nor_dq("nntestNorDQ", [nntestdl], ["NNTestdl"], testdlrand, testdltrue)
+        exit(0)
 
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)

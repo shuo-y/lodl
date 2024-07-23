@@ -86,22 +86,22 @@ def train_dense(args, problem):
     return model, metrics
 
 
-def nn2st_iter(xtrain, ytrain, aux_train, xval, yval, lr, iters, model_type="dense"):
+def nn2st_iter(problem, xtrain, ytrain, xval, yval, lr, iters, batchsize, n_layers, int_size, earlystopping=False, patience=100, model_type="dense", val_freq=10):
+    # Only for Neural Network based two-stage
     # model_type is dense or dense_coupled
-    X_train = torch.tensor(xtrain)
-    Y_train = torch.tensor(ytrain)
-    X_val = torch.tensor(xval)
-    Y_val = torch.tensor(yval)
-    if aux_data != None:
-        Y_train_aux = torch.tensor(aux_train)
+    X_train = torch.tensor(xtrain).float()
+    Y_train = torch.tensor(ytrain).float()
+    if xval is not None and yval is not None:
+        X_val = torch.tensor(xval).float()
+        Y_val = torch.tensor(yval).float()
 
     ipdim, opdim = problem.get_modelio_shape()
     model_builder = model_dict[model_type]
     model = model_builder(
         num_features = X_train.shape[1:] if model_type == "dense_coupled" else ipdim,
         num_targets = Y_train.shape[1:] if model_type == "dense_coupled"  else opdim,
-        num_layers = args.layers,
-        intermediate_size=500,
+        num_layers = n_layers,
+        intermediate_size=int_size,
         output_activation=problem.get_output_activation(),
     )
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -110,29 +110,46 @@ def nn2st_iter(xtrain, ytrain, aux_train, xval, yval, lr, iters, model_type="den
     time_since_best = 0
     for iter_idx in range(iters):
         # Check metrics on val set
-        if iter_idx % args.valfreq == 0:
+        if xval is not None and iter_idx % val_freq == 0:
             # Compute metrics
-            metrics = print_metrics(model, problem, loss_fn, f"Iter {iter_idx}", isTrain=True)
-
+            #metrics = print_metrics(model, problem, loss_fn, f"Iter {iter_idx}", isTrain=True)
+            # Get loss on val set
+            val_losses = []
+            for i in range(len(X_val)):
+                pred = model(X_val[i][None]).squeeze()
+                val_losses.append(MSE(pred, Y_val[i]))
             # Save model if it's the best one
-            if best[1] is None or metrics['val']['loss'] < best[0]:
-                best = (metrics['val']['loss'], deepcopy(model))
+            val_loss = torch.stack(val_losses).flatten().mean().item()
+            if best[1] is None or val_loss < best[0]:
+                best = (val_loss, deepcopy(model))
                 time_since_best = 0
 
             # Stop if model hasn't improved for patience steps
-            if args.earlystopping and time_since_best > args.patience:
+            if earlystopping and time_since_best > patience:
                 break
 
         # Learn
         losses = []
-        for i in random.sample(range(len(X_train)), min(args.batchsize, len(X_train))):
+        for i in random.sample(range(len(X_train)), min(batchsize, len(X_train))):
             pred = model(X_train[i]).squeeze()
-            losses.append(loss_fn(pred, Y_train[i], aux_data=Y_train_aux[i], partition='train', index=i))
+            losses.append(MSE(pred, Y_train[i]))
         loss = torch.stack(losses).mean()
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         time_since_best += 1
 
-    if args.earlystopping:
+    if xval is not None and earlystopping:
         model = best[1]
+
+    # Just return model
+    return model
+
+
+
+def perf_nn(prob, model, xtest, ytest, auxtest):
+    X_test = torch.tensor(xtest).float()
+    Y_pred = model(X_test)
+    ypred = Y_pred.detach().numpy()
+    nntestdl = prob.dec_loss(ypred, ytest, aux_data=auxtest).flatten()
+    return nntestdl
