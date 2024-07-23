@@ -105,7 +105,7 @@ if __name__ == "__main__":
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
 
-    print(f"2st(trained on both train and val) trainval test val dl, {trainvaldl2st.mean()}, {compute_stderror(trainvaldl2st)}, "
+    print(f"2st(trained on both train and val) trainval test dl, {trainvaldl2st.mean()}, {compute_stderror(trainvaldl2st)}, "
           f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, ")
 
 
