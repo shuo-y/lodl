@@ -18,7 +18,8 @@ from losses import search_weights_loss, search_quadratic_loss, search_weights_di
 from PortfolioOpt import PortfolioOpt
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstance, SearchbyInstanceCrossValid, test_config, test_config_vec, test_dir_weight, test_reg, test_weightmse, test_square_log
 from smacdirected import smac_search_lgb, eval_config_lgb, test_reg_lgb
-from utils import perfrandomdq, print_train_test, print_train_val_test, compute_stderror, sanity_check
+from train_dense import nn2st_iter, perf_nn
+from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check
 
 
 if __name__ == "__main__":
@@ -40,7 +41,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-upp", type=float, default=2)
     parser.add_argument("--param-def", type=float, default=0.04)
     parser.add_argument("--n-test-history", type=int, default=0, help="Check test dl of the history")
-    parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
+    #parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
     parser.add_argument("--cv-fold", type=int, default=5)
 
     args = parser.parse_args()
@@ -92,16 +93,7 @@ if __name__ == "__main__":
     # Check a baseline first
 
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
-    if params["cross_valid"] == True:
-        reg.fit(xtrainvalall, ytrainvalall)
-    else:
-        reg.fit(xtrain, ytrain)
-
-    ytrainpred = reg.predict(xtrain)
-    traindl2st = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
-
-    yvalpred = reg.predict(xval)
-    valdl2st = prob.dec_loss(yvalpred, yval, aux_data=auxval).flatten()
+    reg.fit(xtrainvalall, ytrainvalall)
 
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
@@ -109,36 +101,46 @@ if __name__ == "__main__":
     ytrainvalpred = reg.predict(xtrainvalall)
     trainvaldl2st = prob.dec_loss(ytrainvalpred, ytrainvalall, aux_data=auxtrainvalall).flatten()
 
-    traindltrue = prob.dec_loss(ytrain, ytrain, aux_data=auxtrain).flatten()
-    valdltrue = prob.dec_loss(yval, yval, aux_data=auxval).flatten()
+    #traindltrue = prob.dec_loss(ytrain, ytrain, aux_data=auxtrain).flatten()
+    #valdltrue = prob.dec_loss(yval, yval, aux_data=auxval).flatten()
     trainvaldltrue = prob.dec_loss(ytrainvalall, ytrainvalall, aux_data=auxtrainvalall).flatten()
     testdltrue = prob.dec_loss(ytest, ytest, aux_data=auxtest).flatten()
 
 
-    print(f"2st(trained on both train and val) train test val obj, {traindl2st.mean()}, {compute_stderror(traindl2st)}, "
-          f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, "
-          f"{valdl2st.mean()}, {compute_stderror(valdl2st)}, ")
 
+    testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest), Y_aux=torch.tensor(auxtest), trials=10).numpy().flatten()
+    trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall), Y_aux=torch.tensor(auxtrainvalall), trials=10).numpy().flatten()
 
     # The shape of decision is the same as label Y
-
-
-    search_map = {"mse++": DirectedLoss, "quad": QuadSearch, "idx": SearchbyInstance}
+    # search_map = {"mse++": DirectedLoss, "quad": QuadSearch, "idx": SearchbyInstance}
     search_map_cv = {"mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid}
 
 
-    if params["cross_valid"] == True:
-          search_model = search_map_cv[args.search_method]
-          model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, auxdata=auxtrainvalall, nfold=params["cv_fold"])
-          _, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-          print(f"Baseline:val train_val_all, {bltestdl.mean()}, {compute_stderror(bltestdl)}")
-    else:
-          search_model = search_map[args.search_method]
-          model = search_model(prob, params, xtrain, ytrain, xval, yval, args.param_low, args.param_upp, args.param_def, auxdata=auxval)
+    search_model = search_map_cv[args.search_method]
+    model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, auxdata=auxtrainvalall, nfold=params["cv_fold"])
+    _, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest)
+
+
+    print_dq([trainvaldl2st, testdl2st, bltrainvaldl, bltestdl], ["trainval2st", "test2st", "trainvalbl", "bl1"], -1.0)
+    print_nor_dq("trainvalnor", [trainvaldl2st, bltrainvaldl], ["trainval2st", "trainvalbl"], trainvaldlrand, trainvaldltrue)
+    print_nor_dq("testnor", [testdl2st, bltestdl], ["test2st", "testbl"], testdlrand, testdltrue)
+
+    #else: # Not use cross valid...
+    #      search_model = search_map[args.search_method]
+    #      model = search_model(prob, params, xtrain, ytrain, xval, yval, args.param_low, args.param_upp, args.param_def, auxdata=auxval)
 
     #chosen_loss = smac_search_lgb(params, prob, model, params["n_trials"], xtrain, ytrain, xtest, ytest, auxtest)
     #lgb_model, trainsmacpred, valsmacpred, testsmacpred = eval_config_lgb(params, prob, xgb_params, chosen_loss, xtrain, ytrain, xval, xtest)
 
+    if params["test_nn2st"] != "none":
+        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"])
+        nntestdl = perf_nn(prob, model, xtest, ytest, auxtest)
+        nntrainvaldl = perf_nn(prob, model, xtrainvalall, ytrainvalall, auxtrainvalall)
+
+        print_dq([nntrainvaldl, nntestdl], ["NN2stTrainval", "NN2stTest"], -1.0)
+        print_nor_dq("nn2stTrainvalNorDQ", [nntrainvaldl], ["NN2stTrainval"], trainvaldlrand, trainvaldltrue)
+        print_nor_dq("nn2stTestNorDQ", [nntestdl], ["NN2stTest"], testdlrand, testdltrue)
+        exit(0)
 
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
@@ -178,11 +180,11 @@ if __name__ == "__main__":
         Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
 
-    smacytrainpred = booster.inplace_predict(xtrain)
-    trainsmac = prob.dec_loss(smacytrainpred, ytrain, aux_data=auxtrain).flatten()
+    #smacytrainpred = booster.inplace_predict(xtrain)
+    #trainsmac = prob.dec_loss(smacytrainpred, ytrain, aux_data=auxtrain).flatten()
 
-    smacyvalpred = booster.inplace_predict(xval)
-    valsmac = prob.dec_loss(smacyvalpred, yval, aux_data=auxval).flatten()
+    #smacyvalpred = booster.inplace_predict(xval)
+    #valsmac = prob.dec_loss(smacyvalpred, yval, aux_data=auxval).flatten()
 
     smactrainvalpred = booster.inplace_predict(xtrainvalall)
     trainvalsmac = prob.dec_loss(smactrainvalpred, ytrainvalall, aux_data=auxtrainvalall).flatten()
@@ -190,15 +192,10 @@ if __name__ == "__main__":
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest, aux_data=auxtest).flatten()
 
-    testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest), Y_aux=torch.tensor(auxtest), trials=10).numpy().flatten()
+    print_dq([trainvalsmac, testsmac], ["trainvalsmac", "testsmac"], -1.0)
+    print_nor_dq("smactestNorDQ", [trainvalsmac, testsmac], ["trainvalsmac", "testsmac"], testdlrand, testdltrue)
 
-    if params["cross_valid"] == True:
-        trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall), Y_aux=torch.tensor(auxtrainvalall), trials=10).numpy().flatten()
-        print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvaldlrand, testdlrand, trainvaldltrue, testdltrue, bltestdl)
-    else:
-        traindlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrain), Y_aux=torch.tensor(auxtrain), trials=10).numpy().flatten()
-        valdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(yval), Y_aux=torch.tensor(auxval), trials=10).numpy().flatten()
-        print_train_val_test(traindl2st, valdl2st, testdl2st, trainsmac, valsmac, testsmac, traindlrand, valdlrand, testdlrand, traindltrue, valdltrue, testdltrue, bltestdl)
+
 
 
 

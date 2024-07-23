@@ -104,11 +104,6 @@ if __name__ == "__main__":
     trainvaldltrue = prob.dec_loss(ytrainvalall, ytrainvalall).flatten()
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
-
-    print(f"2st(trained on both train and val) trainval test dl, {trainvaldl2st.mean()}, {compute_stderror(trainvaldl2st)}, "
-          f"{testdl2st.mean()}, {compute_stderror(testdl2st)}, ")
-
-
     # The shape of decision is the same as label Y
     trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall).float(), Y_aux=None, trials=params["n_rand_trials"]).numpy().flatten()
     testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest).float(), Y_aux=None, trials=params["n_rand_trials"]).numpy().flatten()
@@ -119,12 +114,11 @@ if __name__ == "__main__":
     search_model = search_map_cv[args.search_method]
     model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"])
 
-    _, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, xtest, ytest, None)
-    print(f"Baseline:val train_val_all, {bltestdl.mean()}, {compute_stderror(bltestdl)}")
+    booster, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), model.get_def_loss_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
 
-    print_dq([trainvaldl2st, testdl2st, bltestdl], ["trainval2st", "test2st", "bl1"], -1.0)
-    print_nor_dq("trainvalnor", [trainvaldl2st], ["trainval2st"], trainvaldlrand, trainvaldltrue)
-    print_nor_dq("testnor", [testdl2st, bltestdl], ["test2st", "bltest"], testdlrand, testdltrue)
+    print_dq([trainvaldl2st, testdl2st, bltrainvaldl, bltestdl], ["trainval2st", "test2st", "trainvalbl", "bl1"], -1.0)
+    print_nor_dq("trainvalnor", [trainvaldl2st, bltrainvaldl], ["trainval2st", "trainvalbl"], trainvaldlrand, trainvaldltrue)
+    print_nor_dq("testnor", [testdl2st, bltestdl], ["test2st", "testbl"], testdlrand, testdltrue)
 
     if params["test_hyper"] != "none":
         _, hypertestdl = eval_xgb_hyper(params, model.get_def_loss_fn(), prob, xtrainvalall, ytrainvalall, xtest, ytest, None)
@@ -136,8 +130,11 @@ if __name__ == "__main__":
     if params["test_nn2st"] != "none":
         model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"])
         nntestdl = perf_nn(prob, model, xtest, ytest, None)
-        print_dq([nntestdl], ["NNTestdl"], -1.0)
-        print_nor_dq("nntestNorDQ", [nntestdl], ["NNTestdl"], testdlrand, testdltrue)
+        nntrainvaldl = perf_nn(prob, model, xtrainvalall, ytrainvalall, None)
+
+        print_dq([nntrainvaldl, nntestdl], ["NN2stTrainval", "NN2stTest"], -1.0)
+        print_nor_dq("nn2stTrainvalNorDQ", [nntrainvaldl], ["NN2stTrainval"], trainvaldlrand, trainvaldltrue)
+        print_nor_dq("nn2stTestNorDQ", [nntestdl], ["NN2stTestdl"], testdlrand, testdltrue)
         exit(0)
 
     scenario = Scenario(model.configspace, n_trials=args.n_trials)

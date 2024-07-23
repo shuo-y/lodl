@@ -550,12 +550,14 @@ def compute_stderror(vec: np.ndarray) -> float:
     n = len(vec)
     return (popstd * np.sqrt(n / (n - 1.0))) / np.sqrt(n)
 
-def test_config_vec(params, prob, xgb_params, cusloss, xtrain, ytrain, xtest, ytest, auxtest):
+def test_config_vec(params, prob, xgb_params, cusloss, xtrain, ytrain, auxtrain, xtest, ytest, auxtest):
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train(xgb_params, dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+    trainpred = booster.inplace_predict(xtrain)
+    traindl = prob.dec_loss(trainpred, ytrain, aux_data=auxtrain).flatten()
     testpred = booster.inplace_predict(xtest)
-    itertestsmac = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
-    return booster, itertestsmac
+    testdl = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
+    return booster, traindl, testdl
 
 def test_config(params, prob, xgb_params, cusloss, xtrain, ytrain, xtest, ytest, auxtest):
     Xy = xgb.DMatrix(xtrain, ytrain)

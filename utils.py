@@ -50,7 +50,7 @@ def print_nor_dq(verbose, dllist, namelist, randdl, optdl):
         col = namelist[i]
         sanity_check(dl - optdl, f"{verbose}_{col}_nordq")
 
-    print(verbose, end="")
+    print(verbose, end=", ")
     for i in range(len(dllist)):
         dl = dllist[i]
         col = namelist[i]
