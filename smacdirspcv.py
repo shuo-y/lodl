@@ -43,7 +43,7 @@ if __name__ == "__main__":
     parser.add_argument("--cv-fold", type=int, default=5)
     parser.add_argument("--test-hyper", type=str, default="none", choices=["none", "hyperonly", "hyperwdef"], help="Ways of testing Hyperparameters")
     parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense", "dense_coupled"], help="Test nn two-stage model")
-    parser.add_argument("--lr", type=float, default=0.1, help="The learning rate for nn")
+    parser.add_argument("--nn-lr", type=float, default=0.01, help="The learning rate for nn")
     parser.add_argument("--nn-iters", type=int, default=5000, help="Iterations for traning NN")
     parser.add_argument("--batchsize", type=int, default=1000, help="batchsize when traning NN")
     parser.add_argument("--n-layers", type=int, default=2, help="num of layers when traning NN") # What happens if n-layers much more than two?
@@ -128,7 +128,8 @@ if __name__ == "__main__":
         exit(0)
 
     if params["test_nn2st"] != "none":
-        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"])
+        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"])
+        # Here just use the same data for tuning
         nntestdl = perf_nn(prob, model, xtest, ytest, None)
         nntrainvaldl = perf_nn(prob, model, xtrainvalall, ytrainvalall, None)
 
