@@ -17,7 +17,6 @@ from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
 from ShortestPath import ShortestPath
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, test_config, test_config_vec, test_dir_weight, eval_xgb_hyper
-from train_dense import nn2st_iter, perf_nn
 from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check
 
 
@@ -48,6 +47,7 @@ if __name__ == "__main__":
     parser.add_argument("--batchsize", type=int, default=1000, help="batchsize when traning NN")
     parser.add_argument("--n-layers", type=int, default=2, help="num of layers when traning NN") # What happens if n-layers much more than two?
     parser.add_argument("--int-size", type=int, default=500, help="num of layers when traning NN")
+    parser.add_argument("--baseline", type=str, default="none", choices=["none", "lancer"])
     #parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
 
     args = parser.parse_args()
@@ -128,6 +128,7 @@ if __name__ == "__main__":
         exit(0)
 
     if params["test_nn2st"] != "none":
+        from train_dense import nn2st_iter, perf_nn
         model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"])
         # Here just use the same data for tuning
         nntestdl = perf_nn(prob, model, xtest, ytest, None)
@@ -136,6 +137,17 @@ if __name__ == "__main__":
         print_dq([nntrainvaldl, nntestdl], ["NN2stTrainval", "NN2stTest"], -1.0)
         print_nor_dq("nn2stTrainvalNorDQ", [nntrainvaldl], ["NN2stTrainval"], trainvaldlrand, trainvaldltrue)
         print_nor_dq("nn2stTestNorDQ", [nntestdl], ["NN2stTestdl"], testdlrand, testdltrue)
+        exit(0)
+
+    if params["baseline"] == "lancer":
+        from lancer_learner import test_lancer
+        model, lctrainvaldl, lctestdl = test_lancer(prob, xtrainvalall, ytrainvalall, None, xtest, ytest, None,
+                                                lancer_in_dim=prob.d, c_out_dim=prob.d, n_iter=10, c_max_iter=5, c_nbatch=128,
+                                                lancer_max_iter=5, lancer_nbatch=1024, c_epochs_init=30, c_lr_init=0.005, print_freq=1000)
+
+        print_dq([lctrainvaldl, lctestdl], ["LANCERtrainval", "LANCERtest"], -1.0)
+        print_nor_dq("LANCERTrainvalNorDQ", [lctrainvaldl], ["LANCERTrainval"], trainvaldlrand, trainvaldltrue)
+        print_nor_dq("LANCERTestNorDQ", [lctestdl], ["LANCERTestdl"], testdlrand, testdltrue)
         exit(0)
 
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
@@ -155,7 +167,7 @@ if __name__ == "__main__":
         smac.tell(info, value)
 
         if cnt == 0:
-            _, blfirst = test_config_vec(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, None)
+            _, blfirst = test_config_vec(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
 
         if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
             _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, None)

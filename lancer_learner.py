@@ -10,6 +10,7 @@ import torch
 import numpy as np
 from torch import nn
 from torch import optim
+from typing import Union
 from PThenO import PThenO
 
 
@@ -167,7 +168,7 @@ class BaseCModel(object, metaclass=abc.ABCMeta):
         """Initialize the model by fitting it to the ground truth z_true"""
         raise NotImplementedError
 
-    def update(self, y: np.ndarray, z_true: np.ndarray, model_loss: models_lancer.BaseLancer):
+    def update(self, y: np.ndarray, z_true: np.ndarray, model_loss: BaseLancer):
         raise NotImplementedError
 
     def save(self, filepath: str):
@@ -240,7 +241,7 @@ class MLPCModel(BaseCModel, nn.Module):
                 loss = self.loss(z_pred_batch, z_true_batch)
                 loss.backward()
                 optimizer.step()
-            if itr % print_freq == 0:
+            if (itr + 1) % print_freq == 0:
                 print("*** Initial fit epoch: ", itr, ", loss: ", loss.item())
 
     def predict(self, y: np.ndarray) -> np.ndarray:
@@ -262,7 +263,7 @@ class MLPCModel(BaseCModel, nn.Module):
     def forward(self, y_tensor: torch.FloatTensor):
         return torch.squeeze(self.model_output(y_tensor))
 
-    def update(self, y: np.ndarray, z_true: np.ndarray, model_loss: models_lancer.BaseLancer):
+    def update(self, y: np.ndarray, z_true: np.ndarray, model_loss: BaseLancer):
         y_tensor = torch.from_numpy(y).float()
         z_true_tensor = torch.from_numpy(z_true).float()
         z_pred_tensor = self.forward(y_tensor)
@@ -366,22 +367,11 @@ class LancerLearner:
                                 num_epochs=c_epochs_init,
                                 batch_size=c_nbatch,
                                 print_freq=print_freq)
-        # ------ decision loss of Z train/test: theoretical optimum ----
-        print("\n ---- Computing optimal solutions for train")
-        Z_true_obj = self.bb_problem.eval(Z_train, Z_train, aux_data=Z_train_aux)
-        print("\n ---- Computing optimal solutions for test")
-        Z_true_obj_test = self.bb_problem.eval(Z_test, Z_test, aux_data=Z_test_aux)
-        # ------------------------------------
 
-        log_dict = {"dl_tr": [], "dl_te": [],
-                    "regret_tr": [], "regret_te": [],
-                    "lancer_loss_tr": [], "lancer_loss_te": [],
-                    "dl_tr_opt": Z_true_obj, "dl_te_opt": Z_true_obj_test}
         for itr in range(n_iter):
-            print("\n ---- Running solver for train set -----")
+            #print("\n ---- Running solver for train set -----")
             Z_pred = self.cmodel.predict(Y_train)
-            f_hat = self.bb_problem.eval(Z_pred, Z_train, aux_data=Z_train_aux)
-            self.logger(log_dict, itr, Z_pred, f_hat, dataset)
+            f_hat = self.bb_problem.dec_loss(Z_pred, Z_train, aux_data=Z_train_aux)
 
             # if true, adding model evaluations to the "replay buffer"
             if itr == 0 or not use_replay_buffer:
@@ -401,38 +391,12 @@ class LancerLearner:
             self.learn_theta(Y_train, Z_train,
                              max_iter=c_max_iter, batch_size=c_nbatch, print_freq=print_freq)
 
-        # saving the final results
-        Z_pred = self.cmodel.predict(Y_train)
-        f_hat = self.bb_problem.eval(Z_pred, Z_train, aux_data=Z_train_aux)
-        self.logger(log_dict, n_iter, Z_pred, f_hat, dataset)
-        return log_dict
-
-    def logger(self, log_dict, itr, Z_pred, f_hat, dataset, check_random=False):
-        _, Y_test, Z_train, Z_test, _, Z_test_aux = dataset
-        Z_pred_test = self.cmodel.predict(Y_test)
-
-        print("\n ---- Running solver for test set -----")
-        f_hat_test = self.bb_problem.dec_loss(Z_pred_test, Z_test, aux_data=Z_test_aux)
-
-        lancer_loss = self.lancer_model.predict(Z_pred, Z_train)
-        lancer_loss_te = self.lancer_model.predict(Z_pred_test, Z_test)
-
-        """ Probably no needed
-        regret_train = dfl_utils.norm_regret(f_hat, log_dict["dl_tr_opt"])
-        regret_test = dfl_utils.norm_regret(f_hat_test, log_dict["dl_te_opt"])
-
-        print("\n******* Iter:", itr, "| Train: DL =", f_hat.mean(), ", DL opt =", log_dict["dl_tr_opt"].mean(),
-              ", Regret =", regret_train * 100, "%")
-        print("\t\t\tTest: DL =", f_hat_test.mean(), ", DL opt =", log_dict["dl_te_opt"].mean(),
-              ", Regret =", regret_test * 100, "%\n")
-        # print("==== F errors: Train =", lancer_loss.mean(), " Test =", lancer_loss_te.mean())
-        log_dict["dl_tr"].append(f_hat.mean()), log_dict["dl_te"].append(f_hat_test.mean())
-        log_dict["regret_tr"].append(regret_train * 100), log_dict["regret_te"].append(regret_test * 100)
-        log_dict["lancer_loss_tr"].append(lancer_loss.mean()), log_dict["lancer_loss_te"].append(lancer_loss_te.mean())
-        """
+        return self.cmodel
 
 
-def test_lancer(lancer_in_dim, c_out_dim):
+def test_lancer(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in_dim,
+                c_out_dim, n_iter, c_max_iter, c_nbatch, lancer_max_iter, lancer_nbatch,
+                c_epochs_init, c_lr_init, print_freq):
     # This default params is based on the original LANCER paper
     # See also https://arxiv.org/pdf/2307.08964
     def_param = {"lancer_in_dim": lancer_in_dim,
@@ -445,10 +409,30 @@ def test_lancer(lancer_in_dim, c_out_dim):
                  "c_n_layers": 0,
                  "c_layer_size": 64,
                  "c_lr": 0.005,
+                 "c_opt_type": "adam",
                  "c_weight_decay": 0.01,
                  "z_regul": 0.0,
                  "lancer_out_activation": "relu",
                  "c_hidden_activation": "tanh",
                  "c_output_activation": "relu"}
 
-    learner = LancerLearner(def_param, "mlp", "mlp", bb_problem)
+    learner = LancerLearner(def_param, "mlp", "mlp", prob)
+    dataset = (xtrain, None, ytrain, None, auxtrain, None)
+    lancer_model = learner.run_training_loop(dataset,
+                                             n_iter=n_iter,
+                                             c_max_iter=c_max_iter,
+                                             c_nbatch=c_nbatch,
+                                             lancer_max_iter=lancer_max_iter,
+                                             lancer_nbatch=lancer_nbatch,
+                                             c_epochs_init=c_epochs_init,
+                                             c_lr_init=c_lr_init,
+                                             print_freq=print_freq)
+
+    ytestpred = lancer_model.predict(xtest)
+    testdl = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
+
+    ytrainpred = lancer_model.predict(xtrain)
+    traindl = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
+
+    return lancer_model, traindl, testdl
+
