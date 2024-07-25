@@ -5,42 +5,302 @@
 # It is from https://github.com/facebookresearch/LANCER used for possible baseline tests
 
 import numpy as np
-from utils import nn_utils, dfl_utils
-from DFL.models import models_lancer, models_c
-from DFL.bb_problems import base_problem
+import abc
+import torch
+import numpy as np
+from torch import nn
+from torch import optim
+from PThenO import PThenO
+
+
+Activation = Union[str, nn.Module]
+
+_str_to_activation = {
+    'relu': nn.ReLU(),
+    'tanh': nn.Tanh(),
+    'leaky_relu': nn.LeakyReLU(),
+    'sigmoid': nn.Sigmoid(),
+    'selu': nn.SELU(),
+    'softplus': nn.Softplus(),
+    'identity': nn.Identity(),
+}
+
+
+def build_mlp(
+        input_size: int,
+        output_size: int,
+        n_layers: int,
+        size: int,
+        activation: Activation = 'tanh',
+        output_activation: Activation = 'identity',
+):
+    if isinstance(activation, str):
+        activation = _str_to_activation[activation]
+    if isinstance(output_activation, str):
+        output_activation = _str_to_activation[output_activation]
+    layers = []
+    in_size = input_size
+    for _ in range(n_layers):
+        layers.append(nn.Linear(in_size, size))
+        layers.append(activation)
+        # layers.append(nn.Dropout(p=0.6))
+        in_size = size
+    layers.append(nn.Linear(in_size, output_size))
+    layers.append(output_activation)
+    return nn.Sequential(*layers)
+
+class BaseLancer(object, metaclass=abc.ABCMeta):
+    def predict(self, z_pred: np.ndarray, z_true: np.ndarray) -> np.ndarray:
+        raise NotImplementedError
+
+    def forward_theta_step(self, z_pred_tensor: torch.FloatTensor, z_true_tensor: torch.FloatTensor):
+        """
+        Used to train a target model in models_c. That is, we minimize the LANCER loss
+        :param z_pred_tensor: predicted problem descriptors (in pytorch format)
+        :param z_true_tensor: ground truth problem descriptors (in pytorch format)
+        :return: LANCER loss
+        """
+        raise NotImplementedError
+
+    def update(self, z_pred: np.ndarray, z_true: np.ndarray, f_hat: np.ndarray, **kwargs):
+        """
+        Update parameters of LANCER using (z_pred, z_true) and
+        decision loss f_hat (true objective value)
+        :param z_pred: predicted problem descriptors
+        :param z_true: ground truth problem descriptors
+        :param f_hat: decision loss (i.e., true objective value)
+        :param kwargs: additional problem specific parameters
+        :return: None
+        """
+        raise NotImplementedError
+
+    def save(self, filepath: str):
+        raise NotImplementedError
+
+
+class MLPLancer(BaseLancer, nn.Module):
+    # multilayer perceptron LANCER Model
+    def __init__(self,
+                 z_dim,
+                 f_dim,
+                 n_layers,
+                 layer_size,
+                 learning_rate,
+                 opt_type="adam",  # "adam" or "sgd"
+                 momentum=0.9,
+                 weight_decay=0.001,
+                 out_activation="relu",
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.z_dim = z_dim
+        self.f_dim = f_dim
+        self.n_layers = n_layers
+        self.layer_size = layer_size
+        self.learning_rate = learning_rate
+        self.momentum = momentum
+        self.weight_decay = weight_decay
+        #####################################
+        self.model_output = build_mlp(input_size=self.z_dim,
+                                      output_size=self.f_dim,
+                                      n_layers=self.n_layers,
+                                      size=self.layer_size,
+                                      output_activation=out_activation)
+        #self.model_output.to(nn_utils.device)
+        self.loss = nn.MSELoss()
+        if opt_type == "adam":
+            self.optimizer = optim.Adam(params=self.model_output.parameters(),
+                                        lr=self.learning_rate,
+                                        weight_decay=self.weight_decay)
+        else:
+            self.optimizer = optim.SGD(params=self.model_output.parameters(),
+                                       lr=self.learning_rate,
+                                       momentum=self.momentum,
+                                       weight_decay=self.weight_decay)
+
+    def save(self, filepath):
+        torch.save(self.state_dict(), filepath)
+
+    def predict(self, z_pred: np.ndarray, z_true: np.ndarray) -> np.ndarray:
+        assert z_pred.shape == z_true.shape
+        self.mode(train=False)
+        with torch.no_grad():
+            if len(z_true.shape) > 1:
+                z_pred_tensor, z_true_tensor = torch.from_numpy(z_pred).float(), torch.from_numpy(z_true).float()
+            else:
+                z_pred_tensor, z_true_tensor = torch.from_numpy(z_pred[None]).float(), torch.from_numpy(z_true[None]).float()
+            # return the output of the parametric loss function in numpy format
+            return self.forward(z_pred_tensor, z_true_tensor).to("cpu").detach().numpy()
+
+    def mode(self, train=True):
+        if train:
+            self.model_output.train()
+        else:
+            self.model_output.eval()
+
+    def forward(self, z_pred_tensor: torch.FloatTensor, z_true_tensor: torch.FloatTensor):
+        # input = torch.cat((z_pred_tensor, z_true_tensor), dim=1)
+        # input = torch.abs(z_true_tensor - z_pred_tensor)
+        input = torch.square(z_true_tensor - z_pred_tensor)
+        return self.model_output(input)
+
+    def forward_theta_step(self, z_pred_tensor: torch.FloatTensor, z_true_tensor: torch.FloatTensor):
+        predicted_loss = self.forward(z_pred_tensor, z_true_tensor)
+        return torch.mean(predicted_loss)
+
+    def update(self, z_pred: np.ndarray, z_true: np.ndarray, f_hat: np.ndarray, **kwargs):
+        z_pred_tensor = torch.from_numpy(z_pred).float()
+        z_true_tensor = torch.from_numpy(z_true).float()  # fixed input
+        f_hat_tensor = torch.from_numpy(f_hat).float() # targets
+        predictions = self.forward(z_pred_tensor, z_true_tensor)
+        self.optimizer.zero_grad()
+        loss = self.loss(predictions, f_hat_tensor)
+        loss.backward()
+        self.optimizer.step()
+        return loss.item()
+
+
+class BaseCModel(object, metaclass=abc.ABCMeta):
+    def predict(self, y: np.ndarray) -> np.ndarray:
+        raise NotImplementedError
+
+    def initial_fit(self, y: np.ndarray, z_true: np.ndarray, **kwargs):
+        """Initialize the model by fitting it to the ground truth z_true"""
+        raise NotImplementedError
+
+    def update(self, y: np.ndarray, z_true: np.ndarray, model_loss: models_lancer.BaseLancer):
+        raise NotImplementedError
+
+    def save(self, filepath: str):
+        raise NotImplementedError
+
+
+class MLPCModel(BaseCModel, nn.Module):
+    # multilayer perceptron CModel
+    def __init__(self,
+                 y_dim,
+                 z_dim,
+                 n_layers,
+                 layer_size,
+                 learning_rate,
+                 opt_type="adam", # "adam" or "sgd"
+                 momentum=0.9,
+                 weight_decay=0.001,
+                 z_regul=0.0,
+                 activation="tanh",
+                 output_activation="relu", **kwargs):
+        super().__init__(**kwargs)
+        self.y_dim = y_dim
+        self.z_dim = z_dim
+        self.n_layers = n_layers
+        self.layer_size = layer_size
+        self.learning_rate = learning_rate
+        self.momentum = momentum
+        self.weight_decay = weight_decay
+        self.z_regul = z_regul
+        #####################################
+        self.model_output = build_mlp(input_size=self.y_dim,
+                                      output_size=self.z_dim,
+                                      n_layers=self.n_layers,
+                                      size=self.layer_size,
+                                      activation=activation,
+                                      output_activation=output_activation)
+        #self.model_output.to(nn_utils.device)
+        self.loss = nn.MSELoss()
+        if opt_type == "adam":
+            self.optimizer = optim.Adam(params=self.model_output.parameters(),
+                                        lr=self.learning_rate,
+                                        weight_decay=self.weight_decay)
+        else:
+            self.optimizer = optim.SGD(params=self.model_output.parameters(),
+                                       lr=self.learning_rate,
+                                       momentum=self.momentum,
+                                       weight_decay=self.weight_decay)
+
+    def save(self, filepath):
+        torch.save(self.state_dict(), filepath)
+
+    def initial_fit(self, y: np.ndarray, z_true: np.ndarray,
+                    learning_rate=0.005, num_epochs=100, batch_size=64, print_freq=1):
+        assert y.shape[0] == z_true.shape[0]
+        N = y.shape[0]
+        n_batches = int(N / batch_size)
+
+        optimizer = optim.Adam(params=self.model_output.parameters(),
+                               lr=learning_rate,
+                               weight_decay=self.weight_decay)
+        self.mode(train=True)
+        for itr in range(num_epochs):
+            rand_indices = np.random.permutation(N)
+            for bi in range(n_batches + 1):
+                idxs = rand_indices[bi * batch_size: (bi + 1) * batch_size]
+                y_batch = torch.from_numpy(y[idxs]).float()
+                z_true_batch = torch.from_numpy(z_true[idxs]).float()
+                z_pred_batch = self.forward(y_batch)
+                optimizer.zero_grad()
+                loss = self.loss(z_pred_batch, z_true_batch)
+                loss.backward()
+                optimizer.step()
+            if itr % print_freq == 0:
+                print("*** Initial fit epoch: ", itr, ", loss: ", loss.item())
+
+    def predict(self, y: np.ndarray) -> np.ndarray:
+        self.mode(train=False)
+        with torch.no_grad():
+            if len(y.shape) > 1:
+                y_tensor = torch.from_numpy(y).float()
+            else:
+                y_tensor = torch.from_numpy(y[None]).float()
+            z_pred_tensor = self.forward(y_tensor)
+            return z_pred_tensor.to("cpu").detach().numpy()
+
+    def mode(self, train=True):
+        if train:
+            self.model_output.train()
+        else:
+            self.model_output.eval()
+
+    def forward(self, y_tensor: torch.FloatTensor):
+        return torch.squeeze(self.model_output(y_tensor))
+
+    def update(self, y: np.ndarray, z_true: np.ndarray, model_loss: models_lancer.BaseLancer):
+        y_tensor = torch.from_numpy(y).float()
+        z_true_tensor = torch.from_numpy(z_true).float()
+        z_pred_tensor = self.forward(y_tensor)
+        self.optimizer.zero_grad()
+        lancer_loss = model_loss.forward_theta_step(z_pred_tensor, z_true_tensor)
+        total_loss = lancer_loss + self.z_regul * self.loss(z_pred_tensor, z_true_tensor)
+        total_loss.backward()
+        self.optimizer.step()
+        return lancer_loss.item()
 
 
 class LancerLearner:
-    def __init__(self, params: dict, c_model_type: str, lancer_model_type: str, bb_problem: base_problem.BaseProblem):
-        nn_utils.init_gpu(
-            use_gpu=not params['no_gpu'],
-            gpu_id=params['which_gpu']
-        )
+    def __init__(self, params: dict, c_model_type: str, lancer_model_type: str, bb_problem: PThenO):
         self.bb_problem = bb_problem
         self.y_dim = self.bb_problem.num_feats
-        self.c_out_dim, self.lancer_in_dim = self.bb_problem.get_c_shapes()
+        #self.c_out_dim, self.lancer_in_dim = self.bb_problem.get_c_shapes() # What does this mean??
         self.f_dim = 1
-        c_hidden_activation, c_output_activation = self.bb_problem.get_activations()
+        #c_hidden_activation, c_output_activation = self.bb_problem.get_activations()
         if lancer_model_type == "mlp":
-            self.lancer_model = models_lancer.MLPLancer(self.lancer_in_dim, self.f_dim,
-                                                        n_layers=params["lancer_n_layers"],
-                                                        layer_size=params["lancer_layer_size"],
-                                                        learning_rate=params["lancer_lr"],
-                                                        opt_type=params["lancer_opt_type"],
-                                                        weight_decay=params["lancer_weight_decay"],
-                                                        out_activation=bb_problem.lancer_out_activation)
+            self.lancer_model = MLPLancer(params["lancer_in_dim"], self.f_dim,
+                                          n_layers=params["lancer_n_layers"],
+                                          layer_size=params["lancer_layer_size"],
+                                          learning_rate=params["lancer_lr"],
+                                          opt_type=params["lancer_opt_type"],
+                                          weight_decay=params["lancer_weight_decay"],
+                                          out_activation=params["lancer_out_activation"])
         else:
             raise NotImplementedError
         if c_model_type == "mlp":
-            self.cmodel = models_c.MLPCModel(self.y_dim, self.c_out_dim,
-                                             n_layers=params["c_n_layers"],
-                                             layer_size=params["c_layer_size"],
-                                             learning_rate=params["c_lr"],
-                                             opt_type=params["c_opt_type"],
-                                             weight_decay=params["c_weight_decay"],
-                                             z_regul=params["z_regul"],
-                                             activation=c_hidden_activation,
-                                             output_activation=c_output_activation)
+            self.cmodel = MLPCModel(self.y_dim, params["c_out_dim"],
+                                    n_layers=params["c_n_layers"],
+                                    layer_size=params["c_layer_size"],
+                                    learning_rate=params["c_lr"],
+                                    opt_type=params["c_opt_type"],
+                                    weight_decay=params["c_weight_decay"],
+                                    z_regul=params["z_regul"],
+                                    activation=params["c_hidden_activation"],
+                                    output_activation=params["c_output_activation"])
         else:
             raise NotImplementedError
 
@@ -152,11 +412,12 @@ class LancerLearner:
         Z_pred_test = self.cmodel.predict(Y_test)
 
         print("\n ---- Running solver for test set -----")
-        f_hat_test = self.bb_problem.eval(Z_pred_test, Z_test, aux_data=Z_test_aux)
+        f_hat_test = self.bb_problem.dec_loss(Z_pred_test, Z_test, aux_data=Z_test_aux)
 
         lancer_loss = self.lancer_model.predict(Z_pred, Z_train)
         lancer_loss_te = self.lancer_model.predict(Z_pred_test, Z_test)
 
+        """ Probably no needed
         regret_train = dfl_utils.norm_regret(f_hat, log_dict["dl_tr_opt"])
         regret_test = dfl_utils.norm_regret(f_hat_test, log_dict["dl_te_opt"])
 
@@ -168,3 +429,26 @@ class LancerLearner:
         log_dict["dl_tr"].append(f_hat.mean()), log_dict["dl_te"].append(f_hat_test.mean())
         log_dict["regret_tr"].append(regret_train * 100), log_dict["regret_te"].append(regret_test * 100)
         log_dict["lancer_loss_tr"].append(lancer_loss.mean()), log_dict["lancer_loss_te"].append(lancer_loss_te.mean())
+        """
+
+
+def test_lancer(lancer_in_dim, c_out_dim):
+    # This default params is based on the original LANCER paper
+    # See also https://arxiv.org/pdf/2307.08964
+    def_param = {"lancer_in_dim": lancer_in_dim,
+                 "c_out_dim": c_out_dim,
+                 "lancer_n_layers": 2,
+                 "lancer_layer_size": 100,
+                 "lancer_lr": 0.001,
+                 "lancer_opt_type": "adam",
+                 "lancer_weight_decay": 0.01,
+                 "c_n_layers": 0,
+                 "c_layer_size": 64,
+                 "c_lr": 0.005,
+                 "c_weight_decay": 0.01,
+                 "z_regul": 0.0,
+                 "lancer_out_activation": "relu",
+                 "c_hidden_activation": "tanh",
+                 "c_output_activation": "relu"}
+
+    learner = LancerLearner(def_param, "mlp", "mlp", bb_problem)
