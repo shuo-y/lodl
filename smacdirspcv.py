@@ -129,7 +129,7 @@ if __name__ == "__main__":
 
     if params["test_nn2st"] != "none":
         from train_dense import nn2st_iter, perf_nn
-        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"])
+        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=100000)
         # Here just use the same data for tuning
         nntestdl = perf_nn(prob, model, xtest, ytest, None)
         nntrainvaldl = perf_nn(prob, model, xtrainvalall, ytrainvalall, None)

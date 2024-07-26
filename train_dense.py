@@ -86,7 +86,7 @@ def train_dense(args, problem):
     return model, metrics
 
 
-def nn2st_iter(problem, xtrain, ytrain, xval, yval, lr, iters, batchsize, n_layers, int_size, earlystopping=False, patience=100, model_type="dense", val_freq=1):
+def nn2st_iter(problem, xtrain, ytrain, xval, yval, lr, iters, batchsize, n_layers, int_size, earlystopping=False, patience=100, model_type="dense", val_freq=1, print_freq=1):
     # Only for Neural Network based two-stage
     # model_type is dense or dense_coupled
     X_train = torch.tensor(xtrain).float()
@@ -135,7 +135,8 @@ def nn2st_iter(problem, xtrain, ytrain, xval, yval, lr, iters, batchsize, n_laye
             pred = model(X_train[i]).squeeze()
             losses.append(MSE(pred, Y_train[i]))
         loss = torch.stack(losses).mean()
-        print(f"Iter {iter_idx} train loss {loss}")
+        if (iter_idx + 1) % print_freq == 0:
+            print(f"Iter {iter_idx} train loss {loss}")
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
