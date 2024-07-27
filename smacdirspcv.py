@@ -14,7 +14,7 @@ from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
-from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss
+from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss, squared_error
 from ShortestPath import ShortestPath
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, test_config, test_config_vec, test_dir_weight, eval_xgb_hyper
 from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     search_model = search_map_cv[args.search_method]
     model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"])
 
-    booster, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), model.get_def_loss_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
+    booster, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), squared_error, xtrainvalall, ytrainvalall, None, xtest, ytest, None)
 
     print_dq([trainvaldl2st, testdl2st, bltrainvaldl, bltestdl], ["trainval2st", "test2st", "trainvalbl", "bl1"], -1.0)
     print_nor_dq("trainvalnor", [trainvaldl2st, bltrainvaldl], ["trainval2st", "trainvalbl"], trainvaldlrand, trainvaldltrue)

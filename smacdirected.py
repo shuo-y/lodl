@@ -508,22 +508,23 @@ class XGBHyperSearchwDefault:
     def configspace(self) -> ConfigurationSpace:
         # Check the parameters from https://xgboost.readthedocs.io/en/stable/parameter.html#parameters-for-tree-booster
         cs = ConfigurationSpace()
-        eta = Float("eta", (0.01, 10.0), default=0.03)
-        gamma = Float("gamma", (0.0, 100.0), default=0.0)
-        max_depth = Integer("max_depth", (1, 100), default=6)
-        min_child_weight = Float("min_child_weight", (0.0, 100.0), default=1.0)
-        max_delta_step = Float("max_delta_step", (0.0, 100.0), default=0.0)
-        subsample = Float("subsample", (0.00001, 1.0), default=1.0)
+        eta = Float("eta", (0.0001, 1.0), default=0.03)
+        # gamma = Float("gamma", (0.0, 100.0), default=0.0)
+        #max_depth = Integer("max_depth", (1, 100), default=6)
+        #min_child_weight = Float("min_child_weight", (0.0, 100.0), default=1.0)
+        #max_delta_step = Float("max_delta_step", (0.0, 100.0), default=0.0)
+        #subsample = Float("subsample", (0.00001, 1.0), default=1.0)
         #sampling_method = Categorical("sampling_method", ["uniform", "gradient_based"], default="uniform")
-        colsample_bytree = Float("colsample_bytree", (0.00001, 1.0), default=1.0)
-        colsample_bylevel = Float("colsample_bylevel", (0.00001, 1.0), default=1.0)
-        colsample_bynode = Float("colsample_bynode", (0.00001, 1.0), default=1.0)
-        reg_lambda = Float("lambda", (0, 100.0), default=1.0)
-        alpha = Float("alpha", (0, 100.0), default=0.0)
-        tree_method = Categorical("tree_method", ["auto", "exact", "approx", "hist"], default="auto")
+        #colsample_bytree = Float("colsample_bytree", (0.00001, 1.0), default=1.0)
+        #colsample_bylevel = Float("colsample_bylevel", (0.00001, 1.0), default=1.0)
+        #colsample_bynode = Float("colsample_bynode", (0.00001, 1.0), default=1.0)
+        #reg_lambda = Float("lambda", (0, 100.0), default=1.0)
+        #alpha = Float("alpha", (0, 100.0), default=0.0)
+        #tree_method = Categorical("tree_method", ["auto", "exact", "approx", "hist"], default="auto")
         num_boost_round = Integer("num_boost_round", (1, 500), default=50)
-        cs.add_hyperparameters([eta, gamma, max_depth, min_child_weight, max_delta_step, subsample,
-                                colsample_bytree, colsample_bylevel, colsample_bynode, reg_lambda, alpha, tree_method, num_boost_round])
+        #cs.add_hyperparameters([eta, gamma, max_depth, min_child_weight, max_delta_step, subsample,
+        #colsample_bytree, colsample_bylevel, colsample_bynode, reg_lambda, alpha, tree_method, num_boost_round])
+        cs.add_hyperparameters([eta, num_boost_round])
         return cs
 
     def train(self, config: Configuration, seed: int) -> float:
@@ -708,6 +709,7 @@ def eval_xgb_hyper(params, loss_fn, prob, xtrain, ytrain, xtest, ytest, auxtest)
         cost = model.train(info.config, seed=info.seed)
         value = TrialValue(cost=cost)
         records.append((value.cost, info.config))
+        print(f"Test cost {value.cost} and conig {info.config}.")
 
         smac.tell(info, value)
 
