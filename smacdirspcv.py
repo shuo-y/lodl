@@ -114,14 +114,14 @@ if __name__ == "__main__":
     search_model = search_map_cv[args.search_method]
     model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"])
 
-    booster, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), squared_error, xtrainvalall, ytrainvalall, None, xtest, ytest, None)
+    booster, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), model.get_def_loss_fn().get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
 
     print_dq([trainvaldl2st, testdl2st, bltrainvaldl, bltestdl], ["trainval2st", "test2st", "trainvalbl", "bl1"], -1.0)
     print_nor_dq("trainvalnor", [trainvaldl2st, bltrainvaldl], ["trainval2st", "trainvalbl"], trainvaldlrand, trainvaldltrue)
     print_nor_dq("testnor", [testdl2st, bltestdl], ["test2st", "testbl"], testdlrand, testdltrue)
 
     if params["test_hyper"] != "none":
-        _, hypertestdl = eval_xgb_hyper(params, model.get_def_loss_fn(), prob, xtrainvalall, ytrainvalall, xtest, ytest, None)
+        _, hypertestdl = eval_xgb_hyper(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, None)
         print(f"Hypertest dl: {hypertestdl.mean()}, {compute_stderror(hypertestdl)}")
         print_dq([hypertestdl], ["hypertest"], -1.0)
         print_nor_dq("testnor", [hypertestdl], ["hypertest"], testdlrand, testdltrue)
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         smac.tell(info, value)
 
         if cnt == 0:
-            _, blfirst = test_config_vec(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
+            _, _, blfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
 
         if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
             _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, None)

@@ -294,6 +294,11 @@ class DirectedLossCrossValidation:
         arr = [incumbent[f"w{i}"] for i in range(2 * self.ydim)]
         return np.array(arr)
 
+    def get_def_loss_fn(self):
+        weight_vec = np.array([self.param_def for _ in range(2 * self.ydim)])
+        cusloss = search_weights_directed_loss(weight_vec)
+        return cusloss
+
     def get_loss_fn(self, incumbent):
         arr = [incumbent[f"w{i}"] for i in range(2 * self.ydim)]
         weight_vec = np.array(arr)
@@ -551,9 +556,9 @@ def compute_stderror(vec: np.ndarray) -> float:
     n = len(vec)
     return (popstd * np.sqrt(n / (n - 1.0))) / np.sqrt(n)
 
-def test_config_vec(params, prob, xgb_params, cusloss, xtrain, ytrain, auxtrain, xtest, ytest, auxtest):
+def test_config_vec(params, prob, xgb_params, obj_fn, xtrain, ytrain, auxtrain, xtest, ytest, auxtest):
     Xy = xgb.DMatrix(xtrain, ytrain)
-    booster = xgb.train(xgb_params, dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+    booster = xgb.train(xgb_params, dtrain = Xy, num_boost_round = params["search_estimators"], obj = obj_fn)
     trainpred = booster.inplace_predict(xtrain)
     traindl = prob.dec_loss(trainpred, ytrain, aux_data=auxtrain).flatten()
     testpred = booster.inplace_predict(xtest)
@@ -687,7 +692,7 @@ def eval_config_lgb(params, prob, xgb_params, cusloss, xtrain, ytrain, xval, xte
 
     return lgb_model, trainsmacpred, valsmacpred, testsmacpred
 
-def eval_xgb_hyper(params, loss_fn, prob, xtrain, ytrain, xtest, ytest, auxtest):
+def eval_xgb_hyper(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
     if params["test_hyper"] == "hyperonly":
         model = XGBHyperSearch(prob, xtrain, ytrain)
     elif params["test_hyper"] == "hyperwdef":

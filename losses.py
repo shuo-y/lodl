@@ -21,10 +21,10 @@ NUM_CPUS = os.cpu_count()
 
 # An default way from https://stackoverflow.com/questions/71178313/xgboost-custom-squarederror-loss-function-not-working-similar-to-default-impleme
 def squared_error(predt: np.ndarray, dtrain: xgb.DMatrix):
-    y = dtrain.get_label()
-    grad = y - pred
-    hess = np.ones(y.shape)
-    return grad, hess
+    y = dtrain.get_label().reshape(predt.shape)
+    grad = 0.1 * (y - predt)
+    hess = 0.01 * np.ones(y.shape)
+    return grad.flatten(), hess.flatten()
 
 class search_weights_loss():
     def __init__(self, weights_vec, verbose=True):
