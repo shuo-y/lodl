@@ -550,6 +550,64 @@ class XGBHyperSearchwDefault:
         return np.mean(costs)
 
 
+class XGBHyperSearchwRegAPI:
+    def __init__(self, prob, X, Y, auxdata=None, nfold=5):
+        self.prob = prob
+        self.Xys = []
+        self.auxdatas = []
+        self.valdatas = []
+        N = len(X)
+        cnt = N // nfold
+        self.nfold = nfold
+        self.ydim = Y.shape[1]
+
+        for i in range(self.nfold):
+            testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
+            otherind = [idx for idx in range(N) if idx < i * cnt or idx >= (i + 1) * cnt]
+            self.Xys.append((X[otherind], Y[otherind]))
+            if auxdata is not None:
+                self.auxdatas.append(auxdata[testind])
+            self.valdatas.append((X[testind], Y[testind]))
+
+
+    @property
+    def configspace(self) -> ConfigurationSpace:
+        # Check the parameters from https://xgboost.readthedocs.io/en/stable/parameter.html#parameters-for-tree-booster
+        cs = ConfigurationSpace()
+        eta = Float("eta", (0.0001, 1.0), default=0.03)
+        # gamma = Float("gamma", (0.0, 100.0), default=0.0)
+        #max_depth = Integer("max_depth", (1, 100), default=6)
+        #min_child_weight = Float("min_child_weight", (0.0, 100.0), default=1.0)
+        #max_delta_step = Float("max_delta_step", (0.0, 100.0), default=0.0)
+        #subsample = Float("subsample", (0.00001, 1.0), default=1.0)
+        #sampling_method = Categorical("sampling_method", ["uniform", "gradient_based"], default="uniform")
+        #colsample_bytree = Float("colsample_bytree", (0.00001, 1.0), default=1.0)
+        #colsample_bylevel = Float("colsample_bylevel", (0.00001, 1.0), default=1.0)
+        #colsample_bynode = Float("colsample_bynode", (0.00001, 1.0), default=1.0)
+        #reg_lambda = Float("lambda", (0, 100.0), default=1.0)
+        #alpha = Float("alpha", (0, 100.0), default=0.0)
+        #tree_method = Categorical("tree_method", ["auto", "exact", "approx", "hist"], default="auto")
+        num_boost_round = Integer("num_boost_round", (1, 500), default=50)
+        #cs.add_hyperparameters([eta, gamma, max_depth, min_child_weight, max_delta_step, subsample,
+        #colsample_bytree, colsample_bylevel, colsample_bynode, reg_lambda, alpha, tree_method, num_boost_round])
+        cs.add_hyperparameters([eta, num_boost_round])
+        return cs
+
+    def train(self, config: Configuration, seed: int) -> float:
+        params_dict = config.get_dictionary()
+        costs = []
+        for i in range(self.nfold):
+            reg = xgb.XGBRegressor(tree_method="hist", n_estimators=params_dict["num_boost_round"], learning_rate=params_dict["eta"])
+            reg.fit(self.Xys[i][0], self.Xys[i][1])
+            yvalpred = reg.predict(self.valdatas[i][0])
+            if len(self.auxdatas) > 0:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1], aux_data=self.auxdatas[i])
+            else:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1])
+            costs.append(valdl.mean())
+
+        return np.mean(costs)
+
 
 def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()
@@ -692,12 +750,13 @@ def eval_config_lgb(params, prob, xgb_params, cusloss, xtrain, ytrain, xval, xte
 
     return lgb_model, trainsmacpred, valsmacpred, testsmacpred
 
-def eval_xgb_hyper(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
+def eval_xgb_hyper(params, prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest):
     if params["test_hyper"] == "hyperonly":
         model = XGBHyperSearch(prob, xtrain, ytrain)
     elif params["test_hyper"] == "hyperwdef":
         model = XGBHyperSearchwDefault(prob, xtrain, ytrain, params["param_low"], params["param_upp"], params["param_def"])
-
+    elif params["test_hyper"] == "xgbregressorapi":
+        model = XGBHyperSearchwRegAPI(prob, xtrain, ytrain)
     scenario = Scenario(
         model.configspace,
         n_trials=params["n_trials"],  # We want to run max 50 trials (combination of config and seed)
@@ -734,10 +793,23 @@ def eval_xgb_hyper(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
     num_boost_round = params_dict["num_boost_round"]
     del params_dict["num_boost_round"]
 
+    if params["test_hyper"] == "regapi":
+        reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=num_boost_round, learning_rate=params_dict["eta"])
+        reg.fit(xtrain, ytrain, n_estimators=params_dict["num_boost_round"], learning_rate=params_dict["eta"])
+        ytestpred = reg.predict(xtest)
+        hypertest = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
+
+        ytrainpred = reg.predict(xtrain)
+        hypertrain = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
+        return reg, hypertrain, hypertest
+
     booster = xgb.train(params_dict, dtrain = xgb.DMatrix(xtrain, ytrain), num_boost_round=num_boost_round)
     ytestpred = booster.inplace_predict(xtest)
     hypertest = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
-    return booster, hypertest
+
+    ytrainpred = booster.inplace_predict(xtrain)
+    hypertrain = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
+    return booster, hypertrain, hypertest
 
 
 

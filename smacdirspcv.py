@@ -40,7 +40,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-def", type=float, default=0.05)
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cv-fold", type=int, default=5)
-    parser.add_argument("--test-hyper", type=str, default="none", choices=["none", "hyperonly", "hyperwdef"], help="Ways of testing Hyperparameters")
+    parser.add_argument("--test-hyper", type=str, default="none", choices=["none", "hyperonly", "hyperwdef", "xgbregressorapi"], help="Ways of testing Hyperparameters")
     parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense", "dense_coupled"], help="Test nn two-stage model")
     parser.add_argument("--nn-lr", type=float, default=0.01, help="The learning rate for nn")
     parser.add_argument("--nn-iters", type=int, default=5000, help="Iterations for traning NN")
@@ -116,14 +116,14 @@ if __name__ == "__main__":
 
     booster, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), model.get_def_loss_fn().get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
 
-    print_dq([trainvaldl2st, testdl2st, bltrainvaldl, bltestdl], ["trainval2st", "test2st", "trainvalbl", "bl1"], -1.0)
+    print_dq([trainvaldl2st, testdl2st, bltrainvaldl, bltestdl], ["trainval2st", "test2st", "trainvalbl", "testbl1"], -1.0)
     print_nor_dq("trainvalnor", [trainvaldl2st, bltrainvaldl], ["trainval2st", "trainvalbl"], trainvaldlrand, trainvaldltrue)
     print_nor_dq("testnor", [testdl2st, bltestdl], ["test2st", "testbl"], testdlrand, testdltrue)
 
     if params["test_hyper"] != "none":
-        _, hypertestdl = eval_xgb_hyper(params, prob, xtrainvalall, ytrainvalall, xtest, ytest, None)
-        print(f"Hypertest dl: {hypertestdl.mean()}, {compute_stderror(hypertestdl)}")
-        print_dq([hypertestdl], ["hypertest"], -1.0)
+        _, hypertraindl, hypertestdl = eval_xgb_hyper(params, prob, xtrainvalall, ytrainvalall, None, xtest, ytest, None)
+        print_dq([hypertraindl, hypertestdl], ["hypertrain","hypertest"], -1.0)
+        print_nor_dq("testnor", [hypertraindl], ["hypertrain"], trainvaldlrand, trainvaldltrue)
         print_nor_dq("testnor", [hypertestdl], ["hypertest"], testdlrand, testdltrue)
         exit(0)
 
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         smac.tell(info, value)
 
         if cnt == 0:
-            _, _, blfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
+            _, bltrainvalfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
 
         if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
             _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, None)
@@ -197,9 +197,9 @@ if __name__ == "__main__":
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
 
-    print_dq([trainvaldl2st, testdl2st, trainvalsmac, testsmac, bltestdl, blfirst], ["trainval2st", "test2st", "trainvalsmac", "testsmac", "bl1", "blfirstcnt"], -1.0)
-    print_nor_dq("trainvalnor", [trainvaldl2st, trainvalsmac], ["trainvaldl2st", "trainvalsmac"], trainvaldlrand, trainvaldltrue)
-    print_nor_dq("testnor", [testdl2st, testsmac, bltestdl, blfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
+    print_dq([trainvalsmac, testsmac, bltestdl, bltrainvalfirst, blfirst], ["trainvalsmac", "testsmac", "bldef", "bltrainvalfirst", "bltestfirst"], -1.0)
+    print_nor_dq("Comparetrainvalnor", [trainvaldl2st, trainvalsmac], ["trainvaldl2st", "trainvalsmac"], trainvaldlrand, trainvaldltrue)
+    print_nor_dq("Comparetestnor", [testdl2st, testsmac, bltestdl, blfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
 
 
 
