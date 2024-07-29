@@ -16,7 +16,7 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss, squared_error
 from ShortestPath import ShortestPath
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, test_config, test_config_vec, test_dir_weight, eval_xgb_hyper
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, test_config, test_config_vec, test_dir_weight, eval_xgb_hyper, contin_xgb_hyper
 from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check
 
 
@@ -48,6 +48,7 @@ if __name__ == "__main__":
     parser.add_argument("--n-layers", type=int, default=2, help="num of layers when traning NN") # What happens if n-layers much more than two?
     parser.add_argument("--int-size", type=int, default=500, help="num of layers when traning NN")
     parser.add_argument("--baseline", type=str, default="none", choices=["none", "lancer"])
+    parser.add_argument("--contin-hyper", type=int, default=0)
     #parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
 
     args = parser.parse_args()
@@ -197,9 +198,17 @@ if __name__ == "__main__":
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
 
-    print_dq([trainvalsmac, testsmac, bltestdl, bltrainvalfirst, blfirst], ["trainvalsmac", "testsmac", "bldef", "bltrainvalfirst", "bltestfirst"], -1.0)
+    print_dq([trainvalsmac, testsmac, bltestdl, bltrainvalfirst, bltestfirst], ["trainvalsmac", "testsmac", "bldef", "bltrainvalfirst", "bltestfirst"], -1.0)
     print_nor_dq("Comparetrainvalnor", [trainvaldl2st, trainvalsmac], ["trainvaldl2st", "trainvalsmac"], trainvaldlrand, trainvaldltrue)
-    print_nor_dq("Comparetestnor", [testdl2st, testsmac, bltestdl, blfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
+    print_nor_dq("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
+
+    if params["contin_hyper"] > 0:
+        _, hypertraindl, hypertestdl = contin_xgb_hyper(params, prob, xtrainvalall, ytrainvalall, None, xtest, ytest, None, cusloss.get_obj_fn(), params["contin_hyper"])
+        print_dq([hypertraindl, hypertestdl], ["continhypertrain","continhypertest"], -1.0)
+        print_nor_dq("con_testnor", [hypertraindl], ["continhypertrain"], trainvaldlrand, trainvaldltrue)
+        print_nor_dq("con_testnor", [hypertestdl], ["continhypertest"], testdlrand, testdltrue)
+        exit(0)
+
 
 
 

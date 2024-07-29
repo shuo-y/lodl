@@ -549,6 +549,67 @@ class XGBHyperSearchwDefault:
 
         return np.mean(costs)
 
+class XGBHyperSearchContine:
+    def __init__(self, prob, X, Y, obj_fn, auxdata=None, nfold=5):
+        self.prob = prob
+        self.Xys = []
+        self.auxdatas = []
+        self.valdatas = []
+        N = len(X)
+        cnt = N // nfold
+        self.nfold = nfold
+        self.ydim = Y.shape[1]
+
+        self.obj_fn = obj_fn
+        for i in range(self.nfold):
+            testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
+            otherind = [idx for idx in range(N) if idx < i * cnt or idx >= (i + 1) * cnt]
+            self.Xys.append(xgb.DMatrix(X[otherind], Y[otherind]))
+            if auxdata is not None:
+                self.auxdatas.append(auxdata[testind])
+            self.valdatas.append((X[testind], Y[testind]))
+
+
+    @property
+    def configspace(self) -> ConfigurationSpace:
+        # Check the parameters from https://xgboost.readthedocs.io/en/stable/parameter.html#parameters-for-tree-booster
+        cs = ConfigurationSpace()
+        eta = Float("eta", (0.0001, 1.0), default=0.03)
+        # gamma = Float("gamma", (0.0, 100.0), default=0.0)
+        #max_depth = Integer("max_depth", (1, 100), default=6)
+        #min_child_weight = Float("min_child_weight", (0.0, 100.0), default=1.0)
+        #max_delta_step = Float("max_delta_step", (0.0, 100.0), default=0.0)
+        #subsample = Float("subsample", (0.00001, 1.0), default=1.0)
+        #sampling_method = Categorical("sampling_method", ["uniform", "gradient_based"], default="uniform")
+        #colsample_bytree = Float("colsample_bytree", (0.00001, 1.0), default=1.0)
+        #colsample_bylevel = Float("colsample_bylevel", (0.00001, 1.0), default=1.0)
+        #colsample_bynode = Float("colsample_bynode", (0.00001, 1.0), default=1.0)
+        #reg_lambda = Float("lambda", (0, 100.0), default=1.0)
+        #alpha = Float("alpha", (0, 100.0), default=0.0)
+        #tree_method = Categorical("tree_method", ["auto", "exact", "approx", "hist"], default="auto")
+        num_boost_round = Integer("num_boost_round", (1, 500), default=50)
+        #cs.add_hyperparameters([eta, gamma, max_depth, min_child_weight, max_delta_step, subsample,
+        #colsample_bytree, colsample_bylevel, colsample_bynode, reg_lambda, alpha, tree_method, num_boost_round])
+        cs.add_hyperparameters([eta, num_boost_round])
+        return cs
+
+    def train(self, config: Configuration, seed: int) -> float:
+        params_dict = config.get_dictionary()
+        num_boost_round = params_dict["num_boost_round"]
+        del params_dict["num_boost_round"]
+
+        costs = []
+        for i in range(self.nfold):
+            booster = xgb.train(params_dict, dtrain = self.Xys[i], num_boost_round = num_boost_round, obj=self.obj_fn)
+            yvalpred = booster.inplace_predict(self.valdatas[i][0])
+            if len(self.auxdatas) > 0:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1], aux_data=self.auxdatas[i])
+            else:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1])
+            costs.append(valdl.mean())
+
+        return np.mean(costs)
+
 
 class XGBHyperSearchwRegAPI:
     def __init__(self, prob, X, Y, auxdata=None, nfold=5):
@@ -810,6 +871,54 @@ def eval_xgb_hyper(params, prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest
     ytrainpred = booster.inplace_predict(xtrain)
     hypertrain = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
     return booster, hypertrain, hypertest
+
+
+def contin_xgb_hyper(params, prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, obj_fn, contin_trials):
+    model = XGBHyperSearchContine(prob, xtrain, ytrain, obj_fn)
+    scenario = Scenario(
+        model.configspace,
+        n_trials=contin_trials,  # We want to run max 50 trials (combination of config and seed)
+    )
+
+    intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
+    smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
+    records = []
+
+    for cnt in range(contin_trials):
+        info = smac.ask()
+        assert info.seed is not None
+
+        cost = model.train(info.config, seed=info.seed)
+        value = TrialValue(cost=cost)
+        records.append((value.cost, info.config))
+        print(f"Test cost {value.cost} and conig {info.config}.")
+
+        smac.tell(info, value)
+
+    # records.sort()
+    # TODO check here '<' not supported between instances of 'Configuration' and 'Configuration'
+    candidates = sorted(records, key=lambda x : x[0])
+    select = len(candidates) - 1
+    for i in range(1, len(candidates)):
+        if candidates[i][0] != candidates[0][0]:
+            select = i
+            print(f"from idx 0 to {select} has the same cost randomly pick one")
+            break
+    idx = random.randint(0, select - 1)
+    incumbent = records[idx][1]
+    params_dict = incumbent.get_dictionary()
+    print(f"Hyper final:{params_dict}")
+    num_boost_round = params_dict["num_boost_round"]
+    del params_dict["num_boost_round"]
+
+    booster = xgb.train(params_dict, dtrain = xgb.DMatrix(xtrain, ytrain), num_boost_round=num_boost_round)
+    ytestpred = booster.inplace_predict(xtest)
+    hypertest = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
+
+    ytrainpred = booster.inplace_predict(xtrain)
+    hypertrain = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
+    return booster, hypertrain, hypertest
+
 
 
 
