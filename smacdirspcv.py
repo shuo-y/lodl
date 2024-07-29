@@ -124,7 +124,7 @@ if __name__ == "__main__":
     if params["test_hyper"] != "none":
         _, hypertraindl, hypertestdl = eval_xgb_hyper(params, prob, xtrainvalall, ytrainvalall, None, xtest, ytest, None)
         print_dq([hypertraindl, hypertestdl], ["hypertrain","hypertest"], -1.0)
-        print_nor_dq("testnor", [hypertraindl], ["hypertrain"], trainvaldlrand, trainvaldltrue)
+        print_nor_dq("trainvalnor", [hypertraindl], ["hypertrain"], trainvaldlrand, trainvaldltrue)
         print_nor_dq("testnor", [hypertestdl], ["hypertest"], testdlrand, testdltrue)
         exit(0)
 
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     if params["contin_hyper"] > 0:
         _, hypertraindl, hypertestdl = contin_xgb_hyper(params, prob, xtrainvalall, ytrainvalall, None, xtest, ytest, None, cusloss.get_obj_fn(), params["contin_hyper"])
         print_dq([hypertraindl, hypertestdl], ["continhypertrain","continhypertest"], -1.0)
-        print_nor_dq("con_testnor", [hypertraindl], ["continhypertrain"], trainvaldlrand, trainvaldltrue)
+        print_nor_dq("con_trainvalnor", [hypertraindl], ["continhypertrain"], trainvaldlrand, trainvaldltrue)
         print_nor_dq("con_testnor", [hypertestdl], ["continhypertest"], testdlrand, testdltrue)
         exit(0)
 
