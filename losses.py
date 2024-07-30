@@ -108,6 +108,26 @@ class search_weights_directed_loss():
             return grad, hess
         return grad_fn
 
+    def get_sk_obj_fn(self):
+        # For sk learn API
+        def grad_fn(y, predt):
+            #y = dtrain.get_label().reshape(predt.shape)
+            y = y.reshape(predt.shape)
+
+            diff = (predt - y)
+            posdiff = (diff >= 0) * diff
+            negdiff = (diff < 0) * diff
+
+            grad = (2 * (self.weights_pos * posdiff) + 2 * (self.weights_neg * negdiff))
+            hess = (2 * (self.weights_pos * (diff >= 0)) + 2 * (self.weights_neg * (diff < 0)))
+
+            grad = grad.flatten()
+            grad = grad #/ len(grad)  # TODO check if normalized matters when the feature is unrelated?
+            hess = hess.flatten()
+            hess = hess #/ len(hess)
+            return grad, hess
+        return grad_fn
+
     def get_eval_fn(self):
         def eval_fn(predt, dtrain):
             y = dtrain.get_label().reshape(predt.shape)

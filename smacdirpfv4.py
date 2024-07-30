@@ -43,6 +43,14 @@ if __name__ == "__main__":
     parser.add_argument("--n-test-history", type=int, default=0, help="Check test dl of the history")
     #parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
     parser.add_argument("--cv-fold", type=int, default=5)
+    parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense", "dense_coupled"], help="Test nn two-stage model")
+    parser.add_argument("--nn-lr", type=float, default=0.01, help="The learning rate for NN")
+    parser.add_argument("--nn-iters", type=int, default=5000, help="Iterations for traning NN")
+    parser.add_argument("--batchsize", type=int, default=1000, help="batchsize when traning NN")
+    parser.add_argument("--n-layers", type=int, default=2, help="num of layers when traning NN") # What happens if n-layers much more than two?
+    parser.add_argument("--int-size", type=int, default=500, help="num of layers when traning NN")
+    parser.add_argument("--baseline", type=str, default="none", choices=["none", "lancer"])
+    parser.add_argument("--verbose", action="store_true", help="Print more verbose info")
 
     args = parser.parse_args()
     params = vars(args)
@@ -118,7 +126,7 @@ if __name__ == "__main__":
 
     search_model = search_map_cv[args.search_method]
     model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, auxdata=auxtrainvalall, nfold=params["cv_fold"])
-    _, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn(), xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest)
+    _, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn().get_obj_fn(), xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest)
 
 
     print_dq([trainvaldl2st, testdl2st, bltrainvaldl, bltestdl], ["trainval2st", "test2st", "trainvalbl", "bl1"], -1.0)
@@ -133,13 +141,26 @@ if __name__ == "__main__":
     #lgb_model, trainsmacpred, valsmacpred, testsmacpred = eval_config_lgb(params, prob, xgb_params, chosen_loss, xtrain, ytrain, xval, xtest)
 
     if params["test_nn2st"] != "none":
-        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"])
+        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"])
         nntestdl = perf_nn(prob, model, xtest, ytest, auxtest)
         nntrainvaldl = perf_nn(prob, model, xtrainvalall, ytrainvalall, auxtrainvalall)
 
         print_dq([nntrainvaldl, nntestdl], ["NN2stTrainval", "NN2stTest"], -1.0)
         print_nor_dq("nn2stTrainvalNorDQ", [nntrainvaldl], ["NN2stTrainval"], trainvaldlrand, trainvaldltrue)
         print_nor_dq("nn2stTestNorDQ", [nntestdl], ["NN2stTest"], testdlrand, testdltrue)
+        exit(0)
+
+    if params["baseline"] == "lancer":
+        from lancer_learner import test_lancer
+        # TODO
+        model, lctrainvaldl, lctestdl = test_lancer(prob, xtrainvalall, ytrainvalall, None, xtest, ytest, None,
+                                                lancer_in_dim=prob.num_stocks, c_out_dim=1, n_iter=10, c_max_iter=5, c_nbatch=128,
+                                                lancer_max_iter=5, lancer_nbatch=1024, c_epochs_init=30, c_lr_init=0.005, c_n_layers=0, print_freq=1000)
+
+
+        print_dq([lctrainvaldl, lctestdl], ["LANCERtrainval", "LANCERtest"], -1.0)
+        print_nor_dq("LANCERTrainvalNorDQ", [lctrainvaldl], ["LANCERTrainval"], trainvaldlrand, trainvaldltrue)
+        print_nor_dq("LANCERTestNorDQ", [lctestdl], ["LANCERTestdl"], testdlrand, testdltrue)
         exit(0)
 
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
@@ -161,8 +182,9 @@ if __name__ == "__main__":
         if cnt == 0 or (params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0):
             print(f"Vec {model.get_vec(info.config)}")
             if params["cross_valid"] == True:
-                  _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
-                  print(f"history: iter{cnt} val train_val_all, {cost}, {trainvaldl}, {trainvaldlstderr}")
+                  _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
+                  if params["verbose"] == True:
+                      print(f"history: iter{cnt} val train_val_all, {cost}, {trainvaldl}, {trainvaldlstderr}")
             else:
                 _, testdl, teststderr = test_config(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config), xtrain, ytrain, xtest, ytest, auxtest)
                 print(f"history iter{cnt} val test teststderr, {cost}, {testdl}, {teststderr}")

@@ -396,7 +396,7 @@ class LancerLearner:
 
 def test_lancer(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in_dim,
                 c_out_dim, n_iter, c_max_iter, c_nbatch, lancer_max_iter, lancer_nbatch,
-                c_epochs_init, c_lr_init, print_freq):
+                c_epochs_init, c_lr_init, c_n_layers=0, print_freq=1):
     # This default params is based on the original LANCER paper
     # See also https://arxiv.org/pdf/2307.08964
     def_param = {"lancer_in_dim": lancer_in_dim,
@@ -406,7 +406,7 @@ def test_lancer(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in
                  "lancer_lr": 0.001,
                  "lancer_opt_type": "adam",
                  "lancer_weight_decay": 0.01,
-                 "c_n_layers": 0,
+                 "c_n_layers": c_n_layers,
                  "c_layer_size": 64,
                  "c_lr": 0.005,
                  "c_opt_type": "adam",
