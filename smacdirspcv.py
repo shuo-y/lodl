@@ -16,7 +16,7 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss, squared_error
 from ShortestPath import ShortestPath
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, test_config, test_config_vec, test_dir_weight, eval_xgb_hyper, contin_xgb_hyper
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, DirectedLossCrossValHyper, test_config, test_config_vec, test_dir_weight, eval_xgb_hyper, contin_xgb_hyper
 from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check
 
 
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
-    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad", "idx"])
+    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "idx", "msehyp++"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
     parser.add_argument("--num-train", type=int, default=200)
@@ -109,8 +109,7 @@ if __name__ == "__main__":
     trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall).float(), Y_aux=None, trials=params["n_rand_trials"]).numpy().flatten()
     testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest).float(), Y_aux=None, trials=params["n_rand_trials"]).numpy().flatten()
 
-    search_map = {"mse++": DirectedLoss, "quad": QuadSearch}
-    search_map_cv = {"mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid}
+    search_map_cv = {"mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid, "msehyp++": DirectedLossCrossValHyper}
 
     search_model = search_map_cv[args.search_method]
     model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"])
@@ -187,6 +186,7 @@ if __name__ == "__main__":
     idx = random.randint(0, select - 1)
     incumbent = records[idx][1]
     params_vec = model.get_vec(incumbent)
+    print(f"print {incumbent}")
     print(f"Seaerch Choose {params_vec}")
     cusloss = model.get_loss_fn(incumbent)
     Xy = xgb.DMatrix(xtrainvalall, ytrainvalall)
