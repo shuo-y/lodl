@@ -24,7 +24,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
-    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "idx", "msehyp++"])
+    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "idx", "msehyp++", "quad"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
     parser.add_argument("--num-train", type=int, default=200)
@@ -170,9 +170,15 @@ if __name__ == "__main__":
             _, bltrainvalfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
 
         if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
-            _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config), xtrainvalall, ytrainvalall, xtest, ytest, None)
-            print(f"Vec {model.get_vec(info.config)}")
-            print(f"history iter{cnt} vol test teststderr, {cost}, {trainvaldl}, {trainvaldlstderr}")
+            if cnt == 0:
+                itertrainval = bltrainvalfirst
+                itertest = bltestfirst
+            else:
+                _, itertrainval, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
+            print(f"iter{cnt}: cost is {cost}")
+            print_dq([itertrainval, itertest], [f"iter{cnt}trainval", f"iter{cnt}test"])
+            print_nor_dq(f"iternordqtrainval", [itertrainval], [f"iter{cnt}trainval"], trainvaldlrand, trainvaldltrue)
+            print_nor_dq(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
 
     print(f"Search takes {time.time() - start_time} seconds")
 
