@@ -308,6 +308,100 @@ class DirectedLossCrossValidation:
     def get_xgb_params(self):
         return {"tree_method": self.params["tree_method"], "num_target": self.ydim}
 
+class QuadLossCrossValidation:
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=5, reg2st=None, use_vec=False, initvec=None):
+        # directed loss with cross validation
+        # just do not use xtrain ytrain and valtruedl
+        self.params = params
+        self.prob = prob
+        self.param_low = param_low
+        self.param_upp = param_upp
+        self.param_def = param_def
+        self.reg2stmodel = reg2st
+        self.use_vec = use_vec
+        self.initvec = initvec
+        # 0.0001, 0.01, 0.001
+        self.Xys = []
+        self.auxdatas = []
+        self.valdatas = []
+        N = len(X)
+        cnt = N // nfold
+        self.nfold = nfold
+        self.ydim = Y.shape[1]
+        self.total_params_n = ((1 + self.yval.shape[1]) * self.yval.shape[1]) // 2
+
+        for i in range(self.nfold):
+            testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
+            otherind = [idx for idx in range(N) if idx < i * cnt or idx >= (i + 1) * cnt]
+            self.Xys.append(xgb.DMatrix(X[otherind], Y[otherind]))
+            if auxdata is not None:
+                self.auxdatas.append(auxdata[testind])
+            self.valdatas.append((X[testind], Y[testind]))
+
+
+    @property
+    def configspace(self) -> ConfigurationSpace:
+        cs = ConfigurationSpace()
+        configs = [Float(f"w{i}", (self.param_low, self.param_upp), default=self.param_def) for i in range(self.total_params_n)]
+        cs.add_hyperparameters(configs)
+        return cs
+
+    def train(self, configs: Configuration, seed: int) -> float:
+        configarray = [configs[f"w{i}"] for i in range(self.total_params_n)]
+        indx = 0
+        base_vec = np.zeros((self.yval.shape[1], self.yval.shape[1]))
+        for i in range(self.yval.shape[1]):
+            for j in range(i + 1):
+                base_vec[i, j] = configarray[indx]
+                indx += 1
+        cusloss = search_quadratic_loss(base_vec, 0.01)
+
+        costs = []
+        for i in range(self.nfold):
+            booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.ydim},
+                                    dtrain = self.Xys[i], num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
+
+            yvalpred = booster.inplace_predict(self.valdatas[i][0])
+            if len(self.auxdatas) > 0:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1], aux_data=self.auxdatas[i])
+            else:
+                valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1])
+            costs.append(valdl.mean())
+
+        return np.mean(costs)
+
+    def get_vec(self, incumbent) -> np.ndarray:
+        # Get the weight vector from incumbent
+        arr = [incumbent[f"w{i}"] for i in range(self.total_params_n)]
+        indx = 0
+        base_mat = np.zeros((self.ydim, self.ydim))
+        # base_mat is a Triangle matrix
+        for i in range(self.ydim):
+            for j in range(i + 1):
+                base_mat[i, j] = arr[indx]
+                indx += 1
+        return base_mat
+
+    def get_loss_fn(self, incumbent):
+        base_mat = self.get_vec(incumbent)
+        cusloss = search_quadratic_loss(base_mat, 0.01)
+        return cusloss
+
+    def get_def_loss_fn(self):
+        base_mat = np.zeros((self.ydim, self.ydim))
+        indx = 0
+        for i in range(self.ydim):
+            for j in range(i + 1):
+                base_mat[i, j] = self.param_def
+                indx += 1
+        cusloss = search_quadratic_loss(base_mat, 0.01)
+        return cusloss
+
+    def get_xgb_params(self):
+        # When using triangle loss add eta as 0.03
+        return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": 0.03}
+
+
 class DirectedLossCrossValHyper:
     def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=5, reg2st=None, use_vec=False, initvec=None):
         # directed loss with cross validation
@@ -505,6 +599,7 @@ class QuadSearch:
 
     def get_xgb_params(self):
         return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1], "eta": 0.03}
+
 
 
 class XGBHyperSearch:
