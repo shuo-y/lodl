@@ -175,8 +175,8 @@ if __name__ == "__main__":
                 itertest = bltestfirst
             else:
                 _, itertrainval, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
-            print(f"iter{cnt}: cost is {cost}")
-            print_dq([itertrainval, itertest], [f"iter{cnt}trainval", f"iter{cnt}test"])
+            print(f"iter{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
+            print_dq([itertrainval, itertest], [f"iter{cnt}trainval", f"iter{cnt}test"], -1.0)
             print_nor_dq(f"iternordqtrainval", [itertrainval], [f"iter{cnt}trainval"], trainvaldlrand, trainvaldltrue)
             print_nor_dq(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
 
