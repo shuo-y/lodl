@@ -292,7 +292,7 @@ class WeightedLossCrossValidation:
         return np.array(arr)
 
     def get_def_loss_fn(self):
-        weight_vec = np.array([self.param_def for _ in range(2 * self.ydim)])
+        weight_vec = np.array([self.param_def for _ in range(self.ydim)])
         cusloss = search_weights_loss(weight_vec)
         return cusloss
 
@@ -403,7 +403,7 @@ class QuadLossCrossValidation:
         cnt = N // nfold
         self.nfold = nfold
         self.ydim = Y.shape[1]
-        self.total_params_n = ((1 + self.yval.shape[1]) * self.yval.shape[1]) // 2
+        self.total_params_n = ((1 + self.ydim) * self.ydim) // 2
 
         for i in range(self.nfold):
             testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
@@ -424,8 +424,8 @@ class QuadLossCrossValidation:
     def train(self, configs: Configuration, seed: int) -> float:
         configarray = [configs[f"w{i}"] for i in range(self.total_params_n)]
         indx = 0
-        base_vec = np.zeros((self.yval.shape[1], self.yval.shape[1]))
-        for i in range(self.yval.shape[1]):
+        base_vec = np.zeros((self.ydim, self.ydim))
+        for i in range(self.ydim):
             for j in range(i + 1):
                 base_vec[i, j] = configarray[indx]
                 indx += 1
