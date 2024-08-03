@@ -163,24 +163,15 @@ if __name__ == "__main__":
         cost = model.train(info.config, seed=info.seed)
         value = TrialValue(cost=cost)
         records.append((value.cost, info.config))
-
         smac.tell(info, value)
 
-        if cnt == 0:
-            _, bltrainvalfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
-
         if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
-            if cnt == 0:
-                itertrainval = bltrainvalfirst
-                itertest = bltestfirst
-            else:
-                _, itertrainval, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
+            _, itertrainval, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
             print(f"iter{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
             print_dq([itertrainval, itertest], [f"iter{cnt}trainval", f"iter{cnt}test"], -1.0)
             print_nor_dq(f"iternordqtrainval", [itertrainval], [f"iter{cnt}trainval"], trainvaldlrand, trainvaldltrue)
             print_nor_dq(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
 
-    print(f"Search takes {time.time() - start_time} seconds")
 
     candidates = sorted(records, key=lambda x : x[0])
     select = len(candidates) - 1
@@ -191,18 +182,27 @@ if __name__ == "__main__":
             break
     idx = random.randint(0, select - 1)
     incumbent = candidates[idx][1]
+    print(f"TIME Search takes {time.time() - start_time} seconds")
+
     params_vec = model.get_vec(incumbent)
     print(f"print {incumbent}")
     print(f"Seaerch Choose {params_vec}")
+
+    start_time = time.time()
     cusloss = model.get_loss_fn(incumbent)
     Xy = xgb.DMatrix(xtrainvalall, ytrainvalall)
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+    print(f"TIME Final train time {time.time() - start_time} seconds")
+
+    print(f"Just in case: candidates {candidates[:5]} and records {records[:5]} ")
 
     smacytrainvalpred = booster.inplace_predict(xtrainvalall)
     trainvalsmac = prob.dec_loss(smacytrainvalpred, ytrainvalall).flatten()
 
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
+
+    _, bltrainvalfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(records[0][1]).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None) # Check the performance of the first iteration
 
     print_dq([trainvalsmac, testsmac, bltestdl, bltrainvalfirst, bltestfirst], ["trainvalsmac", "testsmac", "bldef", "bltrainvalfirst", "bltestfirst"], -1.0)
     print_nor_dq("Comparetrainvalnor", [trainvaldl2st, trainvalsmac], ["trainvaldl2st", "trainvalsmac"], trainvaldlrand, trainvaldltrue)
