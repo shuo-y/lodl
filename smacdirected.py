@@ -1098,13 +1098,13 @@ def eval_xgb_hyper(params, prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest
             print(f"from idx 0 to {select} has the same cost randomly pick one")
             break
     idx = random.randint(0, select - 1)
-    incumbent = records[idx][1]
+    incumbent = candidates[idx][1]
     params_dict = incumbent.get_dictionary()
     print(f"Hyper final:{params_dict}")
     num_boost_round = params_dict["num_boost_round"]
     del params_dict["num_boost_round"]
 
-    if params["test_hyper"] == "regapi":
+    if params["test_hyper"] == "xgbregressorapi":
         reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=num_boost_round, learning_rate=params_dict["eta"])
         reg.fit(xtrain, ytrain, n_estimators=params_dict["num_boost_round"], learning_rate=params_dict["eta"])
         ytestpred = reg.predict(xtest)
