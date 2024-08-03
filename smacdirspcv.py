@@ -190,7 +190,7 @@ if __name__ == "__main__":
             print(f"from idx 0 to {select} has the same cost randomly pick one")
             break
     idx = random.randint(0, select - 1)
-    incumbent = records[idx][1]
+    incumbent = candidates[idx][1]
     params_vec = model.get_vec(incumbent)
     print(f"print {incumbent}")
     print(f"Seaerch Choose {params_vec}")

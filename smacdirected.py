@@ -1155,7 +1155,7 @@ def contin_xgb_hyper(params, prob, xtrain, ytrain, auxtrain, xtest, ytest, auxte
             print(f"from idx 0 to {select} has the same cost randomly pick one")
             break
     idx = random.randint(0, select - 1)
-    incumbent = records[idx][1]
+    incumbent = candidates[idx][1]
     params_dict = incumbent.get_dictionary()
     print(f"Hyper final:{params_dict}")
     num_boost_round = params_dict["num_boost_round"]
