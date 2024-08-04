@@ -225,7 +225,7 @@ if __name__ == "__main__":
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest, aux_data=auxtest).flatten()
 
-    _, bltrainvalfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(records[0][1]).get_obj_fn(), xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest)
+    _, bltrainvalfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(records[0][1]).get_obj_fn(), xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest, desc="bldefw")
 
     print_dq([trainvalsmac, testsmac, bltestdl, bltrainvalfirst, bltestfirst], ["trainvalsmac", "testsmac", "bldef", "bltrainvalfirst", "bltestfirst"], -1.0)
     print_nor_dq("Comparetrainvalnor", [trainvaldl2st, trainvalsmac], ["trainvaldl2st", "trainvalsmac"], trainvaldlrand, trainvaldltrue)

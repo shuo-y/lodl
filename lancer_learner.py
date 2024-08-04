@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 # It is from https://github.com/facebookresearch/LANCER used for possible baseline tests
 
-import numpy as np
+import time
 import abc
 import torch
 import numpy as np
@@ -421,6 +421,7 @@ def test_lancer(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in
 
     learner = LancerLearner(def_param, "mlp", "mlp", prob)
     dataset = (xtrain, None, ytrain, None, auxtrain, None)
+    start_time = time.time()
     lancer_model = learner.run_training_loop(dataset,
                                              n_iter=n_iter,
                                              c_max_iter=c_max_iter,
@@ -430,7 +431,7 @@ def test_lancer(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in
                                              c_epochs_init=c_epochs_init,
                                              c_lr_init=c_lr_init,
                                              print_freq=print_freq)
-
+    print(f"TIME LANCER learning time {time.time() - start_time}")
     ytestpred = lancer_model.predict(xtest)
     testdl = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
 

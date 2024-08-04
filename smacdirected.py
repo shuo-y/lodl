@@ -925,9 +925,11 @@ def compute_stderror(vec: np.ndarray) -> float:
     n = len(vec)
     return (popstd * np.sqrt(n / (n - 1.0))) / np.sqrt(n)
 
-def test_config_vec(params, prob, xgb_params, obj_fn, xtrain, ytrain, auxtrain, xtest, ytest, auxtest):
+def test_config_vec(params, prob, xgb_params, obj_fn, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, desc=""):
+    start_time = time.time()
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train(xgb_params, dtrain = Xy, num_boost_round = params["search_estimators"], obj = obj_fn)
+    print(f"TIME of {desc} test config call train takes , {time.time() - start_time}, seconds")
     trainpred = booster.inplace_predict(xtrain)
     traindl = prob.dec_loss(trainpred, ytrain, aux_data=auxtrain).flatten()
     testpred = booster.inplace_predict(xtest)
