@@ -396,25 +396,28 @@ class LancerLearner:
 
 def test_lancer(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in_dim,
                 c_out_dim, n_iter, c_max_iter, c_nbatch, lancer_max_iter, lancer_nbatch,
-                c_epochs_init, c_lr_init, c_n_layers=0, print_freq=1):
+                c_epochs_init, c_lr_init, lancer_lr=0.001, c_lr=0.005,
+                lancer_n_layers=2, lancer_layer_size=100, c_n_layers=0, c_layer_size=64,
+                lancer_weight_decay=0.01, c_weight_decay=0.01, z_regul=0.0,
+                lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=1):
     # This default params is based on the original LANCER paper
     # See also https://arxiv.org/pdf/2307.08964
     def_param = {"lancer_in_dim": lancer_in_dim,
                  "c_out_dim": c_out_dim,
                  "lancer_n_layers": 2,
                  "lancer_layer_size": 100,
-                 "lancer_lr": 0.001,
+                 "lancer_lr": lancer_lr,
                  "lancer_opt_type": "adam",
-                 "lancer_weight_decay": 0.01,
+                 "lancer_weight_decay": lancer_weight_decay,
                  "c_n_layers": c_n_layers,
-                 "c_layer_size": 64,
-                 "c_lr": 0.005,
+                 "c_layer_size": c_layer_size,
+                 "c_lr": c_lr,
                  "c_opt_type": "adam",
-                 "c_weight_decay": 0.01,
-                 "z_regul": 0.0,
-                 "lancer_out_activation": "relu",
-                 "c_hidden_activation": "tanh",
-                 "c_output_activation": "relu"}
+                 "c_weight_decay": c_weight_decay,
+                 "z_regul": z_regul,
+                 "lancer_out_activation": lancer_out_activation,
+                 "c_hidden_activation": c_hidden_activation,
+                 "c_output_activation": c_output_activation}
 
     learner = LancerLearner(def_param, "mlp", "mlp", prob)
     dataset = (xtrain, None, ytrain, None, auxtrain, None)

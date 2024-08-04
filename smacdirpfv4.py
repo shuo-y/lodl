@@ -18,7 +18,6 @@ from losses import search_weights_loss, search_quadratic_loss, search_weights_di
 from PortfolioOpt import PortfolioOpt
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstance, SearchbyInstanceCrossValid, test_config, test_config_vec, test_dir_weight, test_reg, test_weightmse, test_square_log
 from smacdirected import smac_search_lgb, eval_config_lgb, test_reg_lgb
-from train_dense import nn2st_iter, perf_nn
 from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check
 
 
@@ -40,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-low", type=float, default=0.008)
     parser.add_argument("--param-upp", type=float, default=2)
     parser.add_argument("--param-def", type=float, default=0.04)
-    parser.add_argument("--n-test-history", type=int, default=0, help="Check test dl of the history")
+    parser.add_argument("--n-test-history", type=int, default=0, help="Check test dl of the history or print neural network traning losses")
     #parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
     parser.add_argument("--cv-fold", type=int, default=5)
     parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense", "dense_coupled"], help="Test nn two-stage model")
@@ -99,9 +98,10 @@ if __name__ == "__main__":
 
 
     # Check a baseline first
-
+    start_time = time.time()
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
     reg.fit(xtrainvalall, ytrainvalall)
+    print(f"TIME train use XGBRegressor, {time.time() - start_time}. seconds")
 
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
@@ -113,7 +113,6 @@ if __name__ == "__main__":
     #valdltrue = prob.dec_loss(yval, yval, aux_data=auxval).flatten()
     trainvaldltrue = prob.dec_loss(ytrainvalall, ytrainvalall, aux_data=auxtrainvalall).flatten()
     testdltrue = prob.dec_loss(ytest, ytest, aux_data=auxtest).flatten()
-
 
 
     testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest), Y_aux=torch.tensor(auxtest), trials=10).numpy().flatten()
@@ -128,7 +127,6 @@ if __name__ == "__main__":
     model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, auxdata=auxtrainvalall, nfold=params["cv_fold"])
     _, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn().get_obj_fn(), xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest)
 
-
     print_dq([trainvaldl2st, testdl2st, bltrainvaldl, bltestdl], ["trainval2st", "test2st", "trainvalbl", "bl1"], -1.0)
     print_nor_dq("trainvalnor", [trainvaldl2st, bltrainvaldl], ["trainval2st", "trainvalbl"], trainvaldlrand, trainvaldltrue)
     print_nor_dq("testnor", [testdl2st, bltestdl], ["test2st", "testbl"], testdlrand, testdltrue)
@@ -141,7 +139,10 @@ if __name__ == "__main__":
     #lgb_model, trainsmacpred, valsmacpred, testsmacpred = eval_config_lgb(params, prob, xgb_params, chosen_loss, xtrain, ytrain, xval, xtest)
 
     if params["test_nn2st"] != "none":
-        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"])
+        from train_dense import nn2st_iter, perf_nn
+        start_time = time.time()
+        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=(1+params["n_test_history"]))
+        print(f"TIME train nn2st takes, {time.time() - start_time}, seconds")
         nntestdl = perf_nn(prob, model, xtest, ytest, auxtest)
         nntrainvaldl = perf_nn(prob, model, xtrainvalall, ytrainvalall, auxtrainvalall)
 
@@ -153,9 +154,11 @@ if __name__ == "__main__":
     if params["baseline"] == "lancer":
         from lancer_learner import test_lancer
         # TODO
-        model, lctrainvaldl, lctestdl = test_lancer(prob, xtrainvalall, ytrainvalall, None, xtest, ytest, None,
-                                                lancer_in_dim=prob.num_stocks, c_out_dim=1, n_iter=10, c_max_iter=5, c_nbatch=128,
-                                                lancer_max_iter=5, lancer_nbatch=1024, c_epochs_init=30, c_lr_init=0.005, c_n_layers=0, print_freq=1000)
+        model, lctrainvaldl, lctestdl = test_lancer(prob, xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest,
+                                                lancer_in_dim=prob.num_stocks, c_out_dim=1, n_iter=8, c_max_iter=10, c_nbatch=128,
+                                                lancer_max_iter=10, lancer_nbatch=1024, c_epochs_init=50, c_lr_init=0.0005, lancer_lr=0.0001, c_lr=0.0005,
+                                                lancer_n_layers=2, lancer_layer_size=100, c_n_layers=1, c_layer_size=500, lancer_weight_decay=0.0, c_weight_decay=0.1, z_regul=1.0,
+                                                lancer_out_activation="tanh", c_hidden_activation="relu", c_output_activation="tanh", print_freq=(1+params["n_test_history"]))
 
 
         print_dq([lctrainvaldl, lctestdl], ["LANCERtrainval", "LANCERtest"], -1.0)
@@ -176,10 +179,10 @@ if __name__ == "__main__":
         value = TrialValue(cost=cost)
         records.append((value.cost, info.config))
 
-
         smac.tell(info, value)
 
-        if cnt == 0 or (params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0):
+        if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
+            """
             print(f"Vec {model.get_vec(info.config)}")
             if params["cross_valid"] == True:
                   _, trainvaldl, trainvaldlstderr = test_config(params, prob, model.get_xgb_params(),  model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, xtest, ytest, auxtest)
@@ -188,25 +191,33 @@ if __name__ == "__main__":
             else:
                 _, testdl, teststderr = test_config(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config), xtrain, ytrain, xtest, ytest, auxtest)
                 print(f"history iter{cnt} val test teststderr, {cost}, {testdl}, {teststderr}")
+            """
+            _, itertrainval, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest)
+            print(f"iter{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
+            print_dq([itertrainval, itertest], [f"iter{cnt}trainval", f"iter{cnt}test"], -1.0)
+            print_nor_dq(f"iternordqtrainval", [itertrainval], [f"iter{cnt}trainval"], trainvaldlrand, trainvaldltrue)
+            print_nor_dq(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
 
-    print(f"Search takes {time.time() - start_time} seconds")
+    candidates = sorted(records, key=lambda x : x[0])
+    select = len(candidates) - 1
+    for i in range(1, len(candidates)):
+        if candidates[i][0] != candidates[0][0]:
+            select = i
+            print(f"from idx 0 to {select} has the same cost randomly pick one")
+            break
+    idx = random.randint(0, select - 1)
+    incumbent = candidates[idx][1]
+    print(f"TIME Search takes {time.time() - start_time} seconds")
 
-    records.sort()
-    incumbent = records[0][1]
     params_vec = model.get_vec(incumbent)
     print(f"Seaerch Choose {params_vec}")
+
+    start_time = time.time()
     cusloss = model.get_loss_fn(incumbent)
-    if params["cross_valid"] == True:
-        Xy = xgb.DMatrix(xtrainvalall, ytrainvalall)
-    else:
-        Xy = xgb.DMatrix(xtrain, ytrain)
+    Xy = xgb.DMatrix(xtrainvalall, ytrainvalall)
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+    print(f"TIME Final train time {time.time() - start_time} seconds")
 
-    #smacytrainpred = booster.inplace_predict(xtrain)
-    #trainsmac = prob.dec_loss(smacytrainpred, ytrain, aux_data=auxtrain).flatten()
-
-    #smacyvalpred = booster.inplace_predict(xval)
-    #valsmac = prob.dec_loss(smacyvalpred, yval, aux_data=auxval).flatten()
 
     smactrainvalpred = booster.inplace_predict(xtrainvalall)
     trainvalsmac = prob.dec_loss(smactrainvalpred, ytrainvalall, aux_data=auxtrainvalall).flatten()
@@ -214,8 +225,11 @@ if __name__ == "__main__":
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest, aux_data=auxtest).flatten()
 
-    print_dq([trainvalsmac, testsmac], ["trainvalsmac", "testsmac"], -1.0)
-    print_nor_dq("smactestNorDQ", [trainvalsmac, testsmac], ["trainvalsmac", "testsmac"], testdlrand, testdltrue)
+    _, bltrainvalfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(records[0][1]).get_obj_fn(), xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest)
+
+    print_dq([trainvalsmac, testsmac, bltestdl, bltrainvalfirst, bltestfirst], ["trainvalsmac", "testsmac", "bldef", "bltrainvalfirst", "bltestfirst"], -1.0)
+    print_nor_dq("Comparetrainvalnor", [trainvaldl2st, trainvalsmac], ["trainvaldl2st", "trainvalsmac"], trainvaldlrand, trainvaldltrue)
+    print_nor_dq("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
 
 
 
