@@ -16,7 +16,7 @@ from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss
 from PortfolioOpt import PortfolioOpt
-from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, SearchbyInstance, SearchbyInstanceCrossValid, test_config, test_config_vec, test_dir_weight, test_reg, test_weightmse, test_square_log
+from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config, test_config_vec, test_dir_weight, test_reg, test_weightmse, test_square_log
 from smacdirected import smac_search_lgb, eval_config_lgb, test_reg_lgb
 from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check
 
@@ -39,6 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-low", type=float, default=0.008)
     parser.add_argument("--param-upp", type=float, default=2)
     parser.add_argument("--param-def", type=float, default=0.04)
+    parser.add_argument("--xgb-lr", type=float, default=0.3, help="Used for xgboost eta")
     parser.add_argument("--n-test-history", type=int, default=0, help="Check test dl of the history or print neural network traning losses")
     #parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
     parser.add_argument("--cv-fold", type=int, default=5)
@@ -119,12 +120,10 @@ if __name__ == "__main__":
     trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall), Y_aux=torch.tensor(auxtrainvalall), trials=10).numpy().flatten()
 
     # The shape of decision is the same as label Y
-    # search_map = {"mse++": DirectedLoss, "quad": QuadSearch, "idx": SearchbyInstance}
-    search_map_cv = {"mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid}
-
+    search_map_cv = {"wmse": WeightedLossCrossValidation, "mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid, "msehyp++": DirectedLossCrossValHyper, "quad": QuadLossCrossValidation}
 
     search_model = search_map_cv[args.search_method]
-    model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, auxdata=auxtrainvalall, nfold=params["cv_fold"])
+    model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, auxdata=auxtrainvalall, nfold=params["cv_fold"], eta=params["xgb_lr"])
     _, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(),  model.get_def_loss_fn().get_obj_fn(), xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest)
 
     print_dq([trainvaldl2st, testdl2st, bltrainvaldl, bltestdl], ["trainval2st", "test2st", "trainvalbl", "bl1"], -1.0)

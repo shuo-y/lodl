@@ -38,6 +38,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-low", type=float, default=0.001)
     parser.add_argument("--param-upp", type=float, default=2.5)
     parser.add_argument("--param-def", type=float, default=0.05)
+    parser.add_argument("--xgb-lr", type=float, default=0.3, help="Used for xgboost eta")
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cv-fold", type=int, default=5)
     parser.add_argument("--test-hyper", type=str, default="none", choices=["none", "hyperonly", "hyperwdef", "xgbregressorapi"], help="Ways of testing Hyperparameters")
@@ -112,7 +113,7 @@ if __name__ == "__main__":
     search_map_cv = {"wmse": WeightedLossCrossValidation, "mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid, "msehyp++": DirectedLossCrossValHyper, "quad": QuadLossCrossValidation}
 
     search_model = search_map_cv[args.search_method]
-    model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"])
+    model = search_model(prob, params, xtrainvalall, ytrainvalall, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"], eta=params["xgb_lr"])
 
     booster, bltrainvaldl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), model.get_def_loss_fn().get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
 

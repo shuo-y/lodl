@@ -20,7 +20,7 @@ from sklearn.multioutput import MultiOutputRegressor
 
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class DirectedLoss:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, param_low, param_upp, param_def, auxdata=None, reg2st=None, use_vec=False, initvec=None):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, param_low, param_upp, param_def, auxdata=None, reg2st=None, use_vec=False, initvec=None, **kwargs):
         self.xtrain = xtrain
         self.ytrain = ytrain
         self.xval = xval
@@ -99,7 +99,7 @@ class DirectedLoss:
         return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]}
 
 class SearchbyInstance:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, param_low, param_upp, param_def, auxdata=None):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, param_low, param_upp, param_def, auxdata=None, **kwargs):
         self.xtrain = xtrain
         self.ytrain = ytrain
         self.xval = xval
@@ -151,7 +151,7 @@ class SearchbyInstance:
 
 
 class SearchbyInstanceCrossValid:
-    def __init__(self, prob, params, X, y, param_low, param_upp, param_def, auxdata=None, nfold=5):
+    def __init__(self, prob, params, X, y, param_low, param_upp, param_def, auxdata=None, nfold=5, eta=0.3, **kwargs):
         self.params = params
         self.prob = prob
         self.aux_data = auxdata
@@ -170,6 +170,7 @@ class SearchbyInstanceCrossValid:
         self.nitems = N
         self.X = X
         self.y = y
+        self.eta = eta
 
         for i in range(self.nfold):
             testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
@@ -228,10 +229,10 @@ class SearchbyInstanceCrossValid:
         return cusloss
 
     def get_xgb_params(self):
-        return {"tree_method": self.params["tree_method"], "num_target": self.ydim}
+        return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": self.eta}
 
 class WeightedLossCrossValidation:
-    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None):
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, **kwargs):
         # directed loss with cross validation
         # just do not use xtrain ytrain and valtruedl
         self.params = params
@@ -250,6 +251,7 @@ class WeightedLossCrossValidation:
         cnt = N // nfold
         self.nfold = nfold
         self.ydim = Y.shape[1]
+        self.eta = eta
 
         for i in range(self.nfold):
             testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
@@ -303,10 +305,10 @@ class WeightedLossCrossValidation:
         return cusloss
 
     def get_xgb_params(self):
-        return {"tree_method": self.params["tree_method"], "num_target": self.ydim}
+        return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": self.eta}
 
 class DirectedLossCrossValidation:
-    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None):
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, **kwargs):
         # directed loss with cross validation
         # just do not use xtrain ytrain and valtruedl
         self.params = params
@@ -325,6 +327,7 @@ class DirectedLossCrossValidation:
         cnt = N // nfold
         self.nfold = nfold
         self.ydim = Y.shape[1]
+        self.eta = eta
 
         for i in range(self.nfold):
             testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
@@ -381,10 +384,10 @@ class DirectedLossCrossValidation:
         return cusloss
 
     def get_xgb_params(self):
-        return {"tree_method": self.params["tree_method"], "num_target": self.ydim}
+        return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": self.eta}
 
 class QuadLossCrossValidation:
-    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=5, reg2st=None, use_vec=False, initvec=None):
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=5, reg2st=None, use_vec=False, initvec=None, eta=0.3, **kwargs):
         # directed loss with cross validation
         # just do not use xtrain ytrain and valtruedl
         self.params = params
@@ -404,6 +407,7 @@ class QuadLossCrossValidation:
         self.nfold = nfold
         self.ydim = Y.shape[1]
         self.total_params_n = ((1 + self.ydim) * self.ydim) // 2
+        self.eta = eta
 
         for i in range(self.nfold):
             testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
@@ -474,11 +478,11 @@ class QuadLossCrossValidation:
 
     def get_xgb_params(self):
         # When using triangle loss add eta as 0.03
-        return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": 0.03}
+        return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": self.eta}
 
 
 class DirectedLossCrossValHyper:
-    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=5, reg2st=None, use_vec=False, initvec=None):
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=5, reg2st=None, use_vec=False, initvec=None, **kwargs):
         # directed loss with cross validation
         # just do not use xtrain ytrain and valtruedl
         self.params = params
@@ -560,7 +564,7 @@ class DirectedLossCrossValHyper:
 
 # QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
 class DirectedLossMag:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def, **kwargs):
         self.Xy = xgb.DMatrix(xtrain, ytrain)
         self.xval = xval
         self.yval = yval
@@ -614,7 +618,7 @@ class DirectedLossMag:
         return {"tree_method": self.params["tree_method"], "num_target": self.yval.shape[1]}
 
 class QuadSearch:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def):
+    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, auxdata, param_low, param_upp, param_def, **kwargs):
         self.Xy = xgb.DMatrix(xtrain, ytrain)
         self.xval = xval
         self.yval = yval
@@ -678,7 +682,7 @@ class QuadSearch:
 
 
 class XGBHyperSearch:
-    def __init__(self, prob, X, Y, auxdata=None, nfold=5):
+    def __init__(self, prob, X, Y, auxdata=None, nfold=5, **kwargs):
         self.prob = prob
         self.Xys = []
         self.auxdatas = []
@@ -738,7 +742,7 @@ class XGBHyperSearch:
 
 
 class XGBHyperSearchwDefault:
-    def __init__(self, prob, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=5):
+    def __init__(self, prob, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=5, **kwargs):
         self.prob = prob
         self.Xys = []
         self.auxdatas = []
@@ -800,7 +804,7 @@ class XGBHyperSearchwDefault:
         return np.mean(costs)
 
 class XGBHyperSearchContine:
-    def __init__(self, prob, X, Y, obj_fn, auxdata=None, nfold=5):
+    def __init__(self, prob, X, Y, obj_fn, auxdata=None, nfold=5, **kwargs):
         self.prob = prob
         self.Xys = []
         self.auxdatas = []
@@ -862,7 +866,7 @@ class XGBHyperSearchContine:
 
 
 class XGBHyperSearchwRegAPI:
-    def __init__(self, prob, X, Y, auxdata=None, nfold=5):
+    def __init__(self, prob, X, Y, auxdata=None, nfold=5, **kwargs):
         self.prob = prob
         self.Xys = []
         self.auxdatas = []
