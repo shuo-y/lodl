@@ -95,8 +95,10 @@ if __name__ == "__main__":
 
 
     # Check a baseline first
+    start_time = time.time()
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
     reg.fit(xtrainvalall, ytrainvalall)
+    print(f"TIME train use XGBRegressor, {time.time() - start_time}. seconds")
 
     ytrainvalpred = reg.predict(xtrainvalall)
     trainvaldl2st = prob.dec_loss(ytrainvalpred, ytrainvalall).flatten()
@@ -131,7 +133,7 @@ if __name__ == "__main__":
     if params["test_nn2st"] != "none":
         from train_dense import nn2st_iter, perf_nn
         start_time = time.time()
-        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=100000)
+        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=(1+params["n_test_history"]))
         print(f"TIME train nn2st takes, {time.time() - start_time}, seconds")
         # Here just use the same data for tuning
         nntestdl = perf_nn(prob, model, xtest, ytest, None)
@@ -149,7 +151,7 @@ if __name__ == "__main__":
                                                 lancer_max_iter=5, lancer_nbatch=1024, c_epochs_init=30, c_lr_init=0.005,
                                                 lancer_lr=0.001, c_lr=0.005, lancer_n_layers=2, lancer_layer_size=100, c_n_layers=0, c_layer_size=64,
                                                 lancer_weight_decay=0.01, c_weight_decay=0.01, z_regul=0.0,
-                                                lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=1000)
+                                                lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=(1+params["n_test_history"]))
 
         print_dq([lctrainvaldl, lctestdl], ["LANCERtrainval", "LANCERtest"], -1.0)
         print_nor_dq("LANCERTrainvalNorDQ", [lctrainvaldl], ["LANCERTrainval"], trainvaldlrand, trainvaldltrue)
