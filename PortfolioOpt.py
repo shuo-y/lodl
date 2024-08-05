@@ -46,6 +46,7 @@ class PortfolioOpt(PThenO):
         # Split data into train/val/test
         #   Sanity check and initialisations
         total_days = self.Xs.shape[0]
+        self.num_feats = self.Xs.shape[-1]
         self.num_train_instances = num_train_instances
         self.num_test_instances = num_test_instances
         self.num_val = num_val
@@ -370,7 +371,8 @@ class PortfolioOpt(PThenO):
         return self.Xs[self.test_idxs], self.Ys[self.test_idxs], self.covar_mat[self.test_idxs]
 
     def get_modelio_shape(self):
-        return self.Xs.shape[-1], 1
+        # Just like ShortestPaht treated as 2 dimension
+        return self.num_feats * self.num_stocks, self.num_stocks
 
     def get_twostageloss(self):
         return 'mse'

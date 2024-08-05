@@ -77,7 +77,7 @@ if __name__ == "__main__":
     X, Y, Aux = prob.get_np_data()
     X = X.reshape(X.shape[0], np.prod(X.shape[1:]))
 
-    total_num = args.num_train + args.num_val + args.num_test
+    total_num = params["num_train"] + params["num_val"] + params["num_test"]
     indices = list(range(total_num))
     np.random.shuffle(indices)
 
@@ -153,6 +153,8 @@ if __name__ == "__main__":
     if params["baseline"] == "lancer":
         from lancer_learner import test_lancer
         # TODO
+        xtrainvalall = xtrainvalall.reshape(params["num_train"] + params["num_val"], prob.num_stocks, prob.num_feats)
+        xtest = xtest.reshape(params["num_test"], prob.num_stocks, prob.num_feats)
         model, lctrainvaldl, lctestdl = test_lancer(prob, xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest,
                                                 lancer_in_dim=prob.num_stocks, c_out_dim=1, n_iter=8, c_max_iter=10, c_nbatch=128,
                                                 lancer_max_iter=10, lancer_nbatch=1024, c_epochs_init=50, c_lr_init=0.0005, lancer_lr=0.0001, c_lr=0.0005,
