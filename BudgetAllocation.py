@@ -50,6 +50,10 @@ class BudgetAllocation(PThenO):
         self.opt = SubmodularOptimizer(self.get_objective, self.budget)
 
         self.num_feats = self.num_items * self.num_targets ## TODO check correct?
+        # Assume coupled, stack the last two dimension
+        # ipdim and outputdim can also be changed later
+        self.ipdim = self.num_feats
+        self.opdim = self.num_feats
 
         # Undo random seed setting
         # self._set_seed()
@@ -128,7 +132,7 @@ class BudgetAllocation(PThenO):
         return self.Xs_test, self.Ys_test,  [None for _ in range(len(self.Ys_test))]
 
     def get_modelio_shape(self):
-        return self.num_features, self.num_targets
+        return self.ipdim, self.opdim
     
     def get_output_activation(self):
         return 'relu'
