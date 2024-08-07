@@ -138,15 +138,15 @@ if __name__ == "__main__":
     parser.add_argument("--num-train", type=int, default=500)
     parser.add_argument("--num-val", type=int, default=2000)
     parser.add_argument("--num-test", type=int, default=2000)
-    parser.add_argument("--n-trials", type=int, default=200)
+    parser.add_argument("--n-trials", type=int, default=5)
     parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad", "idx", "wmse"])
     # The rand trials for perf rand dq
     parser.add_argument("--n-rand-trials", type=int, default=10)
     # For search and XGB train
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
-    parser.add_argument("--param-low", type=float, default=0.008)
-    parser.add_argument("--param-upp", type=float, default=2.0)
-    parser.add_argument("--param-def", type=float, default=0.04)
+    parser.add_argument("--param-low", type=float, default=0.1)
+    parser.add_argument("--param-upp", type=float, default=2.5)
+    parser.add_argument("--param-def", type=float, default=0.5)
     parser.add_argument("--xgb-lr", type=float, default=0.3, help="Used for xgboost eta")
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cv-fold", type=int, default=5)
@@ -280,6 +280,65 @@ if __name__ == "__main__":
         print_nor_dq("LANCERTestNorDQ", [lctestdl], ["LANCERTestdl"], testdlrand, testdltrue)
 
         exit(0)
+
+    scenario = Scenario(model.configspace, n_trials=params["n_trials"])
+    intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
+    smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
+
+    records = []
+    start_time = time.time()
+    for cnt in range(params["n_trials"]):
+        info = smac.ask()
+        assert info.seed is not None
+
+        cost = model.train(info.config, seed=info.seed)
+        value = TrialValue(cost=cost)
+        records.append((value.cost, info.config))
+        smac.tell(info, value)
+
+        if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
+            _, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None)
+            print(f"iter{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
+            print_dq([itertrain, itertest], [f"iter{cnt}train", f"iter{cnt}test"], -1.0)
+            print_nor_dq_filter0clip(f"iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
+            print_nor_dq_filter0clip(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
+            print_nor_dqagg(f"iternordqtrain_", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
+            print_nor_dqagg(f"iternordqtest_", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
+
+
+    candidates = sorted(records, key=lambda x : x[0])
+    select = len(candidates) - 1
+    for i in range(1, len(candidates)):
+        if candidates[i][0] != candidates[0][0]:
+            select = i
+            print(f"from idx 0 to {select} has the same cost randomly pick one")
+            break
+    idx = random.randint(0, select - 1)
+    incumbent = candidates[idx][1]
+    print(f"TIME Search takes {time.time() - start_time} seconds")
+
+    params_vec = model.get_vec(incumbent)
+    print(f"print {incumbent}")
+    print(f"Seaerch Choose {params_vec}")
+
+    start_time = time.time()
+    cusloss = model.get_loss_fn(incumbent)
+    Xy = xgb.DMatrix(xtrain, ytrain)
+    booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+    print(f"TIME Final train time {time.time() - start_time} seconds")
+
+    smacytrainpred = booster.inplace_predict(xtrain)
+    trainsmac = prob.dec_loss(smacytrainpred, ytrain).flatten()
+
+    smacytestpred = booster.inplace_predict(xtest)
+    testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
+
+    _, bltrainfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(records[0][1]).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None, desc="search1st") # Check the performance of the first iteration
+
+    print_dq([trainsmac, testsmac, bltestdl, bltrainfirst, bltestfirst], ["trainsmac", "testsmac", "bldef", "bltrainfirst", "bltestfirst"], -1.0)
+    print_nor_dq("Comparetrainnor", [traindl2st, trainsmac], ["traindl2st", "trainsmac"], traindlrand, traindltrue)
+    print_nor_dq("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
+
 
     """
     model = QuadLoss(prob, params, xtrain, ytrain, xval, yval, valdltrue, args.quad_alpha)

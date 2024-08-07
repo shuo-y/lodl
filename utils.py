@@ -48,6 +48,8 @@ def print_nor_dq(verbose, dllist, namelist, randdl, optdl):
     for i in range(len(dllist)):
         dl = dllist[i]
         col = namelist[i]
+        assert dl.shape == randdl.shape
+        assert dl.shape == optdl.shape
         sanity_check(dl - optdl, f"{verbose}_{col}_nordq")
 
     print(verbose, end=", ")
