@@ -54,6 +54,7 @@ class BudgetAllocation(PThenO):
         # ipdim and outputdim can also be changed later
         self.ipdim = self.num_feats
         self.opdim = self.num_feats
+        self.use_decouple = False
 
         # Undo random seed setting
         # self._set_seed()
@@ -189,7 +190,10 @@ class BudgetAllocation(PThenO):
         return -1 * obj.detach().numpy()
 
     def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, **kwargs) -> np.ndarray:
-        Y = torch.tensor(z_pred.reshape(len(z_pred), self.num_items, self.num_targets))
+        if self.use_decouple:
+            Y = torch.tensor(z_pred.reshape(len(z_pred)//self.num_items, self.num_items, self.num_targets))
+        else:
+            Y = torch.tensor(z_pred.reshape(len(z_pred), self.num_items, self.num_targets))
         assert len(Y.shape) > 2
         # If it's not...
         #   Remember the shape
@@ -200,7 +204,10 @@ class BudgetAllocation(PThenO):
         #   Convert it back to the right shape
         Z = Z.view((*Y_shape[:-2], -1))
 
-        Y_gold = torch.tensor(z_true.reshape(len(z_true), self.num_items, self.num_targets))
+        if self.use_decouple:
+            Y_gold = torch.tensor(z_true.reshape(len(z_true)//self.num_items, self.num_items, self.num_targets))
+        else:
+            Y_gold = torch.tensor(z_true.reshape(len(z_true), self.num_items, self.num_targets))
 
         assert Y_gold.shape[-2] == Z.shape[-1]
         assert len(Z.shape) + 1 == len(Y_gold.shape)
@@ -210,7 +217,8 @@ class BudgetAllocation(PThenO):
         p_fail = 1 - Z.unsqueeze(-1) * Y_gold
         p_all_fail = p_fail.prod(dim=-2)
         obj = (w * (1 - p_all_fail)).sum(dim=-1).unsqueeze(dim=-1).detach().numpy()
-        return -1 * obj
+        obj = -1 * obj
+        return obj
 
 if __name__ == "__main__":
     random.seed(0) # For debug

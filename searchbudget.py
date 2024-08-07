@@ -37,15 +37,17 @@ if __name__ == "__main__":
     parser.add_argument("--n-items", type=int, default=5, help="used for budget allocation number of websites")
     parser.add_argument("--n-budget", type=int, default=2, help="used for budget allocation budget number")
     parser.add_argument("--n-fake-targets", type=int, default=500, help="To make budget allocation harder")
-    # For search
+
+    # For search and XGB train
     parser.add_argument("--param-low", type=float, default=0.008)
     parser.add_argument("--param-upp", type=float, default=2.0)
     parser.add_argument("--param-def", type=float, default=0.04)
     parser.add_argument("--xgb-lr", type=float, default=0.3, help="Used for xgboost eta")
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cv-fold", type=int, default=5)
+    parser.add_argument("--use-decouple", action="store_true", help="If use a decoupled version budget")
     # For NN
-    parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense", "dense_coupled"], help="Test nn two-stage model")
+    parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense"], help="Test nn two-stage model")
     parser.add_argument("--nn-lr", type=float, default=0.00001, help="The learning rate for nn")
     parser.add_argument("--nn-iters", type=int, default=10000, help="Iterations for traning NN")
     parser.add_argument("--batchsize", type=int, default=1000, help="batchsize when traning NN")
@@ -84,11 +86,25 @@ if __name__ == "__main__":
     xtest = Xtestt.cpu().detach().numpy()
     ytest = Ytestt.cpu().detach().numpy()
 
-    xtrain = xtrain.reshape(Xtraint.shape[0], Xtraint.shape[1] * Xtraint.shape[2])
-    ytrain = ytrain.reshape(Ytraint.shape[0], Ytraint.shape[1] * Ytraint.shape[2])
+    if params["use_decouple"]:
+        print("Trained with decouple way")
+        # Train with de couple fashion
+        xtrain = xtrain.reshape(Xtraint.shape[0] * Xtraint.shape[1], Xtraint.shape[2])
+        ytrain = ytrain.reshape(Ytraint.shape[0] * Ytraint.shape[1], Ytraint.shape[2])
 
-    xtest = xtest.reshape(Xtestt.shape[0], Xtestt.shape[1] * Xtestt.shape[2])
-    ytest = ytest.reshape(Ytestt.shape[0], Ytestt.shape[1] * Ytestt.shape[2])
+        xtest = xtest.reshape(Xtestt.shape[0] * Xtestt.shape[1], Xtestt.shape[2])
+        ytest = ytest.reshape(Ytestt.shape[0] * Ytestt.shape[1], Ytestt.shape[2])
+
+        prob.use_decouple = True
+        prob.num_feats = prob.num_targets
+        prob.ipdim = prob.num_feats
+        prob.opdim = prob.num_feats
+    else:
+        xtrain = xtrain.reshape(Xtraint.shape[0], Xtraint.shape[1] * Xtraint.shape[2])
+        ytrain = ytrain.reshape(Ytraint.shape[0], Ytraint.shape[1] * Ytraint.shape[2])
+
+        xtest = xtest.reshape(Xtestt.shape[0], Xtestt.shape[1] * Xtestt.shape[2])
+        ytest = ytest.reshape(Ytestt.shape[0], Ytestt.shape[1] * Ytestt.shape[2])
 
     # Check a baseline first
     start_time = time.time()
@@ -154,7 +170,8 @@ if __name__ == "__main__":
                                                 lancer_max_iter=5, lancer_nbatch=1024, c_epochs_init=30, c_lr_init=0.005,
                                                 lancer_lr=0.001, c_lr=0.005, lancer_n_layers=2, lancer_layer_size=100, c_n_layers=0, c_layer_size=64,
                                                 lancer_weight_decay=0.01, c_weight_decay=0.01, z_regul=0.0,
-                                                lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=(1+params["n_test_history"]))
+                                                lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=(1+params["n_test_history"]),
+                                                allowdiffzf=True if params["use_decouple"] else False)
 
         print_dq([lctraindl, lctestdl], ["LANCERtrain", "LANCERtest"], -1.0)
         print_nor_dq_filter0clip("LANCERTrainNorDQ", [lctraindl], ["LANCERTrain"], traindlrand, traindltrue)

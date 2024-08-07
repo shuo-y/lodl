@@ -328,11 +328,16 @@ class LancerLearner:
                 if total_iter >= max_iter:
                     break
 
-    def learn_w(self, z_pred, z_true, f_hat, max_iter=1, batch_size=64, print_freq=1):
+    def learn_w(self, z_pred, z_true, f_hat, max_iter=1, batch_size=64, print_freq=1, allow_diff_zfshpe=False):
         """
         Fitting LANCER model
         """
         assert z_pred.shape == z_true.shape
+        if allow_diff_zfshpe:
+            # Workaround for decouple version
+            assert z_true.shape[0] % f_hat.shape[0] == 0
+            rep = z_true.shape[0]//f_hat.shape[0]
+            f_hat = np.repeat(f_hat, rep, axis=0)
         assert z_true.shape[0] == f_hat.shape[0]
         N = z_true.shape[0]
         n_batches = int(N / batch_size)
@@ -361,6 +366,7 @@ class LancerLearner:
         lancer_nbatch = kwargs["lancer_nbatch"] if "lancer_nbatch" in kwargs else 1000
         print_freq = kwargs["print_freq"] if "print_freq" in kwargs else 1
         use_replay_buffer = kwargs["use_replay_buffer"] if "use_replay_buffer" in kwargs else False
+        allow_diff_zfshpe = kwargs["diffzf"] if "diffzf" in kwargs else False
 
         Y_train, Y_test, Z_train, Z_test, Z_train_aux, Z_test_aux = dataset
         self.cmodel.initial_fit(Y_train, Z_train, c_lr_init,
@@ -385,7 +391,7 @@ class LancerLearner:
 
             # Step over w: learning LANCER
             self.learn_w(Z_pred_4lancer, Z_true_4lancer, f_hat_4lancer,
-                         max_iter=lancer_max_iter, batch_size=lancer_nbatch, print_freq=print_freq)
+                         max_iter=lancer_max_iter, batch_size=lancer_nbatch, print_freq=print_freq, allow_diff_zfshpe=allow_diff_zfshpe)
 
             # Step over theta: learning target model c
             self.learn_theta(Y_train, Z_train,
@@ -399,7 +405,7 @@ def test_lancer(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in
                 c_epochs_init, c_lr_init, lancer_lr=0.001, c_lr=0.005,
                 lancer_n_layers=2, lancer_layer_size=100, c_n_layers=0, c_layer_size=64,
                 lancer_weight_decay=0.01, c_weight_decay=0.01, z_regul=0.0,
-                lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=1):
+                lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=1, allowdiffzf=False):
     # This default params is based on the original LANCER paper
     # See also https://arxiv.org/pdf/2307.08964
     def_param = {"lancer_in_dim": lancer_in_dim,
@@ -430,7 +436,8 @@ def test_lancer(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in
                                              lancer_nbatch=lancer_nbatch,
                                              c_epochs_init=c_epochs_init,
                                              c_lr_init=c_lr_init,
-                                             print_freq=print_freq)
+                                             print_freq=print_freq,
+                                             diffzf=allowdiffzf)
     print(f"TIME LANCER learning time {time.time() - start_time}")
     ytestpred = lancer_model.predict(xtest)
     testdl = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
