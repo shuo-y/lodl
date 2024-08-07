@@ -300,11 +300,8 @@ if __name__ == "__main__":
             _, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None)
             print(f"iter{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
             print_dq([itertrain, itertest], [f"iter{cnt}train", f"iter{cnt}test"], -1.0)
-            print_nor_dq_filter0clip(f"iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
-            print_nor_dq_filter0clip(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
-            print_nor_dqagg(f"iternordqtrain_", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
-            print_nor_dqagg(f"iternordqtest_", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
-
+            print_nor_dq(f"iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
+            print_nor_dq(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
 
     candidates = sorted(records, key=lambda x : x[0])
     select = len(candidates) - 1
