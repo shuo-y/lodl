@@ -1,23 +1,32 @@
 import random
+import time
 import argparse
 import numpy as np
 import torch
 import xgboost as xgb
 
-# From SMAC examples
 
+# From SMAC examples
+"""
 from ConfigSpace import Configuration, ConfigurationSpace, Float
 from smac import Callback
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from losses import search_weights_loss, search_quadratic_loss
-from PThenO import PThenO
+"""
+from smac import HyperparameterOptimizationFacade as HPOFacade
+from smac import Scenario
+from smac.runhistory.dataclasses import TrialValue
+from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config_vec
 
-# 2-dimensional Rosenbrock function https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/3_ask_and_tell.html
+from PThenO import PThenO
+from utils import print_dq, print_nor_dq
+
+## 2-dimensional Rosenbrock function https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/3_ask_and_tell.html
 class ProdObj(PThenO):
     def __init__(self):
         super(ProdObj, self).__init__()
-        pass
+        self.num_feats = 10
 
     def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
 
@@ -32,7 +41,7 @@ class ProdObj(PThenO):
 
         dec = np.apply_along_axis(opt, 1, z_pred)
         obj = np.apply_along_axis(np.prod, 1, z_true) * dec
-        return obj
+        return obj.reshape(obj.shape[0], 1)
 
     def rand_loss(self, z_true: np.ndarray) -> np.ndarray:
         rand_dec = np.random.randint(2, size=len(z_true))
@@ -53,13 +62,14 @@ class ProdObj(PThenO):
         :param noise_width: add eps noise to the cost vector
         :return: dataset of features x and the ground truth cost vector of edges c
         """
+        self.num_feats = num_feats
         # random matrix parameter B
         B = np.random.binomial(1, 0.5, (num_feats, d))
         # feature vectors
         x = np.random.normal(0, 1, (N, num_feats))
         # cost vectors
         z = np.random.multivariate_normal(mean, cov, N)
-        """
+
         for i in range(N):
             # cost without noise
 
@@ -70,7 +80,7 @@ class ProdObj(PThenO):
             epislon = np.random.uniform(1 - noise_width, 1 + noise_width, num_feats)
             xi *= epislon
             x[i, :] = xi
-        """
+
         return x, z
 
     def checky(self, y):
@@ -94,7 +104,7 @@ class ProdObj(PThenO):
 
 
     def get_modelio_shape(self):
-        pass
+        return self.num_feats, 2
 
     def get_objective(self, y_vec: np.ndarray, dec: np.ndarray, **kwargs):
         return np.apply_along_axis(np.prod, 1, y_vec) * dec
@@ -112,56 +122,43 @@ def sanity_check(vec: np.ndarray, msg: str) -> None:
     if (vec < 0).any():
         print(f"{msg}: check some negative value {vec}")
 
-# QuadLoss is based on SMAC examples https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/2_svm_cv.html
-class QuadLoss:
-    def __init__(self, prob, params, xtrain, ytrain, xval, yval, valtruedl, alpha):
-        self.Xy = xgb.DMatrix(xtrain, ytrain)
-        self.xval = xval
-        self.yval = yval
-        self.params = params
-        self.valtruedl = valtruedl
-        self.prob = prob
-        self.alpha = alpha
 
-
-    @property
-    def configspace(self) -> ConfigurationSpace:
-        cs = ConfigurationSpace(seed=0)
-        cs = ConfigurationSpace(seed=0)
-        w1 = Float("w1", (1, 10000), default=1)
-        w2 = Float("w2", (1, 10000), default=1)
-        w3 = Float("w3", (1, 10000), default=1)
-        cs.add_hyperparameters([w1, w2, w3])
-        return cs
-
-    def train(self, config: Configuration, seed: int) -> float:
-        weight_vec = np.array([[config["w1"], 0], [config["w2"], config["w3"]]])
-
-        cusloss = search_quadratic_loss(ytrain.shape[0], ytrain.shape[1], weight_vec, self.alpha)
-        booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": 2},
-                             dtrain = self.Xy, num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
-
-        yvalpred = booster.inplace_predict(self.xval)
-        valdl = self.prob.dec_loss(yvalpred, self.yval)
-
-        cost = (valdl - self.valtruedl).mean()
-        return cost
-
-
-
+def perf_rand(prob, y_data, n_rand_trials):
+    res = np.zeros((n_rand_trials, len(y_data)))
+    for i in range(n_rand_trials):
+        res[i] = prob.rand_loss(y_data)
+    return res.mean(axis=0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
     parser.add_argument("--search_estimators", type=int, default=100)
-    parser.add_argument("--output", type=str, default="two_quad_example")
+    parser.add_argument("--num-feats", type=int, default=10)
     parser.add_argument("--loss", type=str, default="quad", choices=["mse", "quad"])
     parser.add_argument("--num-train", type=int, default=500)
     parser.add_argument("--num-val", type=int, default=2000)
     parser.add_argument("--num-test", type=int, default=2000)
     parser.add_argument("--n-trials", type=int, default=200)
-    parser.add_argument("--quad-alpha", type=float, default=0.0)
+    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad", "idx", "wmse"])
+    # The rand trials for perf rand dq
+    parser.add_argument("--n-rand-trials", type=int, default=10)
+    # For search and XGB train
+    parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
+    parser.add_argument("--param-low", type=float, default=0.008)
+    parser.add_argument("--param-upp", type=float, default=2.0)
+    parser.add_argument("--param-def", type=float, default=0.04)
+    parser.add_argument("--xgb-lr", type=float, default=0.3, help="Used for xgboost eta")
+    parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
+    parser.add_argument("--cv-fold", type=int, default=5)
+    # For NN
+    parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense"], help="Test nn two-stage model")
+    parser.add_argument("--nn-lr", type=float, default=0.01, help="The learning rate for nn")
+    parser.add_argument("--nn-iters", type=int, default=500, help="Iterations for traning NN")
+    parser.add_argument("--batchsize", type=int, default=1000, help="batchsize when traning NN")
+    parser.add_argument("--n-layers", type=int, default=2, help="num of layers when traning NN") # What happens if n-layers much more than two?
+    parser.add_argument("--int-size", type=int, default=500, help="num of layers when traning NN")
+    # Other baseline
+    parser.add_argument("--baseline", type=str, default="none", choices=["none", "lancer"])
 
     args = parser.parse_args()
     params = vars(args)
@@ -196,7 +193,7 @@ if __name__ == "__main__":
 
     N = args.num_train + args.num_val + args.num_test
     prob = ProdObj()
-    X, Y = prob.generate_dataset(N, 6, 0.5, 10)
+    X, Y = prob.generate_dataset(N, 6, 2, params["num_feats"])
 
     prob.checky(Y)
 
@@ -221,27 +218,70 @@ if __name__ == "__main__":
 
 
     # Check a baseline first
+    start_time = time.time()
     reg = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
     reg.fit(xtrain, ytrain)
+    print(f"TIME train use XGBRegressor, {time.time() - start_time} , seconds.")
+
 
     ytrainpred = reg.predict(xtrain)
-    traindl2st = prob.dec_loss(ytrainpred, ytrain)
+    traindl2st = prob.dec_loss(ytrainpred, ytrain).flatten()
 
-    yvalpred = reg.predict(xval)
-    valdl2st = prob.dec_loss(yvalpred, yval)
-
-    traindltrue = prob.dec_loss(ytrain, ytrain)
-    valdltrue = prob.dec_loss(yval, yval)
-    testdltrue = prob.dec_loss(ytest, ytest)
-
-    traindlrand = prob.rand_loss(ytrain)
-    valdlrand = prob.rand_loss(yval)
-    testdlrand = prob.rand_loss(ytest)
 
     ytestpred = reg.predict(xtest)
-    testdl2st = prob.dec_loss(ytestpred, ytest)
+    testdl2st = prob.dec_loss(ytestpred, ytest).flatten()
 
+    traindltrue = prob.dec_loss(ytrain, ytrain).flatten()
+    testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
+    traindlrand = perf_rand(prob, ytrain, params["n_rand_trials"])
+    testdlrand = perf_rand(prob, ytest, params["n_rand_trials"])
+
+    print_dq([traindl2st, testdl2st], ["train2st", "test2st"], -1.0)
+    print_nor_dq("trainnor", [traindl2st], ["train2st"], traindlrand, traindltrue)
+    print_nor_dq("testnor", [testdl2st], ["test2st"], testdlrand, testdltrue)
+
+    search_map_cv = {"wmse": WeightedLossCrossValidation, "mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid, "msehyp++": DirectedLossCrossValHyper, "quad": QuadLossCrossValidation}
+
+    search_model = search_map_cv[params["search_method"]]
+    model = search_model(prob, params, xtrain, ytrain, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"], eta=params["xgb_lr"])
+
+    booster, bltraindl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), model.get_def_loss_fn().get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None, desc="defparams")
+    print_dq([bltraindl, bltestdl], ["bltraindl", "bltestdl"], -1.0)
+    print_nor_dq("trainnor", [bltraindl], ["bltraindl"], traindlrand, traindltrue)
+    print_nor_dq("testnor", [bltestdl], ["bltestdl"], testdlrand, testdltrue)
+
+    if params["test_nn2st"] != "none":
+        from train_dense import nn2st_iter, perf_nn
+        start_time = time.time()
+        model = nn2st_iter(prob, xtrain, ytrain, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=(1+params["n_test_history"]))
+        print(f"TIME train nn2st takes, {time.time() - start_time}, seconds")
+        # Here just use the same data for tuning
+        nntestdl = perf_nn(prob, model, xtest, ytest, None)
+        nntraindl = perf_nn(prob, model, xtrain, ytrain, None)
+
+        print_dq([nntraindl, nntestdl], ["NN2stTrainval", "NN2stTest"], -1.0)
+        print_nor_dq("nn2stTrainNorDQ", [nntraindl], ["NN2stTrain"], traindlrand, traindltrue)
+        print_nor_dq("nn2stTestNorDQ", [nntestdl], ["NN2stTestdl"], testdlrand, testdltrue)
+
+        exit(0)
+
+    if params["baseline"] == "lancer":
+        from lancer_learner import test_lancer
+        model, lctraindl, lctestdl = test_lancer(prob, xtrain, ytrain, None, xtest, ytest, None,
+                                                lancer_in_dim=2, c_out_dim=2, n_iter=10, c_max_iter=5, c_nbatch=128,
+                                                lancer_max_iter=5, lancer_nbatch=1024, c_epochs_init=50, c_lr_init=0.005,
+                                                lancer_lr=0.05, c_lr=0.005, lancer_n_layers=2, lancer_layer_size=100, c_n_layers=0, c_layer_size=64,
+                                                lancer_weight_decay=0.01, c_weight_decay=0.01, z_regul=0.0,
+                                                lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=(1+params["n_test_history"]))
+
+        print_dq([lctraindl, lctestdl], ["LANCERtrain", "LANCERtest"], -1.0)
+        print_nor_dq("LANCERTrainNorDQ", [lctraindl], ["LANCERTrain"], traindlrand, traindltrue)
+        print_nor_dq("LANCERTestNorDQ", [lctestdl], ["LANCERTestdl"], testdlrand, testdltrue)
+
+        exit(0)
+
+    """
     model = QuadLoss(prob, params, xtrain, ytrain, xval, yval, valdltrue, args.quad_alpha)
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     smac = HPOFacade(scenario, model.train, overwrite=True)
@@ -311,5 +351,6 @@ if __name__ == "__main__":
         print(row)
 
         #TODO how Lower L map to y0y1
+    """
 
 
