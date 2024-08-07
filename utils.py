@@ -82,7 +82,7 @@ def print_nor_dq_filter0clip(verbose, dllist, namelist, randdl, optdl):
     return res
 
 def print_nor_dqagg(verbose, dllist, namelist, randdl, optdl):
-    print(verbose, end=", ")
+    print(f"agg_{verbose}", end=", ")
     for i in range(len(dllist)):
         dl = dllist[i]
         nordq = (randdl.mean() - dl.mean())/ (randdl.mean() - optdl.mean())
