@@ -59,6 +59,35 @@ def print_nor_dq(verbose, dllist, namelist, randdl, optdl):
         print(f"{nordq.mean()}, {compute_stderror(nordq)}, ", end="")
     print()
 
+def print_nor_dq_filter0clip(verbose, dllist, namelist, randdl, optdl):
+    assert len(dllist) == len(namelist)
+    for i in range(len(dllist)):
+        dl = dllist[i]
+        col = namelist[i]
+        sanity_check(dl - optdl, f"{verbose}_{col}_nordq")
+
+    print(verbose, end=", ")
+    res = []
+    for i in range(len(dllist)):
+        dl = dllist[i]
+        col = namelist[i]
+        nonzero = np.argwhere((randdl - optdl) != 0)
+        nordq = (randdl[nonzero] - dl[nonzero])/ (randdl[nonzero] - optdl[nonzero])
+        res.append(nordq)
+        # Also clip between 0 1
+        nordq = np.clip(nordq, 0, 1)
+        print(f"{col}nordq, {col}nordqstderr, ", end="")
+        print(f"{nordq.mean()}, {compute_stderror(nordq)}, ", end="")
+    print()
+    return res
+
+def print_nor_dqagg(verbose, dllist, namelist, randdl, optdl):
+    print(verbose, end=", ")
+    for i in range(len(dllist)):
+        dl = dllist[i]
+        nordq = (randdl.mean() - dl.mean())/ (randdl.mean() - optdl.mean())
+        print(f"agg_{namelist[i]}, {nordq},", end="")
+    print("Not per instance normalized, aggregate normalized")
 
 
 """
