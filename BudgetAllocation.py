@@ -11,23 +11,25 @@ class BudgetAllocation(PThenO):
 
     def __init__(
         self,
-        num_train_instances=100,  # number of instances to use from the dataset to train
+        num_train_instances=80,  # number of instances to use from the dataset to train
+        num_val_instances=20,
         num_test_instances=500,  # number of instances to use from the dataset to test
         num_targets=10,  # number of items to choose from
         num_items=5,  # number of targets to consider
         budget=2,  # number of items that can be picked
-        num_fake_targets=500,  # number of random features added to make the task harder
-        val_frac=0.2,  # fraction of training data reserved for validation
+        num_fake_targets=500  # number of random features added to make the task harder # val_frac=0.2,  # fraction of training data reserved for validation
     ):
         super(BudgetAllocation, self).__init__()
 
         # Load train and test labels
         self.num_train_instances = num_train_instances
+        self.num_val_instances = num_val_instances
         self.num_test_instances = num_test_instances
 
-        self.Ys_train, self.Ys_test = self._load_instances(num_train_instances, num_test_instances, num_items, num_targets)
+        self.Ys_train, self.Ys_test = self._load_instances(num_train_instances + num_val_instances, num_test_instances, num_items, num_targets)
 
         # Generate features based on the labels
+        self.num_items = num_items
         self.num_targets = num_targets
         self.num_fake_targets = num_fake_targets
         self.num_features = self.num_targets + self.num_fake_targets
@@ -35,10 +37,11 @@ class BudgetAllocation(PThenO):
         assert not (torch.isnan(self.Xs_train).any() or torch.isnan(self.Xs_test).any())
 
         # Split training data into train/val
-        assert 0 < val_frac < 1
-        self.val_frac = val_frac
-        self.val_idxs = range(0, int(self.val_frac * num_train_instances))
-        self.train_idxs = range(int(self.val_frac * num_train_instances), num_train_instances)
+        indices = list(range(num_train_instances + num_val_instances))
+        random.shuffle(indices)
+
+        self.val_idxs = indices[:num_val_instances]
+        self.train_idxs = indices[num_val_instances: (num_val_instances + num_train_instances)]
         assert all(x is not None for x in [self.train_idxs, self.val_idxs])
 
         # Create functions for optimisation
@@ -46,8 +49,10 @@ class BudgetAllocation(PThenO):
         self.budget = budget
         self.opt = SubmodularOptimizer(self.get_objective, self.budget)
 
+        self.num_feats = self.num_items * self.num_targets ## TODO check correct?
+
         # Undo random seed setting
-        self._set_seed()
+        # self._set_seed()
 
     def _load_instances(self, num_train, num_test, num_items, num_targets):
         """
@@ -168,7 +173,7 @@ class BudgetAllocation(PThenO):
         Z = Z.view((*Y_shape[:-2], -1))
         return Z
 
-    def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, w=None, verbose=False, **kwargs) -> np.ndarray:
+    def dec_loss_3d(self, z_pred: np.ndarray, z_true: np.ndarray, w=None, verbose=False, **kwargs) -> np.ndarray:
         # Function signature is from the https://github.com/facebookresearch/LANCER
         # TODO Need to check how does SubmodularOptimizer work
 
@@ -177,13 +182,41 @@ class BudgetAllocation(PThenO):
 
         dec = self.get_decision(Ypred)
         obj = self.get_objective(Ytrue, dec, w=w)
-        return obj.detach().numpy()
+        return -1 * obj.detach().numpy()
+
+    def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, **kwargs) -> np.ndarray:
+        Y = torch.tensor(z_pred.reshape(len(z_pred), self.num_items, self.num_targets))
+        assert len(Y.shape) > 2
+        # If it's not...
+        #   Remember the shape
+        Y_shape = Y.shape
+        #   Break it down into individual instances and solve
+        Y_new = Y.view((-1, Y_shape[-2], Y_shape[-1]))
+        Z = torch.cat([self.opt(y) for y in Y_new], dim=0)
+        #   Convert it back to the right shape
+        Z = Z.view((*Y_shape[:-2], -1))
+
+        Y_gold = torch.tensor(z_true.reshape(len(z_true), self.num_items, self.num_targets))
+
+        assert Y_gold.shape[-2] == Z.shape[-1]
+        assert len(Z.shape) + 1 == len(Y_gold.shape)
+
+        w = torch.ones(Y_gold.shape[-1]).requires_grad_(False)
+        # Calculate objective
+        p_fail = 1 - Z.unsqueeze(-1) * Y_gold
+        p_all_fail = p_fail.prod(dim=-2)
+        obj = (w * (1 - p_all_fail)).sum(dim=-1).unsqueeze(dim=-1).detach().numpy()
+        return -1 * obj
 
 if __name__ == "__main__":
     random.seed(0) # For debug
     prob = BudgetAllocation()
 
     Xtrain, Ytrain, _ = prob.get_train_data()
+
+    xtrain2d = Xtrain.cpu().detach().numpy().reshape(Xtrain.shape[0], Xtrain.shape[1] * Xtrain.shape[2])
+    ytrain2d = Ytrain.cpu().detach().numpy().reshape(Ytrain.shape[0], Ytrain.shape[1] * Ytrain.shape[2])
+
 
 
 
