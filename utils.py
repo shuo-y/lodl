@@ -39,7 +39,7 @@ def print_dq(dllist, namelist, cof):
         dl = dllist[i]
         col = namelist[i]
         print(f"{col}, {col}_stderr, ", end="")
-        print(f"{cof * dl.mean()}, {cof * compute_stderror(dl)}, ", end="")
+        print(f"{cof * dl.mean()}, {compute_stderror(cof * dl)}, ", end="")
     print()
 
 
