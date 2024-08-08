@@ -20,7 +20,7 @@ from smac.runhistory.dataclasses import TrialValue
 from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config_vec
 
 from PThenO import PThenO
-from utils import print_dq, print_nor_dq
+from utils import print_dq, print_nor_dq, print_nor_dq_filter0clip
 
 ## 2-dimensional Rosenbrock function https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/3_ask_and_tell.html
 class ProdObj(PThenO):
@@ -238,8 +238,10 @@ if __name__ == "__main__":
     testdlrand = perf_rand(prob, ytest, params["n_rand_trials"])
 
     print_dq([traindl2st, testdl2st], ["train2st", "test2st"], -1.0)
-    print_nor_dq("trainnor", [traindl2st], ["train2st"], traindlrand, traindltrue)
-    print_nor_dq("testnor", [testdl2st], ["test2st"], testdlrand, testdltrue)
+    print_nor_dq("_trainnor", [traindl2st], ["train2st"], traindlrand, traindltrue)
+    print_nor_dq("_testnor", [testdl2st], ["test2st"], testdlrand, testdltrue)
+    print_nor_dq_filter0clip("trainnor2st", [traindl2st], ["train2st"], traindlrand, traindltrue)
+    print_nor_dq_filter0clip("testnor2st", [testdl2st], ["test2st"], testdlrand, testdltrue)
 
     search_map_cv = {"wmse": WeightedLossCrossValidation, "mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid, "msehyp++": DirectedLossCrossValHyper, "quad": QuadLossCrossValidation}
 
@@ -248,8 +250,11 @@ if __name__ == "__main__":
 
     booster, bltraindl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), model.get_def_loss_fn().get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None, desc="defparams")
     print_dq([bltraindl, bltestdl], ["bltraindl", "bltestdl"], -1.0)
-    print_nor_dq("trainnor", [bltraindl], ["bltraindl"], traindlrand, traindltrue)
-    print_nor_dq("testnor", [bltestdl], ["bltestdl"], testdlrand, testdltrue)
+    print_nor_dq("_trainnor", [bltraindl], ["bltraindl"], traindlrand, traindltrue)
+    print_nor_dq("_testnor", [bltestdl], ["bltestdl"], testdlrand, testdltrue)
+    print_nor_dq_filter0clip("trainnorbl", [bltraindl], ["bltraindl"], traindlrand, traindltrue)
+    print_nor_dq_filter0clip("testnorbl", [bltestdl], ["bltestdl"], testdlrand, testdltrue)
+
 
     if params["test_nn2st"] != "none":
         from train_dense import nn2st_iter, perf_nn
@@ -261,8 +266,10 @@ if __name__ == "__main__":
         nntraindl = perf_nn(prob, model, xtrain, ytrain, None)
 
         print_dq([nntraindl, nntestdl], ["NN2stTrainval", "NN2stTest"], -1.0)
-        print_nor_dq("nn2stTrainNorDQ", [nntraindl], ["NN2stTrain"], traindlrand, traindltrue)
-        print_nor_dq("nn2stTestNorDQ", [nntestdl], ["NN2stTestdl"], testdlrand, testdltrue)
+        print_nor_dq("_nn2stTrainNorDQ", [nntraindl], ["NN2stTrain"], traindlrand, traindltrue)
+        print_nor_dq("_nn2stTestNorDQ", [nntestdl], ["NN2stTestdl"], testdlrand, testdltrue)
+        print_nor_dq_filter0clip("nn2stTrainNorDQ", [nntraindl], ["NN2stTrain"], traindlrand, traindltrue)
+        print_nor_dq_filter0clip("nn2stTestNorDQ", [nntestdl], ["NN2stTestdl"], testdlrand, testdltrue)
 
         exit(0)
 
@@ -276,8 +283,10 @@ if __name__ == "__main__":
                                                 lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=(1+params["n_test_history"]))
 
         print_dq([lctraindl, lctestdl], ["LANCERtrain", "LANCERtest"], -1.0)
-        print_nor_dq("LANCERTrainNorDQ", [lctraindl], ["LANCERTrain"], traindlrand, traindltrue)
-        print_nor_dq("LANCERTestNorDQ", [lctestdl], ["LANCERTestdl"], testdlrand, testdltrue)
+        print_nor_dq("_LANCERTrainNorDQ", [lctraindl], ["LANCERTrain"], traindlrand, traindltrue)
+        print_nor_dq("_LANCERTestNorDQ", [lctestdl], ["LANCERTestdl"], testdlrand, testdltrue)
+        print_nor_dq_filter0clip("LANCERTrainNorDQ", [lctraindl], ["LANCERTrain"], traindlrand, traindltrue)
+        print_nor_dq_filter0clip("LANCERTestNorDQ", [lctestdl], ["LANCERTestdl"], testdlrand, testdltrue)
 
         exit(0)
 
@@ -300,8 +309,10 @@ if __name__ == "__main__":
             _, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None)
             print(f"iter{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
             print_dq([itertrain, itertest], [f"iter{cnt}train", f"iter{cnt}test"], -1.0)
-            print_nor_dq(f"iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
-            print_nor_dq(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
+            print_nor_dq(f"_iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
+            print_nor_dq(f"_iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
+            print_nor_dq_filter0clip(f"iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
+            print_nor_dq_filter0clip(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
 
     candidates = sorted(records, key=lambda x : x[0])
     select = len(candidates) - 1
@@ -333,80 +344,12 @@ if __name__ == "__main__":
     _, bltrainfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(records[0][1]).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None, desc="search1st") # Check the performance of the first iteration
 
     print_dq([trainsmac, testsmac, bltestdl, bltrainfirst, bltestfirst], ["trainsmac", "testsmac", "bldef", "bltrainfirst", "bltestfirst"], -1.0)
-    print_nor_dq("Comparetrainnor", [traindl2st, trainsmac], ["traindl2st", "trainsmac"], traindlrand, traindltrue)
-    print_nor_dq("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
+    print_nor_dq("_Comparetrainnor", [traindl2st, trainsmac], ["traindl2st", "trainsmac"], traindlrand, traindltrue)
+    print_nor_dq("_Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
+    print_nor_dq_filter0clip("Comparetrainnor", [traindl2st, trainsmac], ["traindl2st", "trainsmac"], traindlrand, traindltrue)
+    print_nor_dq_filter0clip("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
 
 
-    """
-    model = QuadLoss(prob, params, xtrain, ytrain, xval, yval, valdltrue, args.quad_alpha)
-    scenario = Scenario(model.configspace, n_trials=args.n_trials)
-    smac = HPOFacade(scenario, model.train, overwrite=True)
-    incumbent = smac.optimize()
 
-
-    weight_vec = np.array([[incumbent["w1"], 0], [incumbent["w2"], incumbent["w3"]]])
-    print(f"SMAC choose {weight_vec}")
-
-    cusloss = search_quadratic_loss(ytrain.shape[0], ytrain.shape[1], weight_vec, params["quad_alpha"])
-    Xy = xgb.DMatrix(xtrain, ytrain)
-    booster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
-                             dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
-
-    smacytrainpred = booster.inplace_predict(xtrain)
-    trainsmac = prob.dec_loss(smacytrainpred, ytrain)
-
-    smacyvalpred = booster.inplace_predict(xval)
-    valsmac = prob.dec_loss(smacyvalpred, yval)
-
-    smacytestpred = booster.inplace_predict(xtest)
-    testsmac = prob.dec_loss(smacytestpred, ytest)
-
-    sanity_check(traindl2st - traindltrue, "train2st")
-    sanity_check(valdl2st - valdltrue, "val2st")
-    sanity_check(testdl2st - testdltrue, "test2st")
-    sanity_check(trainsmac - traindltrue, "trainsmac")
-    sanity_check(valsmac - valdltrue, "valsmac")
-    sanity_check(testsmac - testdltrue, "testsmac")
-    sanity_check(traindlrand - traindltrue, "trainrand")
-    sanity_check(valdlrand - valdltrue, "valrand")
-    sanity_check(testdlrand - testdltrue, "testrand")
-
-
-    res_str= [(f"2stageTrainDL,2stageTrainDLstderr,2stageValDL,2stageValDLstderr,2stageTestDL,2stageTestDLstderr,"
-               f"smacTrainDL,smacTrainDLsstderr,smacValDL,smacValDLstderr,smacTestDL,smacTestDLstderr,"
-               f"randTrainDL,randTrainDLsstderr,randValDL,randValDLstderr,randTestDL,randTestDLstderr")]
-    res_str.append((f"{(traindl2st - traindltrue).mean()}, {compute_stderror(traindl2st - traindltrue)}, "
-                    f"{(valdl2st - valdltrue).mean()}, {compute_stderror(valdl2st - valdltrue)}, "
-                    f"{(testdl2st - testdltrue).mean()}, {compute_stderror(testdl2st - testdltrue)},"
-                    f"{(trainsmac - traindltrue).mean()}, {compute_stderror(trainsmac - traindltrue)}, "
-                    f"{(valsmac - valdltrue).mean()}, {compute_stderror(valsmac - valdltrue)}, "
-                    f"{(testsmac - testdltrue).mean()}, {compute_stderror(testsmac - testdltrue)},"
-                    f"{(traindlrand - traindltrue).mean()}, {compute_stderror(traindlrand - traindltrue)}, "
-                    f"{(valdlrand - valdltrue).mean()}, {compute_stderror(valdlrand - valdltrue)}, "
-                    f"{(testdlrand - testdltrue).mean()}, {compute_stderror(testdlrand - testdltrue)}"))
-
-
-    handcrapcusloss = search_quadratic_loss(ytrain.shape[0], ytrain.shape[1], np.array([[1.0, 0], [1.0, 0.1]]), params["quad_alpha"])
-    hcbooster = xgb.train({"tree_method": params["tree_method"], "num_target": 2},
-                             dtrain = Xy, num_boost_round = params["search_estimators"], obj = handcrapcusloss.get_obj_fn())
-
-    hctrainpred = hcbooster.inplace_predict(xtrain)
-    hctrain = prob.dec_loss(hctrainpred, ytrain)
-
-    hcvalpred = hcbooster.inplace_predict(xval)
-    hcval = prob.dec_loss(hcvalpred, yval)
-
-    hctestpred = hcbooster.inplace_predict(xtest)
-    hctest = prob.dec_loss(hctestpred, ytest)
-
-    res_str.append((f"Handcrafted.{(hctrain - traindltrue).mean()}, {compute_stderror(hctrain - traindltrue)}, "
-                    f"{(hcval - valdltrue).mean()}, {compute_stderror(hcval - valdltrue)}, "
-                    f"{(hctest - testdltrue).mean()}, {compute_stderror(hctest - testdltrue)}"))
-
-    for row in res_str:
-        print(row)
-
-        #TODO how Lower L map to y0y1
-    """
 
 
