@@ -206,7 +206,7 @@ if __name__ == "__main__":
             print_nor_dqagg(f"iternordqtest_", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
             # Check perf if stop now
             candidatesit = sorted(records, key=lambda x : x[0])
-            select = len(candidatesit) - 1
+            select = 1
             for i in range(1, len(candidatesit)):
                 if candidatesit[i][0] != candidatesit[0][0]:
                     select = i
