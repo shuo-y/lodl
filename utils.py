@@ -95,7 +95,10 @@ def print_nor_dqagg(verbose, dllist, namelist, randdl, optdl):
         print(f"agg_{namelist[i]}, {nordq},", end="")
     print("Not per instance normalized, aggregate normalized")
 
-
+def print_booster_mse(verbose, booster, xdata, ygold):
+    ypred = booster.inplace_predict(xdata)
+    mse = ((ypred - ygold)**2).mean()
+    print(f"{verbose},{mse},", end="")
 """
     print("DQ, 2stagetrainvalobj, 2stagetestobj, "
           "2stagetrainvalobjstderr, 2stagetestobjstderr, "

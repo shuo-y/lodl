@@ -18,7 +18,7 @@ from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, 
 from smacdirected import smac_search_lgb, eval_config_lgb, test_reg_lgb
 
 
-from utils import perfrandomdq, print_dq, print_nor_dq_filter0clip, print_nor_dqagg, compute_stderror, sanity_check
+from utils import perfrandomdq, print_dq, print_nor_dq_filter0clip, print_nor_dqagg, print_booster_mse, compute_stderror, sanity_check
 from BudgetAllocation import BudgetAllocation
 
 
@@ -204,6 +204,28 @@ if __name__ == "__main__":
             print_nor_dq_filter0clip(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
             print_nor_dqagg(f"iternordqtrain_", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
             print_nor_dqagg(f"iternordqtest_", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
+            # Check perf if stop now
+            candidatesit = sorted(records, key=lambda x : x[0])
+            select = len(candidatesit) - 1
+            for i in range(1, len(candidatesit)):
+                if candidatesit[i][0] != candidatesit[0][0]:
+                    select = i
+                    print(f"iter SF{cnt}:from idx 0 to {select} has the same cost randomly pick one")
+                    break
+            idx = random.randint(0, select - 1)
+            incumbent = candidatesit[idx][1]
+            bstsf, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(incumbent).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None)
+            print(f"SearchSoFar{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
+            print_dq([itertrain, itertest], [f"SF{cnt}train", f"SF{cnt}test"], -1.0)
+            print_booster_mse(f"mseSFtrain{cnt}", bstsf, xtrain, ytrain)
+            print_booster_mse(f"mseSFtest{cnt}", bstsf, xtest, ytest)
+            print("")
+            print_nor_dq_filter0clip(f"SFnordqtrain", [itertrain], [f"SF{cnt}train"], traindlrand, traindltrue)
+            print_nor_dq_filter0clip(f"SFnordqtest", [itertest], [f"SF{cnt}test"], testdlrand, testdltrue)
+            print_nor_dqagg(f"SFnordqtrain_", [itertrain], [f"SF{cnt}train"], traindlrand, traindltrue)
+            print_nor_dqagg(f"SFnordqtest_", [itertest], [f"SF{cnt}test"], testdlrand, testdltrue)
+
+
 
 
     candidates = sorted(records, key=lambda x : x[0])
@@ -226,6 +248,10 @@ if __name__ == "__main__":
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
     print(f"TIME Final train time {time.time() - start_time} seconds")
+
+    print_booster_mse(f"mseFinaltrain", booster, xtrain, ytrain)
+    print_booster_mse(f"mseFinaltest", booster, xtest, ytest)
+    print("")
 
     smacytrainpred = booster.inplace_predict(xtrain)
     trainsmac = prob.dec_loss(smacytrainpred, ytrain).flatten()
