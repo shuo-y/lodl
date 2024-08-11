@@ -20,7 +20,7 @@ from smac.runhistory.dataclasses import TrialValue
 from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config_vec
 
 from PThenO import PThenO
-from utils import print_dq, print_nor_dq, print_nor_dq_filter0clip
+from utils import print_dq, print_nor_dq, print_nor_dq_filter0clip, print_booster_mse
 
 ## 2-dimensional Rosenbrock function https://automl.github.io/SMAC3/v2.0.2/examples/1_basics/3_ask_and_tell.html
 class ProdObj(PThenO):
@@ -313,6 +313,27 @@ if __name__ == "__main__":
             print_nor_dq(f"_iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
             print_nor_dq_filter0clip(f"iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
             print_nor_dq_filter0clip(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
+            # Check so far
+            candidatesit = sorted(records, key=lambda x : x[0])
+            select = 1
+            for i in range(1, len(candidatesit)):
+                if candidatesit[i][0] != candidatesit[0][0]:
+                    select = i
+                    print(f"iter SF{cnt}:from idx 0 to {select} has the same cost randomly pick one")
+                    break
+            idx = random.randint(0, select - 1)
+            incumbent = candidatesit[idx][1]
+            bstsf, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(incumbent).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None)
+            print(f"SearchSoFar{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
+            print_dq([itertrain, itertest], [f"SF{cnt}train", f"SF{cnt}test"], -1.0)
+            print_booster_mse(f"mseSFtrain{cnt}", bstsf, xtrain, ytrain)
+            print_booster_mse(f"mseSFtest{cnt}", bstsf, xtest, ytest)
+            print("")
+            print_nor_dq(f"SFnordqtrain", [itertrain], [f"SF{cnt}train"], traindlrand, traindltrue)
+            print_nor_dq(f"SFnordqtest", [itertest], [f"SF{cnt}test"], testdlrand, testdltrue)
+            print_nor_dq_filter0clip(f"SFnordqtrain", [itertrain], [f"SF{cnt}train"], traindlrand, traindltrue)
+            print_nor_dq_filter0clip(f"SFnordqtest", [itertest], [f"SF{cnt}test"], testdlrand, testdltrue)
+
 
     candidates = sorted(records, key=lambda x : x[0])
     select = len(candidates) - 1
