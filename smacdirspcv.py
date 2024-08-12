@@ -17,7 +17,7 @@ from smac.runhistory.dataclasses import TrialValue
 from losses import search_weights_loss, search_quadratic_loss, search_weights_directed_loss, search_weights_loss, squared_error
 from ShortestPath import ShortestPath
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config, test_config_vec, test_dir_weight, eval_xgb_hyper, contin_xgb_hyper
-from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check
+from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check, print_booster_mse
 
 
 if __name__ == "__main__":
@@ -182,6 +182,24 @@ if __name__ == "__main__":
             print_dq([itertrainval, itertest], [f"iter{cnt}trainval", f"iter{cnt}test"], -1.0)
             print_nor_dq(f"iternordqtrainval", [itertrainval], [f"iter{cnt}trainval"], trainvaldlrand, trainvaldltrue)
             print_nor_dq(f"iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
+            # Check perf if stop now
+            candidatesit = sorted(records, key=lambda x : x[0])
+            select = 1
+            for i in range(1, len(candidatesit)):
+                if candidatesit[i][0] != candidatesit[0][0]:
+                    select = i
+                    print(f"iter SF{cnt}:from idx 0 to {select} has the same cost randomly pick one")
+                    break
+            idx = random.randint(0, select - 1)
+            incumbent = candidatesit[idx][1]
+            bstsf, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(incumbent).get_obj_fn(), xtrainvalall, ytrainvalall, None, xtest, ytest, None)
+            print(f"SearchSoFar{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
+            print_dq([itertrain, itertest], [f"SF{cnt}train", f"SF{cnt}test"], -1.0)
+            print_booster_mse(f"mseSFtrainval{cnt}", bstsf, xtrainvalall, ytrainvalall)
+            print_booster_mse(f"mseSFtest{cnt}", bstsf, xtest, ytest)
+            print("")
+            print_nor_dq(f"SFnordqtrain", [itertrain], [f"SF{cnt}train"], trainvaldlrand, trainvaldltrue)
+            print_nor_dq(f"SFnordqtest", [itertest], [f"SF{cnt}test"], testdlrand, testdltrue)
 
 
     candidates = sorted(records, key=lambda x : x[0])
