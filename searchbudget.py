@@ -121,6 +121,9 @@ if __name__ == "__main__":
     traindltrue = prob.dec_loss(ytrain, ytrain).flatten()
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
+    print(f"msexgbAPItrain, {((ytrainpred - ytrain) ** 2).mean()}")
+    print(f"msexgbAPItest, {((ytestpred - ytest) ** 2).mean()}")
+
     # The shape of decision is the same as label Y
     traindlrand = -1.0 * perfrandomdq(prob, Y=Ytraint, Y_aux=None, trials=params["n_rand_trials"]).numpy().flatten()
     testdlrand = -1.0 * perfrandomdq(prob, Y=Ytestt, Y_aux=None, trials=params["n_rand_trials"]).numpy().flatten()
@@ -152,8 +155,8 @@ if __name__ == "__main__":
         model = nn2st_iter(prob, xtrain, ytrain, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=(1+params["n_test_history"]))
         print(f"TIME train nn2st takes, {time.time() - start_time}, seconds")
         # Here just use the same data for tuning
-        nntestdl = perf_nn(prob, model, xtest, ytest, None)
-        nntraindl = perf_nn(prob, model, xtrain, ytrain, None)
+        nntestdl = perf_nn(prob, model, xtest, ytest, None, desc="test")
+        nntraindl = perf_nn(prob, model, xtrain, ytrain, None, desc="train")
 
         print_dq([nntraindl, nntestdl], ["NN2stTrainval", "NN2stTest"], -1.0)
         print_nor_dq_filter0clip("nn2stTrainNorDQ", [nntraindl], ["NN2stTrain"], traindlrand, traindltrue)
@@ -237,7 +240,7 @@ if __name__ == "__main__":
             break
     idx = random.randint(0, select - 1)
     incumbent = candidates[idx][1]
-    print(f"TIME Search takes {time.time() - start_time} seconds")
+    print(f"TIME Search takes, {time.time() - start_time}, seconds")
 
     params_vec = model.get_vec(incumbent)
     print(f"print {incumbent}")

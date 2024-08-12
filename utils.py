@@ -99,35 +99,6 @@ def print_booster_mse(verbose, booster, xdata, ygold):
     ypred = booster.inplace_predict(xdata)
     mse = ((ypred - ygold)**2).mean()
     print(f"{verbose},{mse},", end="")
-"""
-    print("DQ, 2stagetrainvalobj, 2stagetestobj, "
-          "2stagetrainvalobjstderr, 2stagetestobjstderr, "
-          "smactrainvalobj, smactestobj, "
-          "smactrainvalobjstderr, smactestobjstderr, "
-          "randtrainvalobj, randtestobj, "
-          "randtrainvalobjstderr, randtestobjstderr, "
-          "truetrainvalobj, truetestobj, "
-          "truetrainvalobjstderr, truetestobjstderr, ",
-          "bltestdlobj, bltestdlobjstderr")
-    print(f"DQ, {-1 * trainvaldl2st.mean()}, {-1 * testdl2st.mean()}, "
-          f"{-1 * compute_stderror(trainvaldl2st)}, {-1 * compute_stderror(testdl2st)}, "
-          f"{-1 * trainvalsmac.mean()}, {-1 * testsmac.mean()}, "
-          f"{-1 * compute_stderror(trainvalsmac)}, {-1 * compute_stderror(testsmac)}, "
-          f"{-1 * trainvaldlrand.mean()}, {-1 * testdlrand.mean()}, "
-          f"{-1 * compute_stderror(trainvaldlrand)}, {-1 * compute_stderror(testdlrand)}, "
-          f"{-1 * trainvaldltrue.mean()}, {-1 * testdltrue.mean()}, "
-          f"{-1 * compute_stderror(trainvaldltrue)}, {-1 * compute_stderror(testdltrue)}, "
-          f"{-1 * bltestdl.mean()}, {-1 * compute_stderror(bltestdl)}, ")
-
-    nortest2stage = (-testdl2st + testdlrand)/(-testdltrue + testdlrand)
-    nortestsmac = (-testsmac + testdlrand)/(-testdltrue + testdlrand)
-    nortestbl = (-bltestdl + testdlrand)/(-testdltrue + testdlrand)
-
-    print("NorDQ, 2stagetest, smactest, bltest, "
-          "2stageteststderr, smacteststderr, blteststderr, ")
-    print(f"NorDQ, {nortest2stage.mean()}, {nortestsmac.mean()}, {nortestbl.mean()}, "
-          f"{compute_stderror(nortest2stage)}, {compute_stderror(nortestsmac)}, {compute_stderror(nortestbl)} ")
-"""
 
 def print_train_val_test(traindl2st, valdl2st, testdl2st, trainsmac, valsmac, testsmac, traindlrand, valdlrand, testdlrand, traindltrue, valdltrue, testdltrue, bltestdl):
     sanity_check(testdl2st - testdltrue, "test2st")

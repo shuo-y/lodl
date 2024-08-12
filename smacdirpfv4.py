@@ -109,6 +109,8 @@ if __name__ == "__main__":
 
     ytrainvalpred = reg.predict(xtrainvalall)
     trainvaldl2st = prob.dec_loss(ytrainvalpred, ytrainvalall, aux_data=auxtrainvalall).flatten()
+    print(f"msexgbAPItrainval, {((ytrainvalpred - ytrainvalall) ** 2).mean()}")
+    print(f"msexgbAPItest, {((ytestpred - ytest) ** 2).mean()}")
 
     #traindltrue = prob.dec_loss(ytrain, ytrain, aux_data=auxtrain).flatten()
     #valdltrue = prob.dec_loss(yval, yval, aux_data=auxval).flatten()
@@ -142,8 +144,8 @@ if __name__ == "__main__":
         start_time = time.time()
         model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=(1+params["n_test_history"]))
         print(f"TIME train nn2st takes, {time.time() - start_time}, seconds")
-        nntestdl = perf_nn(prob, model, xtest, ytest, auxtest)
-        nntrainvaldl = perf_nn(prob, model, xtrainvalall, ytrainvalall, auxtrainvalall)
+        nntestdl = perf_nn(prob, model, xtest, ytest, auxtest, desc="test")
+        nntrainvaldl = perf_nn(prob, model, xtrainvalall, ytrainvalall, auxtrainvalall, desc="trainval")
 
         print_dq([nntrainvaldl, nntestdl], ["NN2stTrainval", "NN2stTest"], -1.0)
         print_nor_dq("nn2stTrainvalNorDQ", [nntrainvaldl], ["NN2stTrainval"], trainvaldlrand, trainvaldltrue)
@@ -211,7 +213,7 @@ if __name__ == "__main__":
             bstsf, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(incumbent).get_obj_fn(), xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest)
             print(f"SearchSoFar{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
             print_dq([itertrain, itertest], [f"SF{cnt}train", f"SF{cnt}test"], -1.0)
-            print_booster_mse(f"mseSFtrain{cnt}", bstsf, xtrain, ytrain)
+            print_booster_mse(f"mseSFtrainval{cnt}", bstsf, xtrainvalall, ytrainvalall)
             print_booster_mse(f"mseSFtest{cnt}", bstsf, xtest, ytest)
             print("")
             print_nor_dq(f"SFnordqtrain", [itertrain], [f"SF{cnt}train"], trainvaldlrand, trainvaldltrue)
@@ -226,7 +228,7 @@ if __name__ == "__main__":
             break
     idx = random.randint(0, select - 1)
     incumbent = candidates[idx][1]
-    print(f"TIME Search takes {time.time() - start_time} seconds")
+    print(f"TIME Search takes , {time.time() - start_time}, seconds")
 
     params_vec = model.get_vec(incumbent)
     print(f"Seaerch Choose {params_vec}")
@@ -237,6 +239,9 @@ if __name__ == "__main__":
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
     print(f"TIME Final train time {time.time() - start_time} seconds")
 
+    print_booster_mse(f"mseFinaltrain", booster, xtrainvalall, ytrainvalall)
+    print_booster_mse(f"mseFinaltest", booster, xtest, ytest)
+    print("")
 
     smactrainvalpred = booster.inplace_predict(xtrainvalall)
     trainvalsmac = prob.dec_loss(smactrainvalpred, ytrainvalall, aux_data=auxtrainvalall).flatten()

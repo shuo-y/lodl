@@ -150,9 +150,10 @@ def nn2st_iter(problem, xtrain, ytrain, xval, yval, lr, iters, batchsize, n_laye
 
 
 
-def perf_nn(prob, model, xtest, ytest, auxtest):
+def perf_nn(prob, model, xtest, ytest, auxtest, desc=""):
     X_test = torch.tensor(xtest).float()
     Y_pred = model(X_test)
     ypred = Y_pred.detach().numpy()
+    print(f"mse{desc}NN,{((ypred - ytest) ** 2).mean()}")
     nntestdl = prob.dec_loss(ypred, ytest, aux_data=auxtest).flatten()
     return nntestdl

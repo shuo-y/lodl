@@ -108,6 +108,9 @@ if __name__ == "__main__":
     trainvaldltrue = prob.dec_loss(ytrainvalall, ytrainvalall).flatten()
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
 
+    print(f"msexgbAPItrainval, {((ytrainvalpred - ytrainvalall) ** 2).mean()}")
+    print(f"msexgbAPItest, {((ytestpred - ytest) ** 2).mean()}")
+
     # The shape of decision is the same as label Y
     trainvaldlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytrainvalall).float(), Y_aux=None, trials=params["n_rand_trials"]).numpy().flatten()
     testdlrand = -1.0 * perfrandomdq(prob, Y=torch.tensor(ytest).float(), Y_aux=None, trials=params["n_rand_trials"]).numpy().flatten()
@@ -136,8 +139,8 @@ if __name__ == "__main__":
         model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=(1+params["n_test_history"]))
         print(f"TIME train nn2st takes, {time.time() - start_time}, seconds")
         # Here just use the same data for tuning
-        nntestdl = perf_nn(prob, model, xtest, ytest, None)
-        nntrainvaldl = perf_nn(prob, model, xtrainvalall, ytrainvalall, None)
+        nntestdl = perf_nn(prob, model, xtest, ytest, None, desc="test")
+        nntrainvaldl = perf_nn(prob, model, xtrainvalall, ytrainvalall, None, desc="trainval")
 
         print_dq([nntrainvaldl, nntestdl], ["NN2stTrainval", "NN2stTest"], -1.0)
         print_nor_dq("nn2stTrainvalNorDQ", [nntrainvaldl], ["NN2stTrainval"], trainvaldlrand, trainvaldltrue)
@@ -190,7 +193,7 @@ if __name__ == "__main__":
             break
     idx = random.randint(0, select - 1)
     incumbent = candidates[idx][1]
-    print(f"TIME Search takes {time.time() - start_time} seconds")
+    print(f"TIME Search takes, {time.time() - start_time}, seconds")
 
     params_vec = model.get_vec(incumbent)
     print(f"print {incumbent}")
@@ -202,7 +205,11 @@ if __name__ == "__main__":
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
     print(f"TIME Final train time {time.time() - start_time} seconds")
 
-    print(f"Just in case: candidates {candidates[:5]} and records {records[:5]} ")
+    print_booster_mse(f"mseFinaltrain", booster, xtrainvalall, ytrainvalall)
+    print_booster_mse(f"mseFinaltest", booster, xtest, ytest)
+    print("")
+
+    print(f"Just in case: candidates[:5].mean {candidates[:5].mean()} and records [:5].mean {records[:5].mean()} ")
 
     smacytrainvalpred = booster.inplace_predict(xtrainvalall)
     trainvalsmac = prob.dec_loss(smacytrainvalpred, ytrainvalall).flatten()

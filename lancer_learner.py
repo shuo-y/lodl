@@ -438,12 +438,14 @@ def test_lancer(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in
                                              c_lr_init=c_lr_init,
                                              print_freq=print_freq,
                                              diffzf=allowdiffzf)
-    print(f"TIME LANCER learning time {time.time() - start_time}")
+    print(f"TIME LANCER learning time, {time.time() - start_time}, ")
     ytestpred = lancer_model.predict(xtest)
     testdl = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
+    print(f"mseLancerTest, {((ytestpred - ytest) ** 2).mean()}")
 
     ytrainpred = lancer_model.predict(xtrain)
     traindl = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
+    print(f"mseLancerTrain, {((ytrainpred - ytrain) ** 2).mean()}")
 
     return lancer_model, traindl, testdl
 
