@@ -203,7 +203,7 @@ if __name__ == "__main__":
     cusloss = model.get_loss_fn(incumbent)
     Xy = xgb.DMatrix(xtrainvalall, ytrainvalall)
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
-    print(f"TIME Final train time {time.time() - start_time} seconds")
+    print(f"TIME Final train time, {time.time() - start_time}, seconds")
 
     print_booster_mse(f"mseFinaltrain", booster, xtrainvalall, ytrainvalall)
     print_booster_mse(f"mseFinaltest", booster, xtest, ytest)
