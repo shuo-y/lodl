@@ -938,6 +938,9 @@ def test_config_vec(params, prob, xgb_params, obj_fn, xtrain, ytrain, auxtrain, 
     traindl = prob.dec_loss(trainpred, ytrain, aux_data=auxtrain).flatten()
     testpred = booster.inplace_predict(xtest)
     testdl = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
+
+    print(f"mse{desc}Train, {((trainpred - ytrain) ** 2).mean()}")
+    print(f"mse{desc}Test, {((testpred - ytest) ** 2).mean()},")
     return booster, traindl, testdl
 
 def test_config(params, prob, xgb_params, cusloss, xtrain, ytrain, xtest, ytest, auxtest):
