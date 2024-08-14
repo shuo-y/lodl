@@ -86,7 +86,7 @@ def train_dense(args, problem):
     return model, metrics
 
 
-def nn2st_iter(problem, xtrain, ytrain, xval, yval, lr, iters, batchsize, n_layers, int_size, earlystopping=False, patience=100, model_type="dense", val_freq=1, print_freq=1):
+def nn2st_iter(problem, xtrain, ytrain, xval, yval, lr, iters, batchsize, n_layers, int_size, earlystopping=False, patience=100, model_type="dense", val_freq=1, print_freq=1, **kwargs):
     # Only for Neural Network based two-stage
     # model_type is dense or dense_coupled
     X_train = torch.tensor(xtrain).float()

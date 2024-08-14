@@ -55,7 +55,7 @@ if __name__ == "__main__":
     parser.add_argument("--n-layers", type=int, default=2, help="num of layers when traning NN") # What happens if n-layers much more than two?
     parser.add_argument("--int-size", type=int, default=500, help="num of layers when traning NN")
     # Other baseline
-    parser.add_argument("--baseline", type=str, default="none", choices=["none", "lancer"])
+    parser.add_argument("--baseline", type=str, default="none", choices=["none", "lancer", "lanNN2st"])
 
 
     args = parser.parse_args()
@@ -184,6 +184,24 @@ if __name__ == "__main__":
 
         print_nor_dqagg("LANCERTrainNorDQ_", [lctraindl], ["LANCERTrain"], traindlrand, traindltrue)
         print_nor_dqagg("LANCERTestNorDQ_", [lctestdl], ["LANCERTestdl"], testdlrand, testdltrue)
+        exit(0)
+
+    if params["baseline"] == "lanNN2st":
+        from lancer_learner import test_lancer_2st
+        model, lctraindl, lctestdl = test_lancer_2st(prob, xtrain, ytrain, None, xtest, ytest, None,
+                                                lancer_in_dim=prob.num_feats, c_out_dim=prob.num_feats, n_iter=10, c_max_iter=5, c_nbatch=128,
+                                                lancer_max_iter=5, lancer_nbatch=1024, c_epochs_init=params["nn_iters"], c_lr_init=0.005,
+                                                lancer_lr=0.001, c_lr=0.005, lancer_n_layers=2, lancer_layer_size=100, c_n_layers=0, c_layer_size=64,
+                                                lancer_weight_decay=0.01, c_weight_decay=0.01, z_regul=0.0,
+                                                lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=(1+params["n_test_history"]),
+                                                allowdiffzf=True if params["use_decouple"] else False)
+
+        print_dq([lctraindl, lctestdl], ["LANCERtrain", "LANCERtest"], -1.0)
+        print_nor_dq_filter0clip("LanNN2stTrainNorDQ", [lctraindl], ["lan_train"], traindlrand, traindltrue)
+        print_nor_dq_filter0clip("LanNN2stTestNorDQ", [lctestdl], ["lan_testdl"], testdlrand, testdltrue)
+
+        print_nor_dqagg("LanNN2stTrainNorDQ_", [lctraindl], ["lan_train"], traindlrand, traindltrue)
+        print_nor_dqagg("LanNN2stTestNorDQ_", [lctestdl], ["lan_testdl"], testdlrand, testdltrue)
         exit(0)
 
     scenario = Scenario(model.configspace, n_trials=params["n_trials"])

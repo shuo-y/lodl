@@ -374,6 +374,11 @@ class LancerLearner:
                                 batch_size=c_nbatch,
                                 print_freq=print_freq)
 
+        if "cmp2st" in kwargs and kwargs["cmp2st"] == True:
+            ## Just train two stage neural network and return
+            #print("Trained Lancer Comparable 2st")
+            return self.cmodel
+
         for itr in range(n_iter):
             #print("\n ---- Running solver for train set -----")
             Z_pred = self.cmodel.predict(Y_train)
@@ -448,4 +453,55 @@ def test_lancer(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in
     print(f"mseLancerTrain, {((ytrainpred - ytrain) ** 2).mean()}")
 
     return lancer_model, traindl, testdl
+
+def test_lancer_2st(prob, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, lancer_in_dim,
+                c_out_dim, n_iter, c_max_iter, c_nbatch, lancer_max_iter, lancer_nbatch,
+                c_epochs_init, c_lr_init, lancer_lr=0.001, c_lr=0.005,
+                lancer_n_layers=2, lancer_layer_size=100, c_n_layers=0, c_layer_size=64,
+                lancer_weight_decay=0.01, c_weight_decay=0.01, z_regul=0.0,
+                lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=1, allowdiffzf=False):
+    # What if LANCER's code base for 2st?
+    def_param = {"lancer_in_dim": lancer_in_dim,
+                 "c_out_dim": c_out_dim,
+                 "lancer_n_layers": 2,
+                 "lancer_layer_size": 100,
+                 "lancer_lr": lancer_lr,
+                 "lancer_opt_type": "adam",
+                 "lancer_weight_decay": lancer_weight_decay,
+                 "c_n_layers": c_n_layers,
+                 "c_layer_size": c_layer_size,
+                 "c_lr": c_lr,
+                 "c_opt_type": "adam",
+                 "c_weight_decay": c_weight_decay,
+                 "z_regul": z_regul,
+                 "lancer_out_activation": lancer_out_activation,
+                 "c_hidden_activation": c_hidden_activation,
+                 "c_output_activation": c_output_activation}
+
+    learner = LancerLearner(def_param, "mlp", "mlp", prob)
+    dataset = (xtrain, None, ytrain, None, auxtrain, None)
+    start_time = time.time()
+    lancer_model = learner.run_training_loop(dataset,
+                                             n_iter=n_iter,
+                                             c_max_iter=c_max_iter,
+                                             c_nbatch=c_nbatch,
+                                             lancer_max_iter=lancer_max_iter,
+                                             lancer_nbatch=lancer_nbatch,
+                                             c_epochs_init=c_epochs_init,
+                                             c_lr_init=c_lr_init,
+                                             print_freq=print_freq,
+                                             diffzf=allowdiffzf,
+                                             cmp2st=True)
+
+    print(f"TIME Lancer_nn_2st (init fit) learning time, {time.time() - start_time}, ")
+    ytestpred = lancer_model.predict(xtest)
+    testdl = prob.dec_loss(ytestpred, ytest, aux_data=auxtest).flatten()
+    print(f"mseLan_nn_2st_Test, {((ytestpred - ytest) ** 2).mean()}")
+
+    ytrainpred = lancer_model.predict(xtrain)
+    traindl = prob.dec_loss(ytrainpred, ytrain, aux_data=auxtrain).flatten()
+    print(f"mseLan_nn_2st_Train, {((ytrainpred - ytrain) ** 2).mean()}")
+
+    return lancer_model, traindl, testdl
+
 
