@@ -25,7 +25,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
-    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad", "idx", "wmse"])
+    parser.add_argument("--search-method", type=str, default="wmse", choices=["mse++", "quad", "idx", "wmse"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
     parser.add_argument("--num-train", type=int, default=150)
@@ -231,7 +231,7 @@ if __name__ == "__main__":
     print(f"TIME Search takes , {time.time() - start_time}, seconds")
 
     params_vec = model.get_vec(incumbent)
-    print(f"Seaerch Choose {params_vec}")
+    print(f"Search Choose {params_vec}, val cost, {candidates[idx][0]}")
 
     start_time = time.time()
     cusloss = model.get_loss_fn(incumbent)

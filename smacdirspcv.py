@@ -24,7 +24,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
-    parser.add_argument("--search-method", type=str, default="mse++", choices=["wmse", "mse++", "idx", "msehyp++", "quad"])
+    parser.add_argument("--search-method", type=str, default="wmse", choices=["wmse", "mse++", "idx", "msehyp++", "quad"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--output", type=str, default="two_quad_example")
     parser.add_argument("--num-train", type=int, default=200)
@@ -215,7 +215,7 @@ if __name__ == "__main__":
 
     params_vec = model.get_vec(incumbent)
     print(f"print {incumbent}")
-    print(f"Seaerch Choose {params_vec}")
+    print(f"Search Choose {params_vec}, val cost, {candidates[idx][0]},")
 
     start_time = time.time()
     cusloss = model.get_loss_fn(incumbent)
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     print_booster_mse(f"mseFinaltest", booster, xtest, ytest)
     print("")
 
-    print(f"Just in case: candidates[:5].mean {candidates[:5].mean()} and records [:5].mean {records[:5].mean()} ")
+    print(f"Just in case: candidates[:5].mean {candidates[:5]} and records [:5].mean {records[:5]} ")
 
     smacytrainvalpred = booster.inplace_predict(xtrainvalall)
     trainvalsmac = prob.dec_loss(smacytrainvalpred, ytrainvalall).flatten()

@@ -215,6 +215,11 @@ class SearchbyInstanceCrossValid:
         cusloss = search_full_weights(weight_mat)
         return cusloss
 
+    def get_def_configs_dict(self):
+        values_dict = {}
+        for i in range(self.nitems):
+            values_dict[f"w{i}"] = self.param_def
+        return values_dict
 
     def get_vec(self, incumbent) -> np.ndarray:
         # Get the weight vector from incumbent
@@ -298,6 +303,13 @@ class WeightedLossCrossValidation:
         cusloss = search_weights_loss(weight_vec)
         return cusloss
 
+    def get_def_configs_dict(self):
+        values_dict = {}
+        for i in range(self.ydim):
+            values_dict[f"w{i}"] = self.param_def
+        return values_dict
+
+
     def get_loss_fn(self, incumbent):
         arr = [incumbent[f"w{i}"] for i in range(self.ydim)]
         weight_vec = np.array(arr)
@@ -376,6 +388,12 @@ class DirectedLossCrossValidation:
         weight_vec = np.array([self.param_def for _ in range(2 * self.ydim)])
         cusloss = search_weights_directed_loss(weight_vec)
         return cusloss
+
+    def get_def_configs_dict(self):
+        values_dict = {}
+        for i in range(2 * self.ydim):
+            values_dict[f"w{i}"] = self.param_def
+        return values_dict
 
     def get_loss_fn(self, incumbent):
         arr = [incumbent[f"w{i}"] for i in range(2 * self.ydim)]

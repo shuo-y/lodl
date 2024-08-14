@@ -26,7 +26,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--tree-method", type=str, default="hist", choices=["hist", "gpu_hist", "approx", "auto", "exact"])
-    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad", "idx", "wmse"])
+    parser.add_argument("--search-method", type=str, default="wmse", choices=["mse++", "quad", "idx", "wmse"])
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--num-train", type=int, default=80)
     parser.add_argument("--num-val", type=int, default=20)
@@ -46,6 +46,7 @@ if __name__ == "__main__":
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cv-fold", type=int, default=5)
     parser.add_argument("--use-decouple", action="store_true", help="If use a decoupled version budget")
+    parser.add_argument("--force-2st", action="store_true", help="If use a decoupled version budget")
     # For NN
     parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense"], help="Test nn two-stage model")
     parser.add_argument("--nn-lr", type=float, default=0.00001, help="The learning rate for nn")
@@ -55,6 +56,7 @@ if __name__ == "__main__":
     parser.add_argument("--int-size", type=int, default=500, help="num of layers when traning NN")
     # Other baseline
     parser.add_argument("--baseline", type=str, default="none", choices=["none", "lancer"])
+
 
     args = parser.parse_args()
     params = vars(args)
@@ -190,6 +192,11 @@ if __name__ == "__main__":
 
     records = []
     start_time = time.time()
+    if params["force_2st"]:
+        print(model.get_def_configs_dict())
+        cost_force = model.train(model.get_def_configs_dict(), 0)
+        print(f"If force 2st cost, val cost, {cost_force},")
+
     for cnt in range(params["n_trials"]):
         info = smac.ask()
         assert info.seed is not None
@@ -244,7 +251,10 @@ if __name__ == "__main__":
 
     params_vec = model.get_vec(incumbent)
     print(f"print {incumbent}")
-    print(f"Seaerch Choose {params_vec}")
+    final_val_cost = candidates[idx][0]
+    print(f"Search Choose {params_vec}, val cost, {final_val_cost},")
+
+
 
     start_time = time.time()
     cusloss = model.get_loss_fn(incumbent)
@@ -270,5 +280,14 @@ if __name__ == "__main__":
 
     print_nor_dqagg("Aggparetrainnor", [traindl2st, trainsmac], ["traindl2st", "trainsmac"], traindlrand, traindltrue)
     print_nor_dqagg("Aggparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
+
+    if params["force_2st"] == True:
+        if cost_force < final_val_cost:
+            print_nor_dq_filter0clip("IfForce", [bltestdl], ["bltestdl"], testdlrand, testdltrue)
+            print_nor_dqagg("AggIfForce2st", [bltestdl], ["bltestdl"], testdlrand, testdltrue)
+        else:
+            print_nor_dq_filter0clip("IfForce", [testsmac], ["testsmac"], testdlrand, testdltrue)
+            print_nor_dqagg("AggIfForce2st", [testsmac], ["testsmac"], testdlrand, testdltrue)
+
 
 
