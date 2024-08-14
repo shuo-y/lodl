@@ -46,7 +46,7 @@ if __name__ == "__main__":
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cv-fold", type=int, default=5)
     parser.add_argument("--use-decouple", action="store_true", help="If use a decoupled version budget")
-    parser.add_argument("--force-2st", action="store_true", help="If use a decoupled version budget")
+    parser.add_argument("--force-2st", action="store_true", help="If forcibly check mse point")
     # For NN
     parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense"], help="Test nn two-stage model")
     parser.add_argument("--nn-lr", type=float, default=0.00001, help="The learning rate for nn")
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     records = []
     start_time = time.time()
     if params["force_2st"]:
-        print(model.get_def_configs_dict())
+        #print(model.get_def_configs_dict())
         cost_force = model.train(model.get_def_configs_dict(), 0)
         print(f"If force 2st cost, val cost, {cost_force},")
 
