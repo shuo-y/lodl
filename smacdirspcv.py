@@ -48,7 +48,7 @@ if __name__ == "__main__":
     parser.add_argument("--batchsize", type=int, default=1000, help="batchsize when traning NN")
     parser.add_argument("--n-layers", type=int, default=2, help="num of layers when traning NN") # What happens if n-layers much more than two?
     parser.add_argument("--int-size", type=int, default=500, help="num of layers when traning NN")
-    parser.add_argument("--baseline", type=str, default="none", choices=["none", "lancer"])
+    parser.add_argument("--baseline", type=str, default="none", choices=["none", "lancer", "lanNN2st"])
     parser.add_argument("--contin-hyper", type=int, default=0)
     #parser.add_argument("--cross-valid", action="store_true", help="Use cross validation during search")
 
