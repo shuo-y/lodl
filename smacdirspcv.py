@@ -161,6 +161,20 @@ if __name__ == "__main__":
         print_nor_dq("LANCERTestNorDQ", [lctestdl], ["LANCERTestdl"], testdlrand, testdltrue)
         exit(0)
 
+    if params["baseline"] == "lanNN2st":
+        from lancer_learner import test_lancer_2st
+        model, lctrainvaldl, lctestdl = test_lancer_2st(prob, xtrainvalall, ytrainvalall, None, xtest, ytest, None,
+                                                        lancer_in_dim=prob.d, c_out_dim=prob.d, n_iter=10, c_max_iter=5, c_nbatch=128,
+                                                        lancer_max_iter=5, lancer_nbatch=1024, c_epochs_init=30, c_lr_init=0.005,
+                                                        lancer_lr=0.001, c_lr=0.005, lancer_n_layers=2, lancer_layer_size=100, c_n_layers=0, c_layer_size=64,
+                                                        lancer_weight_decay=0.01, c_weight_decay=0.01, z_regul=0.0,
+                                                        lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=(1+params["n_test_history"]))
+
+        print_dq([lctrainvaldl, lctestdl], ["LANCERNN2sttrainval", "LANCERNN2sttest"], -1.0)
+        print_nor_dq("LanNN2stTrainNorDQ", [lctrainvaldl], ["lan_train"], trainvaldlrand, trainvaldltrue)
+        print_nor_dq("LanNN2stTestNorDQ", [lctestdl], ["lan_testdl"], testdlrand, testdltrue)
+        exit(0)
+
     scenario = Scenario(model.configspace, n_trials=args.n_trials)
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
