@@ -178,7 +178,7 @@ if __name__ == "__main__":
                                                 lancer_n_layers=2, lancer_layer_size=100, c_n_layers=1, c_layer_size=500, lancer_weight_decay=0.0, c_weight_decay=0.1, z_regul=1.0,
                                                 lancer_out_activation="tanh", c_hidden_activation="relu", c_output_activation="tanh", print_freq=(1+params["n_test_history"]))
         print_dq([lctrainvaldl, lctestdl], ["LANCERNN2sttrain", "LANCERNN2sttest"], -1.0)
-        print_nor_dq("LanNN2stTrainNorDQ", [lctrainvaldl], ["lan_train"], traindlrand, traindltrue)
+        print_nor_dq("LanNN2stTrainNorDQ", [lctrainvaldl], ["lan_train"], trainvaldlrand, trainvaldltrue)
         print_nor_dq("LanNN2stTestNorDQ", [lctestdl], ["lan_testdl"], testdlrand, testdltrue)
         exit(0)
 
