@@ -151,7 +151,7 @@ class SearchbyInstance:
 
 
 class SearchbyInstanceCrossValid:
-    def __init__(self, prob, params, X, y, param_low, param_upp, param_def, auxdata=None, nfold=5, eta=0.3, **kwargs):
+    def __init__(self, prob, params, X, y, param_low, param_upp, param_def, auxdata=None, nfold=5, eta=0.3, use_rand_cv=False, prob_train=0, **kwargs):
         self.params = params
         self.prob = prob
         self.aux_data = auxdata
@@ -171,6 +171,20 @@ class SearchbyInstanceCrossValid:
         self.X = X
         self.y = y
         self.eta = eta
+
+        self.indices = []
+        if use_rand_cv and prob_train > 0:
+            self.num_train = int(len(X) * prob_train)
+            for i in range(self.nfold):
+                traininds = np.random.choice(len(X), self.num_train)
+                valinds = np.delete([i for i in range(len(X))], traininds)
+
+                self.Xys.append(xgb.DMatrix(X[traininds], Y[traininds]))
+                self.indices.append((traininds, valinds))
+                if auxdata is not None:
+                    self.auxdatas.append(auxdata[valinds])
+                self.valdatas.append((X[valinds], Y[valinds]))
+            return
 
         for i in range(self.nfold):
             testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
@@ -237,7 +251,7 @@ class SearchbyInstanceCrossValid:
         return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": self.eta}
 
 class WeightedLossCrossValidation:
-    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, **kwargs):
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, use_rand_cv=False, prob_train=0, **kwargs):
         # directed loss with cross validation
         # just do not use xtrain ytrain and valtruedl
         self.params = params
@@ -257,6 +271,20 @@ class WeightedLossCrossValidation:
         self.nfold = nfold
         self.ydim = Y.shape[1]
         self.eta = eta
+
+        self.indices = []
+        if use_rand_cv and prob_train > 0:
+            self.num_train = int(len(X) * prob_train)
+            for i in range(self.nfold):
+                traininds = np.random.choice(len(X), self.num_train)
+                valinds = np.delete([i for i in range(len(X))], traininds)
+
+                self.Xys.append(xgb.DMatrix(X[traininds], Y[traininds]))
+                self.indices.append((traininds, valinds))
+                if auxdata is not None:
+                    self.auxdatas.append(auxdata[valinds])
+                self.valdatas.append((X[valinds], Y[valinds]))
+            return
 
         for i in range(self.nfold):
             testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
@@ -320,7 +348,7 @@ class WeightedLossCrossValidation:
         return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": self.eta}
 
 class DirectedLossCrossValidation:
-    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, **kwargs):
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, use_rand_cv=False, prob_train=0 **kwargs):
         # directed loss with cross validation
         # just do not use xtrain ytrain and valtruedl
         self.params = params
@@ -340,6 +368,20 @@ class DirectedLossCrossValidation:
         self.nfold = nfold
         self.ydim = Y.shape[1]
         self.eta = eta
+        self.indices = []
+
+        if use_rand_cv and prob_train > 0:
+            self.num_train = int(len(X) * prob_train)
+            for i in range(self.nfold):
+                traininds = np.random.choice(len(X), self.num_train)
+                valinds = np.delete([i for i in range(len(X))], traininds)
+
+                self.Xys.append(xgb.DMatrix(X[traininds], Y[traininds]))
+                self.indices.append((traininds, valinds))
+                if auxdata is not None:
+                    self.auxdatas.append(auxdata[valinds])
+                self.valdatas.append((X[valinds], Y[valinds]))
+            return
 
         for i in range(self.nfold):
             testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
@@ -403,6 +445,8 @@ class DirectedLossCrossValidation:
 
     def get_xgb_params(self):
         return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": self.eta}
+
+
 
 class QuadLossCrossValidation:
     def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=5, reg2st=None, use_vec=False, initvec=None, eta=0.3, **kwargs):

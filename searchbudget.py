@@ -47,6 +47,8 @@ if __name__ == "__main__":
     parser.add_argument("--cv-fold", type=int, default=5)
     parser.add_argument("--use-decouple", action="store_true", help="If use a decoupled version budget")
     parser.add_argument("--force-2st", action="store_true", help="If forcibly check mse point")
+    parser.add_argument("--use-randcv", action="store_true", help="Train CV with each fold the same prob sampling")
+    parser.add_argument("--rndcv-train-prob", type=float, default=0.0, help="The probability for sampling as train")
     # For NN
     parser.add_argument("--test-nn2st", type=str, default="none", choices=["none", "dense"], help="Test nn two-stage model")
     parser.add_argument("--nn-lr", type=float, default=0.00001, help="The learning rate for nn")
@@ -139,7 +141,7 @@ if __name__ == "__main__":
     search_map_cv = {"wmse": WeightedLossCrossValidation, "mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid, "msehyp++": DirectedLossCrossValHyper, "quad": QuadLossCrossValidation}
 
     search_model = search_map_cv[params["search_method"]]
-    model = search_model(prob, params, xtrain, ytrain, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"], eta=params["xgb_lr"])
+    model = search_model(prob, params, xtrain, ytrain, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"], eta=params["xgb_lr"], use_rand_cv=params["use_randcv"], prob_train=params["rndcv_train_prob"])
 
     booster, bltraindl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), model.get_def_loss_fn().get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None, desc="defparams")
 
@@ -204,9 +206,11 @@ if __name__ == "__main__":
         print_nor_dqagg("LanNN2stTestNorDQ_", [lctestdl], ["lan_testdl"], testdlrand, testdltrue)
         exit(0)
 
+    start_time = time.time()
     scenario = Scenario(model.configspace, n_trials=params["n_trials"])
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
+    print(f"SMAC_init time, {time.time() - start_time}, seconds")
 
     records = []
     start_time = time.time()
