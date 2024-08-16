@@ -348,7 +348,7 @@ class WeightedLossCrossValidation:
         return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": self.eta}
 
 class DirectedLossCrossValidation:
-    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, use_rand_cv=False, prob_train=0 **kwargs):
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, use_rand_cv=False, prob_train=0, **kwargs):
         # directed loss with cross validation
         # just do not use xtrain ytrain and valtruedl
         self.params = params
