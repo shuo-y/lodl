@@ -171,6 +171,7 @@ if __name__ == "__main__":
     if params["baseline"] == "lanNN2st":
         from lancer_learner import test_lancer_2st
         xtrainvalall = xtrainvalall.reshape(params["num_train"] + params["num_val"], prob.num_stocks, prob.num_feats)
+        xtest = xtest.reshape(params["num_test"], prob.num_stocks, prob.num_feats)
         model, lctrainvaldl, lctestdl = test_lancer_2st(prob, xtrainvalall, ytrainvalall, auxtrainvalall, xtest, ytest, auxtest,
                                                 lancer_in_dim=prob.num_stocks, c_out_dim=1, n_iter=8, c_max_iter=10, c_nbatch=128,
                                                 lancer_max_iter=10, lancer_nbatch=1024, c_epochs_init=params["nn_iters"], c_lr_init=0.0005, lancer_lr=0.0001, c_lr=0.0005,

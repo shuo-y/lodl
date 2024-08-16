@@ -165,7 +165,7 @@ if __name__ == "__main__":
         from lancer_learner import test_lancer_2st
         model, lctrainvaldl, lctestdl = test_lancer_2st(prob, xtrainvalall, ytrainvalall, None, xtest, ytest, None,
                                                         lancer_in_dim=prob.d, c_out_dim=prob.d, n_iter=10, c_max_iter=5, c_nbatch=128,
-                                                        lancer_max_iter=5, lancer_nbatch=1024, c_epochs_init=30, c_lr_init=0.005,
+                                                        lancer_max_iter=5, lancer_nbatch=1024, c_epochs_init=params["nn_iters"], c_lr_init=0.005,
                                                         lancer_lr=0.001, c_lr=0.005, lancer_n_layers=2, lancer_layer_size=100, c_n_layers=0, c_layer_size=64,
                                                         lancer_weight_decay=0.01, c_weight_decay=0.01, z_regul=0.0,
                                                         lancer_out_activation="relu", c_hidden_activation="tanh", c_output_activation="relu", print_freq=(1+params["n_test_history"]))
