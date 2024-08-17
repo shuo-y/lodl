@@ -187,12 +187,13 @@ class SearchbyInstanceCrossValid:
             return
 
         for i in range(self.nfold):
-            testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
-            otherind = [idx for idx in range(self.nitems) if idx < i * cnt or idx >= (i + 1) * cnt]
-            self.Xys.append(xgb.DMatrix(X[otherind], y[otherind]))
+            valind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
+            trainind = [idx for idx in range(self.nitems) if idx < i * cnt or idx >= (i + 1) * cnt]
+            self.indices.append((trainind, valind))
+            self.Xys.append(xgb.DMatrix(X[trainind], y[trainind]))
             if auxdata is not None:
-                self.auxdatas.append(auxdata[testind])
-            self.valdatas.append((X[testind], y[testind]))
+                self.auxdatas.append(auxdata[valind])
+            self.valdatas.append((X[valind], y[valind]))
 
     @property
     def configspace(self) -> ConfigurationSpace:
@@ -209,8 +210,8 @@ class SearchbyInstanceCrossValid:
         costs = []
         cnt = self.nitems // self.nfold
         for i in range(self.nfold):
-            otherind = [idx for idx in range(self.nitems) if idx < i * cnt or idx >= (i + 1) * cnt]
-            cusloss = search_full_weights(weight_mat[otherind])
+            trainind = self.indices[i][0] #[idx for idx in range(self.nitems) if idx < i * cnt or idx >= (i + 1) * cnt]
+            cusloss = search_full_weights(weight_mat[trainind])
             booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.ydim},
                                     dtrain = self.Xys[i], num_boost_round = self.params["search_estimators"], obj = cusloss.get_obj_fn())
 
@@ -276,7 +277,8 @@ class WeightedLossCrossValidation:
         if use_rand_cv and prob_train > 0:
             self.num_train = int(len(X) * prob_train)
             for i in range(self.nfold):
-                traininds = np.random.choice(len(X), self.num_train)
+                traininds = np.random.choice(len(X), self.num_train, replace=False)
+                # Sample with out replacement
                 valinds = np.delete([i for i in range(len(X))], traininds)
 
                 self.Xys.append(xgb.DMatrix(X[traininds], Y[traininds]))
