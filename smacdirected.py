@@ -176,14 +176,14 @@ class SearchbyInstanceCrossValid:
         if use_rand_cv and prob_train > 0:
             self.num_train = int(len(X) * prob_train)
             for i in range(self.nfold):
-                traininds = np.random.choice(len(X), self.num_train)
+                traininds = np.random.choice(len(X), self.num_train, replace=False)
                 valinds = np.delete([i for i in range(len(X))], traininds)
 
-                self.Xys.append(xgb.DMatrix(X[traininds], Y[traininds]))
+                self.Xys.append(xgb.DMatrix(X[traininds], y[traininds]))
                 self.indices.append((traininds, valinds))
                 if auxdata is not None:
                     self.auxdatas.append(auxdata[valinds])
-                self.valdatas.append((X[valinds], Y[valinds]))
+                self.valdatas.append((X[valinds], y[valinds]))
             return
 
         for i in range(self.nfold):
@@ -375,7 +375,7 @@ class DirectedLossCrossValidation:
         if use_rand_cv and prob_train > 0:
             self.num_train = int(len(X) * prob_train)
             for i in range(self.nfold):
-                traininds = np.random.choice(len(X), self.num_train)
+                traininds = np.random.choice(len(X), self.num_train, replace=False)
                 valinds = np.delete([i for i in range(len(X))], traininds)
 
                 self.Xys.append(xgb.DMatrix(X[traininds], Y[traininds]))
