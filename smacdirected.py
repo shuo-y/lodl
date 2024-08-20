@@ -304,11 +304,12 @@ class WeightedLossCrossValidation:
         cs.add_hyperparameters(configs)
         return cs
 
-    def train(self, configs: Configuration, seed: int) -> float:
+    def train(self, configs: Configuration, seed: int, **kwargs) -> float:
         configarray = [configs[f"w{i}"] for i in range(self.ydim)]
         weight_vec = np.array(configarray)
 
         costs = []
+        boosters = []
         for i in range(self.nfold):
             cusloss = search_weights_loss(weight_vec)
             booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.ydim},
@@ -320,6 +321,10 @@ class WeightedLossCrossValidation:
             else:
                 valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1])
             costs.append(valdl.mean())
+            boosters.append(booster)
+
+        if in kwargs and kwargs["return_model"] == True:
+            return np.mean(costs), boosters
 
         return np.mean(costs)
 
