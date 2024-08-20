@@ -323,7 +323,7 @@ class WeightedLossCrossValidation:
             costs.append(valdl.mean())
             boosters.append(booster)
 
-        if in kwargs and kwargs["return_model"] == True:
+        if "return_model" in kwargs and kwargs["return_model"] == True:
             return np.mean(costs), boosters
 
         return np.mean(costs)
