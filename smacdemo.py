@@ -17,7 +17,7 @@ from losses import search_weights_loss, search_quadratic_loss
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
-from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config_vec
+from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config_vec, test_boosters
 
 from PThenO import PThenO
 from utils import print_dq, print_nor_dq, print_nor_dq_filter0clip, print_booster_mse
@@ -346,17 +346,23 @@ if __name__ == "__main__":
             break
     idx = random.randint(0, select - 1)
     incumbent = candidates[idx][1]
-    print(f"TIME Search takes {time.time() - start_time} seconds")
+    print(f"TIME Search takes, {time.time() - start_time}, seconds")
 
     params_vec = model.get_vec(incumbent)
     print(f"print {incumbent}")
-    print(f"Seaerch Choose {params_vec}")
+    print(f"Search Choose {params_vec}")
+    print(f"Finalvalcost, {candidates[idx][0]},")
+
+    cost, boosters = model.train(candidates[idx][1], return_model=True, seed=0)
+    bstavedltrain = test_boosters(params, prob, boosters, xtrain, ytrain, None)
+    bstavedltest = test_boosters(params, prob, boosters, xtest, ytest, None)
+
 
     start_time = time.time()
     cusloss = model.get_loss_fn(incumbent)
     Xy = xgb.DMatrix(xtrain, ytrain)
     booster = xgb.train(model.get_xgb_params(), dtrain = Xy, num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
-    print(f"TIME Final train time {time.time() - start_time} seconds")
+    print(f"TIME Final train time, {time.time() - start_time}, seconds")
 
     smacytrainpred = booster.inplace_predict(xtrain)
     trainsmac = prob.dec_loss(smacytrainpred, ytrain).flatten()
@@ -366,11 +372,11 @@ if __name__ == "__main__":
 
     _, bltrainfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(records[0][1]).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None, desc="search1st") # Check the performance of the first iteration
 
-    print_dq([trainsmac, testsmac, bltestdl, bltrainfirst, bltestfirst], ["trainsmac", "testsmac", "bldef", "bltrainfirst", "bltestfirst"], -1.0)
-    print_nor_dq("_Comparetrainnor", [traindl2st, trainsmac], ["traindl2st", "trainsmac"], traindlrand, traindltrue)
-    print_nor_dq("_Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
-    print_nor_dq_filter0clip("Comparetrainnor", [traindl2st, trainsmac], ["traindl2st", "trainsmac"], traindlrand, traindltrue)
-    print_nor_dq_filter0clip("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst], ["testdl2st", "testsmac", "bltestdl", "blfirst"], testdlrand, testdltrue)
+    print_dq([trainsmac, testsmac, bltestdl, bltrainfirst, bltestfirst, bstavedltrain, bstavedltest], ["trainsmac", "testsmac", "bldef", "bltrainfirst", "bltestfirst", "bstavedltrain", "bstavedltest"], -1.0)
+    print_nor_dq("_Comparetrainnor", [traindl2st, trainsmac, bstavedltrain], ["traindl2st", "trainsmac", "bstavedltrain"], traindlrand, traindltrue)
+    print_nor_dq("_Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst, bstavedltest], ["testdl2st", "testsmac", "bltestdl", "blfirst", "bstavedltest"], testdlrand, testdltrue)
+    print_nor_dq_filter0clip("Comparetrainnor", [traindl2st, trainsmac, bstavedltrain], ["traindl2st", "trainsmac", "bstavedltrain"], traindlrand, traindltrue)
+    print_nor_dq_filter0clip("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst, bstavedltest], ["testdl2st", "testsmac", "bltestdl", "blfirst", "bstavedltest"], testdlrand, testdltrue)
 
 
 

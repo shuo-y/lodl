@@ -209,6 +209,8 @@ class SearchbyInstanceCrossValid:
 
         costs = []
         cnt = self.nitems // self.nfold
+        if "return_model" in kwargs and kwargs["return_model"] == True:
+            boosters = []
         for i in range(self.nfold):
             trainind = self.indices[i][0] #[idx for idx in range(self.nitems) if idx < i * cnt or idx >= (i + 1) * cnt]
             cusloss = search_full_weights(weight_mat[trainind])
@@ -221,6 +223,11 @@ class SearchbyInstanceCrossValid:
             else:
                 valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1])
             costs.append(valdl.mean())
+            if "return_model" in kwargs and kwargs["return_model"] == True:
+                boosters.append(booster)
+
+        if "return_model" in kwargs and kwargs["return_model"] == True:
+            return np.mean(costs), boosters
 
         return np.mean(costs)
 
@@ -309,7 +316,8 @@ class WeightedLossCrossValidation:
         weight_vec = np.array(configarray)
 
         costs = []
-        boosters = []
+        if "return_model" in kwargs and kwargs["return_model"] == True:
+            boosters = []
         for i in range(self.nfold):
             cusloss = search_weights_loss(weight_vec)
             booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.ydim},
@@ -321,7 +329,8 @@ class WeightedLossCrossValidation:
             else:
                 valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1])
             costs.append(valdl.mean())
-            boosters.append(booster)
+            if "return_model" in kwargs and kwargs["return_model"] == True:
+                boosters.append(booster)
 
         if "return_model" in kwargs and kwargs["return_model"] == True:
             return np.mean(costs), boosters
@@ -414,6 +423,8 @@ class DirectedLossCrossValidation:
         weight_vec = np.array(configarray)
 
         costs = []
+        if "return_model" in kwargs and kwargs["return_model"] == True:
+            boosters = []
         for i in range(self.nfold):
             cusloss = search_weights_directed_loss(weight_vec)
             booster = xgb.train({"tree_method": self.params["tree_method"], "num_target": self.ydim},
@@ -425,6 +436,11 @@ class DirectedLossCrossValidation:
             else:
                 valdl = self.prob.dec_loss(yvalpred, self.valdatas[i][1])
             costs.append(valdl.mean())
+            if "return_model" in kwargs and kwargs["return_model"] == True:
+                boosters.append(booster)
+
+        if "return_model" in kwargs and kwargs["return_model"] == True:
+            return np.mean(costs), boosters
 
         return np.mean(costs)
 
@@ -997,6 +1013,15 @@ def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()
     n = len(vec)
     return (popstd * np.sqrt(n / (n - 1.0))) / np.sqrt(n)
+
+def test_boosters(params, prob, boosters, xdata, ydata, auxdata, desc=""):
+    costs = []
+    for booster in boosters:
+        ypred = booster.inplace_predict(xdata)
+        dl = prob.dec_loss(ypred, ydata, aux_data=auxdata).flatten()
+        costs.append(dl)
+    costs = np.array(costs)
+    return np.mean(costs, axis=0)
 
 def test_config_vec(params, prob, xgb_params, obj_fn, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, desc=""):
     start_time = time.time()
