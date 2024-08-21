@@ -32,6 +32,23 @@ def perfrandomdq(problem, Y, Y_aux, trials):
 
 #def print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvaldlrand, testdlrand, trainvaldltrue, testdltrue, bltestdl):
 
+def norm_regret(obj, true_obj, sense="MINIMIZE"):
+    """
+    Based on https://github.com/facebookresearch/LANCER/blob/e11b16cf4451d5223d135f7a35c42fdb45e7ae47/utils/dfl_utils.py#L9
+    From LANCER to do comparision normalized regret
+    Computes normalized regret for decision-focused learning
+    :param obj: objective values obtained from predicted problem descriptors z_pred
+    :param true_obj: objective value obtained from true problem descriptors z_true
+    :param sense: MINIMIZE or MAXIMIZE
+    :return: normalized regret
+    """
+    if sense == "MINIMIZE":
+        regr = np.sum(obj-true_obj)
+    else:
+        regr = np.sum(true_obj-obj)
+    optsum = np.abs(true_obj).sum()
+    return regr / (optsum + 1e-7) # avoid division by zero
+
 def print_dq(dllist, namelist, cof):
     print("DQ,", end="")
     assert len(dllist) == len(namelist)
@@ -57,8 +74,8 @@ def print_nor_dq(verbose, dllist, namelist, randdl, optdl):
         dl = dllist[i]
         col = namelist[i]
         nordq = (-dl + randdl)/ (-optdl + randdl)
-        print(f"{col}nordq, {col}nordqstderr, ", end="")
-        print(f"{nordq.mean()}, {compute_stderror(nordq)}, ", end="")
+        print(f"{col}nordq,{nordq.mean()},{col}nordqstderr,{compute_stderror(nordq)}, ", end="")
+        print(f"{col}norreg,{norm_regret(dl, optdl)},{col}reg,{(dl - optdl).mean()},{col}regstderr,{compute_stderror((dl - optdl))},", end="")
     print()
 
 def print_nor_dq_filter0clip(verbose, dllist, namelist, randdl, optdl):
