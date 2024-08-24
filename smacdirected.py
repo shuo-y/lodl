@@ -202,7 +202,7 @@ class SearchbyInstanceCrossValid:
         cs.add_hyperparameters(configs)
         return cs
 
-    def train(self, configs: Configuration, seed: int) -> float:
+    def train(self, configs: Configuration, seed: int, **kwargs) -> float:
         configarray = [configs[f"w{i}"] for i in range(self.nitems)]
         weight_vec = np.array(configarray)
         weight_mat = np.tile(weight_vec, (self.ydim, 1)).T
@@ -418,7 +418,7 @@ class DirectedLossCrossValidation:
         cs.add_hyperparameters(configs)
         return cs
 
-    def train(self, configs: Configuration, seed: int) -> float:
+    def train(self, configs: Configuration, seed: int, **kwargs) -> float:
         configarray = [configs[f"w{i}"] for i in range(2 * self.ydim)]
         weight_vec = np.array(configarray)
 
