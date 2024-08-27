@@ -1008,6 +1008,34 @@ class XGBHyperSearchwRegAPI:
 
         return np.mean(costs)
 
+def check_val_and_test(prob, params, Xys, valdatas, valauxdatas, testdata, auxtest, ydim, weight_vec, nfold: int, seed: int, **kwargs) -> float:
+    # testdata is (xtest, ytest) tuple
+    costs = []
+    tests = []
+    if "return_model" in kwargs and kwargs["return_model"] == True:
+        boosters = []
+    for i in range(nfold):
+        cusloss = search_weights_directed_loss(weight_vec)
+        booster = xgb.train({"tree_method": params["tree_method"], "num_target": ydim},
+                                dtrain = Xys[i], num_boost_round = params["search_estimators"], obj = cusloss.get_obj_fn())
+
+        yvalpred = booster.inplace_predict(valdatas[i][0])
+        ytestpred = booster.inplace_predict(testdata[0])
+        if valauxdatas is not None and auxtest is not None:
+            valdl = prob.dec_loss(yvalpred, valdatas[i][1], aux_data=valauxdatas[i])
+            testdl = prob.dec_loss(ytestpred, testdata[1], aux_data=auxtest)
+        else:
+            valdl = prob.dec_loss(yvalpred, valdatas[i][1])
+            testdl = prob.dec_loss(ytestpred, testdata[1])
+        costs.append(valdl.mean())
+        tests.append(testdl.mean())
+        if "return_model" in kwargs and kwargs["return_model"] == True:
+            boosters.append(booster)
+
+    if "return_model" in kwargs and kwargs["return_model"] == True:
+        return costs, tests, boosters
+
+    return costs, tests
 
 def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()

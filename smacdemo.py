@@ -378,6 +378,13 @@ if __name__ == "__main__":
     print_nor_dq_filter0clip("Comparetrainnor", [traindl2st, trainsmac, bstavedltrain], ["traindl2st", "trainsmac", "bstavedltrain"], traindlrand, traindltrue)
     print_nor_dq_filter0clip("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst, bstavedltest], ["testdl2st", "testsmac", "bltestdl", "blfirst", "bstavedltest"], testdlrand, testdltrue)
 
+    from smacdirected import check_val_and_test
+    valfoldcost, testfoldcost = check_val_and_test(prob, model.params, model.Xys, model.valdatas, None, (xtest, ytest), None,
+                                                  model.ydim, params_vec, model.nfold, 0)
+
+    print(f"Corrcoef, Per Instance between test obj (train + val) and test obj (train only), {np.corrcoef(bstavedltest, testsmac)[0][1]},")
+    print(f"Corrcoef, Per fold between val obj (train only) and test obj (train only), {np.corrcoef(valfoldcost, testfoldcost)[0][1]}, ")
+
 
 
 
