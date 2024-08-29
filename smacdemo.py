@@ -17,7 +17,7 @@ from losses import search_weights_loss, search_quadratic_loss
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
-from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config_vec, test_boosters
+from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config_vec, test_boosters, test_boosters_avepred
 
 from PThenO import PThenO
 from utils import print_dq, print_nor_dq, print_nor_dq_filter0clip, print_booster_mse
@@ -298,18 +298,28 @@ if __name__ == "__main__":
 
     records = []
     start_time = time.time()
+
     for cnt in range(params["n_trials"]):
         info = smac.ask()
         assert info.seed is not None
 
-        cost = model.train(info.config, seed=info.seed)
+        if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
+            cost, boosters = model.train(info.config, seed=info.seed, return_model=True)
+        else:
+            cost = model.train(info.config, seed=info.seed)
         value = TrialValue(cost=cost)
         records.append((value.cost, info.config))
         smac.tell(info, value)
 
         if params["n_test_history"] > 0 and cnt % params["n_test_history"] == 0:
+            bstavedltest = test_boosters(params, prob, boosters, xtest, ytest, None)
+            bstavedltestavepred = test_boosters_avepred(params, prob, boosters, xtest, ytest, None)
+
             _, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None)
-            print(f"iter{cnt}: cost is {cost} config is {model.get_vec(info.config)}")
+
+            # Check value and itertest correlation
+            print(f"iter{cnt}: val cost is, {cost}, bsts ave dq, {bstavedltest.mean()}, bsts dq ave ypred, {bstavedltestavepred.mean()}, test cost, {itertest.mean()},")
+            print(f"config is, {model.get_vec(info.config)},")
             print_dq([itertrain, itertest], [f"iter{cnt}train", f"iter{cnt}test"], -1.0)
             print_nor_dq(f"_iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
             print_nor_dq(f"_iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)

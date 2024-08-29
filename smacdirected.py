@@ -1051,6 +1051,16 @@ def test_boosters(params, prob, boosters, xdata, ydata, auxdata, desc=""):
     costs = np.array(costs)
     return np.mean(costs, axis=0)
 
+def test_boosters_avepred(params, prob, boosters, xdata, ydata, auxdata, desc=""):
+    ypreds = []
+    for booster in boosters:
+        yhat = booster.inplace_predict(xdata)
+        ypreds.append(yhat)
+    ypreds = np.array(ypreds)
+    ypreds = np.mean(ypreds, axis=0)
+    dl = prob.dec_loss(ypreds, ydata, aux_data=auxdata).flatten()
+    return dl
+
 def test_config_vec(params, prob, xgb_params, obj_fn, xtrain, ytrain, auxtrain, xtest, ytest, auxtest, desc=""):
     start_time = time.time()
     Xy = xgb.DMatrix(xtrain, ytrain)
