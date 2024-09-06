@@ -1106,6 +1106,43 @@ def test_weightmse(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
     itertestsmac = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
     return booster, itertestsmac.mean(), compute_stderror((itertestsmac))
 
+def test_multi_reg(params, prob, model, xtest, ytest, auxtest):
+    trees = []
+    costs = []
+    valcosts = []
+    ytestpreds = []
+    for i in range(model.nfold):
+        xtrain = model.Xys[i].get_data()
+        ytrain = model.Xys[i].get_label()
+        auxdata = None
+        if len(model.auxdatas) > 0:
+            auxdata = model.auxdatas[i]
+        xval, yval = model.valdatas[i]
+        tree = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])
+        tree.fit(xtrain, ytrain)
+        trees.append(tree)
+
+        valpred = tree.predict(xval)
+        valcost = prob.dec_loss(valpred, yval, aux_data=auxdata).flatten()
+        valcosts.append(valcost)
+
+        testpred = tree.predict(xtest)
+        testcost = prob.dec_loss(testpred, ytest, aux_data=auxtest).flatten()
+        ytestpreds.append(testpred)
+
+        costs.append(testcost)
+
+    ytestpreds = np.array(ytestpreds)
+    ytestpreds = np.mean(ytestpreds, axis=0)
+    testaveysdl = prob.dec_loss(ytestpreds, ytest, aux_data=auxtest).flatten()
+
+    valcosts = np.array(valcosts)
+    valcosts = np.mean(valcosts, axis=0)
+    costs = np.array(costs)
+    costsavedqs = np.mean(costs, axis=0)
+    return costsavedqs, testaveysdl, valcosts
+
+
 def test_reg(params, prob, xtrain, ytrain, xtest, ytest, auxtest):
     Xy = xgb.DMatrix(xtrain, ytrain)
     tree = xgb.XGBRegressor(tree_method=params["tree_method"], n_estimators=params["search_estimators"])

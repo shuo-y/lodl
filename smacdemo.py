@@ -17,7 +17,7 @@ from losses import search_weights_loss, search_quadratic_loss
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
-from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config_vec, test_boosters, test_boosters_avepred
+from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config_vec, test_boosters, test_boosters_avepred, test_multi_reg
 
 from PThenO import PThenO
 from utils import print_dq, print_nor_dq, print_nor_dq_filter0clip, print_booster_mse
@@ -367,6 +367,7 @@ if __name__ == "__main__":
     bstavedltrain = test_boosters(params, prob, boosters, xtrain, ytrain, None)
     bstavedltest = test_boosters(params, prob, boosters, xtest, ytest, None)
 
+    bstaveystest = test_boosters_avepred(params, prob, boosters, xtest, ytest, None)
 
     start_time = time.time()
     cusloss = model.get_loss_fn(incumbent)
@@ -382,11 +383,13 @@ if __name__ == "__main__":
 
     _, bltrainfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(records[0][1]).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None, desc="search1st") # Check the performance of the first iteration
 
-    print_dq([trainsmac, testsmac, bltestdl, bltrainfirst, bltestfirst, bstavedltrain, bstavedltest], ["trainsmac", "testsmac", "bldef", "bltrainfirst", "bltestfirst", "bstavedltrain", "bstavedltest"], -1.0)
+    twocostsavedqs, twotestaveysdl, twovalcosts = test_multi_reg(params, prob, model, xtest, ytest, None)
+
+    print_dq([trainsmac, testsmac, bltestdl, bltrainfirst, bltestfirst, bstavedltrain, bstavedltest, bstaveystest, twocostsavedqs, twotestaveysdl, twovalcosts], ["trainsmac", "testsmac", "bldef", "bltrainfirst", "bltestfirst", "bstavedltrain", "bstavedltest", "bstaveystest", "twocostsavedqs", "twotestaveysdl", "twovalcosts"], -1.0)
     print_nor_dq("_Comparetrainnor", [traindl2st, trainsmac, bstavedltrain], ["traindl2st", "trainsmac", "bstavedltrain"], traindlrand, traindltrue)
-    print_nor_dq("_Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst, bstavedltest], ["testdl2st", "testsmac", "bltestdl", "blfirst", "bstavedltest"], testdlrand, testdltrue)
+    print_nor_dq("_Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst, bstavedltest, bstaveystest, twocostsavedqs, twotestaveysdl], ["testdl2st", "testsmac", "bltestdl", "blfirst", "bstavedltest", "bstaveystest", "twocostsavedqs", "twotestaveysdl"], testdlrand, testdltrue)
     print_nor_dq_filter0clip("Comparetrainnor", [traindl2st, trainsmac, bstavedltrain], ["traindl2st", "trainsmac", "bstavedltrain"], traindlrand, traindltrue)
-    print_nor_dq_filter0clip("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst, bstavedltest], ["testdl2st", "testsmac", "bltestdl", "blfirst", "bstavedltest"], testdlrand, testdltrue)
+    print_nor_dq_filter0clip("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst, bstavedltest, bstaveystest, twocostsavedqs, twotestaveysdl], ["testdl2st", "testsmac", "bltestdl", "blfirst", "bstavedltest", "bstaveystest", "twocostsavedqs", "twotestaveysdl"], testdlrand, testdltrue)
 
     from smacdirected import check_val_and_test
     valfoldcost, testfoldcost = check_val_and_test(prob, model.params, model.Xys, model.valdatas, None, (xtest, ytest), None,
