@@ -113,6 +113,25 @@ class ProdObj(PThenO):
         pass
 
 
+def check_yins(y_arr, desc=""):
+    cnt = 0
+    for i in range(len(y_arr)):
+        if y_arr[i][0] < 0 and y_arr[i][1] < 0 and y_arr[i][0] * y_arr[i][1] < 0:
+            cnt += 1
+
+    print(f"{desc}, checkprop, {cnt}, out of , {len(y_arr)}, has the y0*y1 < 0, y0<0 and y1<0 property")
+
+
+def check_diff(y_pred, y_true, desc=""):
+    assert len(y_pred) == len(y_true)
+    matchsign = 0
+    for i in range(len(y_pred)):
+        if int(y_pred[i][0] > 0) == int(y_true[i][0] > 0) and int(y_pred[i][1] > 0) == int(y_true[i][1] > 0):
+            matchsign += 1
+    print(f"{desc}, checksign, {matchsign}. out of, {len(y_pred)}, sign matches")
+
+
+
 def compute_stderror(vec: np.ndarray) -> float:
     popstd = vec.std()
     n = len(vec)
@@ -213,10 +232,13 @@ if __name__ == "__main__":
 
     print("check ytrain")
     prob.checky(ytrain)
+    check_yins(ytrain, "Ytrainprop")
     print("check yval")
     prob.checky(yval)
+    check_yins(yval, "Yvalprop")
     print("check ytest")
     prob.checky(ytest)
+    check_yins(ytest, "Ytestprop")
 
 
     # Check a baseline first
@@ -232,6 +254,9 @@ if __name__ == "__main__":
 
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest).flatten()
+    check_diff(ytestpred, ytest, "checkdiff2st")
+    print("check ypred 2st", end="")
+    prob.checky(ytestpred)
 
     traindltrue = prob.dec_loss(ytrain, ytrain).flatten()
     testdltrue = prob.dec_loss(ytest, ytest).flatten()
@@ -380,6 +405,9 @@ if __name__ == "__main__":
 
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
+    print("check ypred smac pred", end="")
+    prob.checky(smacytestpred)
+    check_diff(smacytestpred, ytest, "smacdiff")
 
     _, bltrainfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(records[0][1]).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None, desc="search1st") # Check the performance of the first iteration
 
