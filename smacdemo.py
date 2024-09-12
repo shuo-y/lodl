@@ -135,12 +135,27 @@ class ProdObj(PThenO):
 
 
 def check_yins(y_arr, desc=""):
-    cnt = 0
+    negneg = 0
+    negpos = 0
+    posneg = 0
+    pospos = 0
+    zero0 = 0
+    zero1 = 0
     for i in range(len(y_arr)):
-        if y_arr[i][0] < 0 and y_arr[i][1] < 0 and y_arr[i][0] * y_arr[i][1] < 0:
-            cnt += 1
+        if y_arr[i][0] < 0 and y_arr[i][1] < 0:
+            negneg += 1
+        elif y_arr[i][0] < 0 and y_arr[i][1] >= 0:
+            negpos += 1
+        elif y_arr[i][0] >= 0  and y_arr[i][1] < 0:
+            posneg += 1
+        elif y_arr[i][0] >= 0 and y_arr[i][1] >= 0:
+            pospos += 1
+        if y_arr[i][0] == 0:
+            zero0 += 1
+        if y_arr[i][1] == 0:
+            zero1 += 1
 
-    print(f"{desc}, checkprop, {cnt}, out of , {len(y_arr)}, has the y0*y1 < 0, y0<0 and y1<0 property")
+    print(f"{desc}, checkprop, --, {negneg}, -+, {negpos}, +-, {posneg}, ++, {pospos}, y0=0, {zero0}, y1=0, {zero1}")
 
 
 def check_diff(y_pred, y_true, desc=""):
@@ -249,6 +264,7 @@ if __name__ == "__main__":
 
 
     prob.checky(Y)
+    check_yins(Y, "check_yins_Y")
 
     indices = list(range(args.num_train + args.num_val + args.num_test))
     np.random.shuffle(indices)
@@ -287,6 +303,7 @@ if __name__ == "__main__":
     ytestpred = reg.predict(xtest)
     testdl2st = prob.dec_loss(ytestpred, ytest).flatten()
     check_diff(ytestpred, ytest, "checkdiff2st")
+    check_yins(ytestpred, "check_yins_2stpred")
     print("check ypred 2st", end="")
     prob.checky(ytestpred)
 
@@ -439,6 +456,7 @@ if __name__ == "__main__":
     testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
     print("check ypred smac pred", end="")
     prob.checky(smacytestpred)
+    check_yins(smacytestpred, "check_yins_smacpred")
     check_diff(smacytestpred, ytest, "smacdiff")
 
     _, bltrainfirst, bltestfirst = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(records[0][1]).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None, desc="search1st") # Check the performance of the first iteration
