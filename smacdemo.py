@@ -49,6 +49,22 @@ class ProdObj(PThenO):
         obj = np.apply_along_axis(np.prod, 1, z_true) * rand_dec
         return obj
 
+    def generate_feat(self, N, deg, noise_width, num_feats, y):
+        dim = len(y[0])
+        B = np.random.binomial(1, 0.5, (num_feats, dim))
+        x = np.random.normal(0, 1, (N, num_feats))
+        for i in range(N):
+            # cost without noise
+
+            xi = (np.dot(B, y[i].reshape(dim, 1)).T / np.sqrt(num_feats) + 3) ** deg + 1
+            # rescale
+            xi /= 3.5 ** deg
+            # noise
+            epislon = np.random.uniform(1 - noise_width, 1 + noise_width, num_feats)
+            xi *= epislon
+            x[i, :] = xi
+        return x
+
     def generate_dataset_ind(self, N, deg, noise_width, num_feats, dim, mus, sigs):
         self.num_feats = num_feats
         z = np.zeros((N, dim))
@@ -193,6 +209,7 @@ if __name__ == "__main__":
     parser.add_argument("--gen-method", type=str, default="generate_dataset")
     parser.add_argument("--mus", type=str, default="[-0.1, -0.01]")
     parser.add_argument("--sigs", type=str, default="[0.1, 100]")
+    parser.add_argument("--skewed-a", type=float, default=-5)
 
     parser.add_argument("--loss", type=str, default="quad", choices=["mse", "quad"])
     parser.add_argument("--num-train", type=int, default=500)
@@ -257,9 +274,17 @@ if __name__ == "__main__":
     N = args.num_train + args.num_val + args.num_test
     prob = ProdObj()
     if args.gen_method == "generate_dataset_ind":
-        X, Y = prob.generate_dataset_ind(N, 6, 2, params["num_feats"], dim=2, mus=eval(args.mus), sigs=eval(args.sigs))
+        X, Y = prob.generate_dataset_ind(N, 6, 2, params["num_feats"], dim=2, mus=eval(params["mus"]), sigs=eval(params["sigs"]))
     elif args.gen_method == "generate_dataset":
-        X, Y = prob.generate_dataset(N, 6, 2, params["num_feats"], cov=eval(args.cov_mat))
+        X, Y = prob.generate_dataset(N, 6, 2, params["num_feats"], cov=eval(params["cov_mat"]))
+    elif args.gen_method =="mixed_skew":
+        Y = np.zeros((N, 2))
+        mus = eval(params["mus"])
+        sigs = eval(params["sigs"])
+        Y[:,0] = np.random.normal(mus[0], sigs[0], N)
+        from scipy.stats import skewnorm
+        Y[:,1] = skewnorm.rvs(args.skewed_a, N)
+        X = prob.generate_feat(N, 6, 2, params["num_feats"], Y)
 
 
 
