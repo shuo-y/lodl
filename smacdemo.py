@@ -120,6 +120,23 @@ class ProdObj(PThenO):
 
         return x, z
 
+    def generate_dataset_uniform(self, N,
+                         num_feats, d=2, mean=np.array([-0.9, -0.9]),
+                         cov=np.array([[1, -1], [-1, 5]])):
+        """
+        From the LANCER code
+        Generate synthetic dataset for the DFL shortest path problem
+        :param N: number of points
+        :return: dataset of features x and z
+        """
+        self.num_feats = num_feats
+        # feature vectors
+        x = np.random.uniform(0, 1, (N, num_feats))
+        # cost vectors
+        z = np.random.multivariate_normal(mean, cov, N)
+
+        return x, z
+
     def checky(self, y):
         yprod = np.apply_along_axis(np.prod, 1, y)
         print(f"{y[:, 0].mean()},{y[:, 1].mean()},{yprod.mean()}")
@@ -205,9 +222,9 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--num-feats", type=int, default=10)
-    parser.add_argument("--cov-mat", type=str, default="[[1, -1], [-1, 5]]")
+    parser.add_argument("--cov-mat", type=str, default="[[1, -10], [-10, 1]]")
     parser.add_argument("--gen-method", type=str, default="generate_dataset")
-    parser.add_argument("--mus", type=str, default="[-0.1, -0.01]")
+    parser.add_argument("--mus", type=str, default="[-0.9, -0.9]")
     parser.add_argument("--sigs", type=str, default="[0.1, 100]")
     parser.add_argument("--skewed-a", type=float, default=-5)
 
@@ -277,6 +294,8 @@ if __name__ == "__main__":
         X, Y = prob.generate_dataset_ind(N, 6, 2, params["num_feats"], dim=2, mus=eval(params["mus"]), sigs=eval(params["sigs"]))
     elif args.gen_method == "generate_dataset":
         X, Y = prob.generate_dataset(N, 6, 2, params["num_feats"], cov=eval(params["cov_mat"]))
+    elif args.gen_method == "generate_unif":
+        X, Y = prob.generate_dataset_uniform(N, num_feats=params["num_feats"], mean=np.array(eval(params["mus"])),cov=np.array(eval(params["cov_mat"])))
     elif args.gen_method =="mixed_skew":
         Y = np.zeros((N, 2))
         mus = eval(params["mus"])
@@ -320,7 +339,6 @@ if __name__ == "__main__":
     reg.fit(xtrain, ytrain)
     print(f"TIME train use XGBRegressor, {time.time() - start_time} , seconds.")
 
-
     ytrainpred = reg.predict(xtrain)
     traindl2st = prob.dec_loss(ytrainpred, ytrain).flatten()
 
@@ -337,6 +355,7 @@ if __name__ == "__main__":
 
     traindlrand = perf_rand(prob, ytrain, params["n_rand_trials"])
     testdlrand = perf_rand(prob, ytest, params["n_rand_trials"])
+
 
     print_dq([traindl2st, testdl2st], ["train2st", "test2st"], -1.0)
     print_nor_dq("_trainnor", [traindl2st], ["train2st"], traindlrand, traindltrue)
@@ -417,7 +436,8 @@ if __name__ == "__main__":
             _, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None)
 
             # Check value and itertest correlation
-            print(f"iter{cnt}: val cost is, {cost}, bsts ave dq, {bstavedltest.mean()}, bsts dq ave ypred, {bstavedltestavepred.mean()}, test cost, {itertest.mean()},")
+            params_vec = model.get_vec(info.config)
+            print(f"iter{cnt}: val cost is, {cost}, bsts ave dq, {bstavedltest.mean()}, bsts dq ave ypred, {bstavedltestavepred.mean()}, test cost, {itertest.mean()}, l1reg, {(abs(params_vec)).mean()}, l2reg, {(params_vec ** 2).mean()}")
             print(f"config is, {model.get_vec(info.config)},")
             print_dq([itertrain, itertest], [f"iter{cnt}train", f"iter{cnt}test"], -1.0)
             print_nor_dq(f"_iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
@@ -460,7 +480,7 @@ if __name__ == "__main__":
     params_vec = model.get_vec(incumbent)
     print(f"print {incumbent}")
     print(f"Search Choose {params_vec}")
-    print(f"Finalvalcost, {candidates[idx][0]},")
+    print(f"Finalvalcost, {candidates[idx][0]}, l1reg, {(abs(params_vec)).mean()}, l2reg, {(params_vec ** 2).mean()}")
 
     cost, boosters = model.train(candidates[idx][1], return_model=True, seed=0)
     bstavedltrain = test_boosters(params, prob, boosters, xtrain, ytrain, None)

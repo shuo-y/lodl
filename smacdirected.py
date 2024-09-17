@@ -364,7 +364,7 @@ class WeightedLossCrossValidation:
         return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": self.eta}
 
 class DirectedLossCrossValidation:
-    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, use_rand_cv=False, prob_train=0, **kwargs):
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, use_rand_cv=False, prob_train=0, reg_l1=0, reg_l2=0, **kwargs):
         # directed loss with cross validation
         # just do not use xtrain ytrain and valtruedl
         self.params = params
@@ -385,6 +385,8 @@ class DirectedLossCrossValidation:
         self.ydim = Y.shape[1]
         self.eta = eta
         self.indices = []
+        self.reg_l1 = reg_l1
+        self.reg_l2 = reg_l2
 
         if use_rand_cv and prob_train > 0:
             self.num_train = int(len(X) * prob_train)
@@ -421,6 +423,9 @@ class DirectedLossCrossValidation:
     def train(self, configs: Configuration, seed: int, **kwargs) -> float:
         configarray = [configs[f"w{i}"] for i in range(2 * self.ydim)]
         weight_vec = np.array(configarray)
+
+        regul1 = self.reg_l1 * abs(weight_vec).sum()
+        regul2 = self.reg_l2 * (weight_vec ** 2).sum()
 
         costs = []
         if "return_model" in kwargs and kwargs["return_model"] == True:
