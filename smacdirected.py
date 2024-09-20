@@ -279,6 +279,9 @@ class WeightedLossCrossValidation:
         self.nfold = nfold
         self.ydim = Y.shape[1]
         self.eta = eta
+        self.power_vec = False
+        if "power_scale" in kwargs and kwargs["power_scale"] > 0:
+            self.power_scale = kwargs["power_scale"]
 
         self.indices = []
         if use_rand_cv and prob_train > 0:
@@ -315,6 +318,9 @@ class WeightedLossCrossValidation:
         configarray = [configs[f"w{i}"] for i in range(self.ydim)]
         weight_vec = np.array(configarray)
 
+        if self.power_vec == True:
+            weight_vec = self.power_scale ** weight_vec # Trick to compute the power
+
         costs = []
         if "return_model" in kwargs and kwargs["return_model"] == True:
             boosters = []
@@ -340,7 +346,10 @@ class WeightedLossCrossValidation:
     def get_vec(self, incumbent) -> np.ndarray:
         # Get the weight vector from incumbent
         arr = [incumbent[f"w{i}"] for i in range(self.ydim)]
-        return np.array(arr)
+        arr = np.array(arr)
+        if self.power_vec == True:
+            arr = self.power_scale ** arr
+        return arr
 
     def get_def_loss_fn(self):
         weight_vec = np.array([self.param_def for _ in range(self.ydim)])
@@ -355,8 +364,7 @@ class WeightedLossCrossValidation:
 
 
     def get_loss_fn(self, incumbent):
-        arr = [incumbent[f"w{i}"] for i in range(self.ydim)]
-        weight_vec = np.array(arr)
+        weight_vec = self.get_vec(incumbent)
         cusloss = search_weights_loss(weight_vec)
         return cusloss
 

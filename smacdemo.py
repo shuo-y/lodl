@@ -234,6 +234,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-test", type=int, default=2000)
     parser.add_argument("--n-trials", type=int, default=5)
     parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad", "idx", "wmse"])
+    parser.add_argument("--power-scale", type=int, default=0)
     # The rand trials for perf rand dq
     parser.add_argument("--n-rand-trials", type=int, default=10)
     # For search and XGB train
@@ -366,7 +367,7 @@ if __name__ == "__main__":
     search_map_cv = {"wmse": WeightedLossCrossValidation, "mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid, "msehyp++": DirectedLossCrossValHyper, "quad": QuadLossCrossValidation}
 
     search_model = search_map_cv[params["search_method"]]
-    model = search_model(prob, params, xtrain, ytrain, args.param_low, args.param_upp, args.param_def, nfold=params["cv_fold"], eta=params["xgb_lr"], use_rand_cv=params["use_randcv"], prob_train=params["rndcv_train_prob"])
+    model = search_model(prob, params, xtrain, ytrain, params["param_low"], params["param_upp"], params["param_def"], nfold=params["cv_fold"], eta=params["xgb_lr"], use_rand_cv=params["use_randcv"], prob_train=params["rndcv_train_prob"], power_scale=params["power_scale"])
 
     booster, bltraindl, bltestdl = test_config_vec(params, prob, model.get_xgb_params(), model.get_def_loss_fn().get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None, desc="defparams")
     print_dq([bltraindl, bltestdl], ["bltraindl", "bltestdl"], -1.0)
@@ -433,12 +434,11 @@ if __name__ == "__main__":
             bstavedltest = test_boosters(params, prob, boosters, xtest, ytest, None)
             bstavedltestavepred = test_boosters_avepred(params, prob, boosters, xtest, ytest, None)
 
-            _, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None)
-
+            testbst, itertrain, itertest = test_config_vec(params, prob, model.get_xgb_params(), model.get_loss_fn(info.config).get_obj_fn(), xtrain, ytrain, None, xtest, ytest, None)
+            ytestpred = testbst.inplace_predict(xtest)
             # Check value and itertest correlation
             params_vec = model.get_vec(info.config)
-            print(f"iter{cnt}: val cost is, {cost}, bsts ave dq, {bstavedltest.mean()}, bsts dq ave ypred, {bstavedltestavepred.mean()}, test cost, {itertest.mean()}, l1reg, {(abs(params_vec)).mean()}, l2reg, {(params_vec ** 2).mean()}")
-            print(f"config is, {model.get_vec(info.config)},")
+            print(f"iter{cnt}, val cost is, {cost}, bsts ave dq, {bstavedltest.mean()}, bsts dq ave ypred, {bstavedltestavepred.mean()}, test cost, {itertest.mean()}, l1reg, {(abs(params_vec)).mean()}, l2reg, {(params_vec ** 2).mean()},config is, {model.get_vec(info.config)[0]}, {model.get_vec(info.config)[1]}, ypred is, {ytestpred[:,0].mean()}, {ytestpred[:,1].mean()}")
             print_dq([itertrain, itertest], [f"iter{cnt}train", f"iter{cnt}test"], -1.0)
             print_nor_dq(f"_iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
             print_nor_dq(f"_iternordqtest", [itertest], [f"iter{cnt}test"], testdlrand, testdltrue)
