@@ -222,9 +222,9 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--search_estimators", type=int, default=100)
     parser.add_argument("--num-feats", type=int, default=10)
-    parser.add_argument("--cov-mat", type=str, default="[[1, -10], [-10, 1]]")
+    parser.add_argument("--cov-mat", type=str, default="[[1, -0.9], [-0.9, 1]]")
     parser.add_argument("--gen-method", type=str, default="generate_dataset")
-    parser.add_argument("--mus", type=str, default="[-0.9, -0.9]")
+    parser.add_argument("--mus", type=str, default="[-0.1, -0.1]")
     parser.add_argument("--sigs", type=str, default="[0.1, 100]")
     parser.add_argument("--skewed-a", type=float, default=-5)
 
