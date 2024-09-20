@@ -438,6 +438,7 @@ if __name__ == "__main__":
             ytestpred = testbst.inplace_predict(xtest)
             # Check value and itertest correlation
             params_vec = model.get_vec(info.config)
+            print(f"smac sample,{info.config}")
             print(f"iter{cnt}, val cost is, {cost}, bsts ave dq, {bstavedltest.mean()}, bsts dq ave ypred, {bstavedltestavepred.mean()}, test cost, {itertest.mean()}, l1reg, {(abs(params_vec)).mean()}, l2reg, {(params_vec ** 2).mean()},config is, {model.get_vec(info.config)[0]}, {model.get_vec(info.config)[1]}, ypred is, {ytestpred[:,0].mean()}, {ytestpred[:,1].mean()}")
             print_dq([itertrain, itertest], [f"iter{cnt}train", f"iter{cnt}test"], -1.0)
             print_nor_dq(f"_iternordqtrain", [itertrain], [f"iter{cnt}train"], traindlrand, traindltrue)
