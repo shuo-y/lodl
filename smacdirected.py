@@ -281,6 +281,7 @@ class WeightedLossCrossValidation:
         self.eta = eta
         self.power_vec = False
         if "power_scale" in kwargs and kwargs["power_scale"] > 0:
+            self.power_vec = True
             self.power_scale = kwargs["power_scale"]
 
         self.indices = []
