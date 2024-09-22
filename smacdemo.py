@@ -348,7 +348,7 @@ if __name__ == "__main__":
     testdl2st = prob.dec_loss(ytestpred, ytest).flatten()
     check_diff(ytestpred, ytest, "checkdiff2st")
     check_yins(ytestpred, "check_yins_2stpred")
-    print("check ypred 2st", end="")
+    print("check ypred 2st,", end="")
     prob.checky(ytestpred)
 
     traindltrue = prob.dec_loss(ytrain, ytrain).flatten()
@@ -500,7 +500,7 @@ if __name__ == "__main__":
 
     smacytestpred = booster.inplace_predict(xtest)
     testsmac = prob.dec_loss(smacytestpred, ytest).flatten()
-    print("check ypred smac pred", end="")
+    print("check ypred smac,", end="")
     prob.checky(smacytestpred)
     check_yins(smacytestpred, "check_yins_smacpred")
     check_diff(smacytestpred, ytest, "smacdiff")
