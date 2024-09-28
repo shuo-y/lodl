@@ -1,83 +1,29 @@
-# Code for "Decision-Focused Learning without Decision-Making: Learning Locally Optimized Decision Losses"
+## Code for "Searching for a Loss Function for Decision Focus Learning"
 
-## Set up environment
+This code used domain problems from [Shah et al.](https://github.com/sanketkshah/LODLs) and [Zharmagambetov et al.](https://github.com/facebookresearch/LANCER). It tests searching for parameters of different predefined types of loss functions for learning a decision aware model. The loss functions are defined in `losses.py`. Available loss functions are weighted squared error, directed weighted squared error, and instance-based weighted squared error.
 
-To run the code, first you have to set up a conda environment. Once you have [Anaconda installed](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html), run the following command:
-```
-conda env create --name lodlenv --file=environment.yml
-```
-Once the environment has been created, load it using the command
-```
-conda activate lodlenv
-```
-
-You'll also need to manually install one of the libraries using the following command
-```
-conda install metis
-```
-
-## Running Different Domains
-
-We now present the default parameters required to run our DirectedMSE approach on the different domains from the paper below.
-
-### Linear Model
+To run the domain problem of shortest path with weighted squared error
 
 ```
-python main.py --problem=cubic --loss=weightedmse++ --seed=1 --instances=400 --testinstances=400 --valfrac=0.5 --numitems=50 --budget=1 --lr=0.1 --layers=1 --sampling=random_hessian --samplingstd=1 --numsamples=50000 --losslr=0.01 --serial=False
+ python3 smacdirspcv.py  --n-trials 100  --search-method wmse  --sp-grid="(5, 5)"
 ```
 
-### Web Advertising
+To adjust the number of search iterations change `n-trials`. Change `wmse` to `mse++` or `idx` for testing directed weighted squared error and instance-based weighted squared error respectively. Setting `sp-grid` for the graph structure for testing.
+
+To run the domain problem of web advertising with weighted squared error
 
 ```
-python main.py --problem=budgetalloc --loss=weightedmse++ --seed=1 --instances=100 --testinstances=500 --valfrac=0.2 --numitems=5 --budget=1 --sampling=random_hessian --numsamples=5000 --losslr=0.1 --serial=False
+ python3 searchbudget.py  --n-trials 100 --search-method wmse  --n-budget 2 --n-fake-targets 500
 ```
 
-### Portfolio Optimization
+Change the `n-budget` for number of budgets during the web adverting. Setting `n-fake-tagets` for controlling synthesized features for the target.
 
-(2stage command change loss for LODL)
-```
-python main.py --problem=portfolio --loss=mse --seed=1 --num_train=200 --num_val=200 --num_test=400 --stocks=50 --stockalpha=0.1 --lr=0.01 --sampling=random_hessian --samplingstd=0.1 --numsamples=50000 --losslr=0.001 --serial=False
-```
-
-_Note: (A) Sampling points can take a **long** time. (B) In the event that you receive an error along the lines of `Thread creation failed: Resource temporarily unavailable`, you should run the following command:_
+To run the domain problem of portfolio optimization
 
 ```
-export OMP_NUM_THREADS=1
+python3 smacdirpfv4.py --n-trials 100  --search-method wmse
 ```
 
-### VM Scheduling
+The code will compare the performance of two-stage XGBoost tree and another XGBoost model trained by the searched loss function. The decision quality of the above two types of model is printed out.
 
-_VMScheduling needs to pass in samples\_read_
-```
-python main.py --problem=vmscheduling --loss=weightedmse --seed=1 --instances=400 \
-  --testinstances=200  --valfrac=0.5  --stockalpha=0.1 --lr=0.01  \
-  --losslr=0.001  --serial=True  --model=xgb_lodl \
-  --num_estimators=100 --itempertrace=100 \
-  --sampling=random_hessian \
-  --losslr=0.001  --mag_factor=100 \
-  --numsamples=50  --samples_read=read_file_name \
 
-```
-
-## Running Different Approaches
-
-In Table 1 of our paper, we highlight 7 different approaches. To run the domains above with a specific approach, set the `--loss` parameter to the input corresponding to that approach. _(Note: Obtaining the results in the paper requires method-specific hyperparameter tuning.)_
-
-| Method      | Corresponding Input |
-| ----------- | ----------- |
-| 2-Stage     | mse         |
-| DFL         | dfl         |
-| WeightedMSE | weightedmse |
-| DirectedWeightedMSE | weightedmse++ |
-| DirectedWeightedMSE | weightedmse++ |
-| Quadratic   | quad |
-| DirectedQuadratic | quad++ |
-| NN          | dense       |
-
-Similarly, to run different sampling strategies, set the `--sampling` parameter according to the following table:
-
-| Method      | Corresponding Input |
-| ----------- | ----------- |
-| 1-perturbed     | random_jacobian |
-| 2-perturbed     | random_hessian |
-| All-perturbed     | random |
