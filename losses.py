@@ -205,6 +205,18 @@ def MAE(Yhats, Ys, **kwargs):
 def CE(Yhats, Ys, **kwargs):
     return torch.nn.BCELoss()(Yhats.clip(0, 1.0).float(), Ys.clip(0, 1.0).float())
 
+
+class WSE(torch.nn.Module):
+    def __init__(self, weights_vec):
+        super().__init__()
+        self.weights_vec = weights_vec
+        self.w = torch.nn.parameter.Parameter()
+
+    def forward(self, inputs, targets):
+        return (self.w * (inputs - targets)).square().mean()
+
+
+
 def MSE_Sum(
     Yhats,
     Ys,

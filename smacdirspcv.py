@@ -18,7 +18,7 @@ from losses import search_weights_loss, search_quadratic_loss, search_weights_di
 from ShortestPath import ShortestPath
 from smacdirected import DirectedLoss, QuadSearch, DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, XGBHyperSearch, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config, test_config_vec, test_dir_weight, eval_xgb_hyper, contin_xgb_hyper
 from utils import perfrandomdq, print_dq, print_nor_dq, compute_stderror, sanity_check, print_booster_mse
-
+from losses import WSE
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -126,6 +126,11 @@ if __name__ == "__main__":
     print_nor_dq("trainvalnor", [trainvaldl2st, bltrainvaldl], ["trainval2st", "trainvalbl"], trainvaldlrand, trainvaldltrue)
     print_nor_dq("testnor", [testdl2st, bltestdl], ["test2st", "testbl"], testdlrand, testdltrue)
 
+    loss_fn = WSE(model.get_def_loss_fn().weights_vec)
+    model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=(1+params["n_test_history"]), loss_fn=loss_fn)
+    import pdb
+    pdb.set_trace()
+
     if params["test_hyper"] != "none":
         _, hypertraindl, hypertestdl = eval_xgb_hyper(params, prob, xtrainvalall, ytrainvalall, None, xtest, ytest, None)
         print_dq([hypertraindl, hypertestdl], ["hypertrain","hypertest"], -1.0)
@@ -135,8 +140,9 @@ if __name__ == "__main__":
 
     if params["test_nn2st"] != "none":
         from train_dense import nn2st_iter, perf_nn
+
         start_time = time.time()
-        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=(1+params["n_test_history"]))
+        model = nn2st_iter(prob, xtrainvalall, ytrainvalall, None, None, params["nn_lr"], params["nn_iters"], params["batchsize"], params["n_layers"], params["int_size"], model_type=params["test_nn2st"], print_freq=(1+params["n_test_history"]), loss_fn=MSE)
         print(f"TIME train nn2st takes, {time.time() - start_time}, seconds")
         # Here just use the same data for tuning
         nntestdl = perf_nn(prob, model, xtest, ytest, None, desc="test")
