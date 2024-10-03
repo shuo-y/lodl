@@ -76,6 +76,7 @@ def print_nor_dq(verbose, dllist, namelist, randdl, optdl):
         nordq = (-dl + randdl)/ (-optdl + randdl)
         print(f"{col}nordq,{nordq.mean()},{col}nordqstderr,{compute_stderror(nordq)}, ", end="")
         print(f"{col}norreg,{norm_regret(dl, optdl)},{col}reg,{(dl - optdl).mean()},{col}regstderr,{compute_stderror((dl - optdl))},", end="")
+        print(f"{col}norreg_ins,{((dl - optdl)/optdl).mean()},{col}reg_ins_stderr,{compute_stderror(((dl - optdl)/optdl))},", end="")
     print()
 
 def print_nor_dq_filter0clip(verbose, dllist, namelist, randdl, optdl):

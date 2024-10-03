@@ -16,7 +16,7 @@ from losses import search_weights_loss, search_quadratic_loss
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
-from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, test_config_vec, test_boosters, test_boosters_avepred, test_multi_reg
+from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, GridSearchWSECrossValidation, test_config_vec, test_boosters, test_boosters_avepred, test_multi_reg
 
 from PThenO import PThenO
 from demoProb import ProdObj, optsingleprod, opttwoprod, gen_xy_twoprod
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-test", type=int, default=2000)
     parser.add_argument("--dnum", type=int, default=10, help="The number of d contained in each y instance")
     parser.add_argument("--n-trials", type=int, default=5)
-    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad", "idx", "wmse"])
+    parser.add_argument("--search-method", type=str, default="mse++", choices=["mse++", "quad", "idx", "wmse", "gridwse"])
     parser.add_argument("--power-scale", type=int, default=0)
     # The rand trials for perf rand dq
     parser.add_argument("--n-rand-trials", type=int, default=10)
@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
     numInstance = args.num_train + args.num_test
     prob = ProdObj(opttwoprod, args.dnum)
-    num_feat=10
+    num_feat=args.num_feats
     X, Y = gen_xy_twoprod(numInstance, args.dnum, 1000, 0.1, num_feat=num_feat)
 
 
@@ -192,10 +192,12 @@ if __name__ == "__main__":
 
     truetraindc, traindltrue = prob.dec_loss(ytrain, ytrain, return_dec=True)
     truetestdc, testdltrue = prob.dec_loss(ytest, ytest, return_dec=True)
-    print_dq([traindltrue, testdltrue, traindl2st, testdl2st], ["traintrue", "testtrue","train2st", "test2st"], -1.0)
 
     traindlrand =  perf_rand(prob, ytrain, params["n_rand_trials"])
     testdlrand = perf_rand(prob, ytest, params["n_rand_trials"])
+
+    print_dq([traindltrue, testdltrue, traindl2st, testdl2st, traindlrand, testdlrand], ["traintrue", "testtrue","train2st", "test2st", "trainrand", "testrand"], -1.0)
+
 
     print_nor_dq("_trainnor", [traindl2st], ["train2st"], traindlrand, traindltrue)
     print_nor_dq("_testnor", [testdl2st], ["test2st"], testdlrand, testdltrue)
@@ -203,7 +205,7 @@ if __name__ == "__main__":
     print_nor_dq_filter0clip("testnor2st", [testdl2st], ["test2st"], testdlrand, testdltrue)
 
 
-    search_map_cv = {"wmse": WeightedLossCrossValidation, "mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid, "msehyp++": DirectedLossCrossValHyper, "quad": QuadLossCrossValidation}
+    search_map_cv = {"wmse": WeightedLossCrossValidation, "mse++": DirectedLossCrossValidation, "idx": SearchbyInstanceCrossValid, "msehyp++": DirectedLossCrossValHyper, "quad": QuadLossCrossValidation, "gridwse": GridSearchWSECrossValidation}
 
     search_model = search_map_cv[params["search_method"]]
     model = search_model(prob, params, xtrain, ytrain, params["param_low"], params["param_upp"], params["param_def"], nfold=params["cv_fold"], eta=params["xgb_lr"], use_rand_cv=params["use_randcv"], prob_train=params["rndcv_train_prob"], power_scale=params["power_scale"])
@@ -353,15 +355,6 @@ if __name__ == "__main__":
     print_nor_dq("_Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst, bstavedltest, bstaveystest, twocostsavedqs, twotestaveysdl], ["testdl2st", "testsmac", "bltestdl", "blfirst", "bstavedltest", "bstaveystest", "twocostsavedqs", "twotestaveysdl"], testdlrand, testdltrue)
     print_nor_dq_filter0clip("Comparetrainnor", [traindl2st, trainsmac, bstavedltrain], ["traindl2st", "trainsmac", "bstavedltrain"], traindlrand, traindltrue)
     print_nor_dq_filter0clip("Comparetestnor", [testdl2st, testsmac, bltestdl, bltestfirst, bstavedltest, bstaveystest, twocostsavedqs, twotestaveysdl], ["testdl2st", "testsmac", "bltestdl", "blfirst", "bstavedltest", "bstaveystest", "twocostsavedqs", "twotestaveysdl"], testdlrand, testdltrue)
-
-    from smacdirected import check_val_and_test
-    valfoldcost, testfoldcost = check_val_and_test(prob, model.params, model.Xys, model.valdatas, None, (xtest, ytest), None,
-                                                  model.ydim, params_vec, model.nfold, 0)
-
-    print(f"Corrcoef, Per Instance between test obj (train + val) and test obj (train only), {np.corrcoef(bstavedltest, testsmac)[0][1]},")
-    print(f"Corrcoef, Per fold between val obj (train only) and test obj (train only), {np.corrcoef(valfoldcost, testfoldcost)[0][1]}, ")
-
-
 
 
 
