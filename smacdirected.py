@@ -258,6 +258,109 @@ class SearchbyInstanceCrossValid:
     def get_xgb_params(self):
         return {"tree_method": self.params["tree_method"], "num_target": self.ydim, "eta": self.eta}
 
+class QuantileSearch:
+    def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, valfrac=0.5, **kwargs):
+        self.params = params
+        self.prob = prob
+        self.param_low = param_low
+        self.param_upp = param_upp
+        self.param_def = param_def
+
+        # 0.0001, 0.01, 0.001
+        self.X = X
+        self.Y = Y
+        self.auxdatas = []
+        self.valdatas = []
+        N = len(X)
+        cnt = N // nfold
+        self.nfold = nfold
+        self.ydim = Y.shape[1]
+
+        """ Try CV later
+        for i in range(self.nfold):
+            testind = [idx for idx in range(i * cnt, (i + 1) * cnt)]
+            otherind = [idx for idx in range(N) if idx < i * cnt or idx >= (i + 1) * cnt]
+            self.Xys.append(xgb.DMatrix(X[otherind], Y[otherind]))
+            if auxdata is not None:
+                self.auxdatas.append(auxdata[testind])
+            self.valdatas.append((X[testind], Y[testind]))
+        """
+
+        indices = [i for i in range(len(X))]
+        random.shuffle(indices)
+        num_val = int(len(X) * valfrac)
+
+        self.valinds = indices[:num_val]
+        self.traininds = indices[num_val:]
+
+    @property
+    def configspace(self) -> ConfigurationSpace:
+        cs = ConfigurationSpace()
+        configs = [Float(f"a{i}", (self.param_low, self.param_upp), default=self.param_def) for i in range(self.ydim)]
+        cs.add_hyperparameters(configs)
+        return cs
+
+    def train(self, configs: Configuration, seed: int, **kwargs) -> float:
+        num_models = self.ydim # Train a seprated quantile model for each y
+        alphas = [configs[f"a{i}"] for i in range(self.ydim)]
+
+        xtrain = self.X[self.traininds]
+        ytrain = self.Y[self.traininds]
+
+        xval = self.Y[self.valinds]
+        yval = self.Y[self.valinds]
+
+        if "xtrain" in kwargs:
+            xtrain = kwargs["xtrain"]
+        if "ytrain" in kwargs:
+            ytrain = kwargs["ytrain"]
+
+        # Quantile loss training code some are from https://scikit-learn.org/stable/auto_examples/ensemble/plot_gradient_boosting_quantile.html
+        # and https://xgboost.readthedocs.io/en/latest/python/examples/quantile_regression.html
+        xgb_params =     {
+            "objective": "reg:quantileerror",
+            "tree_method": "hist",
+            # Let's try not to overfit.
+            "learning_rate": self.params["xgb_lr"],
+            "max_depth": self.params["xgb_max_depth"],
+        }
+
+        models = []
+        for i in range(num_models):
+            xgb_params["quantile_alpha"] = alphas[i]
+
+            Xy = xgb.QuantileDMatrix(xtrain, ytrain[:, i])
+            booster = xgb.train(xgb_params, Xy, num_boost_round=self.params["search_estimators"])
+            models.append(booster)
+
+        if "train_only" in kwargs and kwargs["train_only"] == True:
+            return models
+
+        ypred = []
+        for i in range(num_models):
+            ypred.append(models[i].inplace_predict(xtrain))
+
+        ypred = np.stack(ypred, axis=-1)
+        valdl = self.prob.dec_loss(ypred, yval).flatten().mean()
+
+        if "return_model" in kwargs and kwargs["return_model"] == True:
+            return valdl, models
+
+        return valdl
+
+    def pred(self, models, xinp):
+        ypred = []
+        for i in range(self.ydim):
+            ypred.append(models[i].inplace_predict(xinp))
+
+        ypred = np.stack(ypred, axis=-1)
+        return ypred
+
+    def get_vec(self, configs):
+        arr = [configs[f"a{i}"] for i in range(self.ydim)]
+        return np.array(arr)
+
+
 class GridSearchWSECrossValidation:
     def __init__(self, prob, params, X, Y, param_low, param_upp, param_def, auxdata=None, nfold=2, reg2st=None, use_vec=False, initvec=None, eta=0.3, use_rand_cv=False, prob_train=0, **kwargs):
         # directed loss with cross validation

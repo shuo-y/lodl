@@ -16,7 +16,7 @@ from losses import search_weights_loss, search_quadratic_loss
 from smac import HyperparameterOptimizationFacade as HPOFacade
 from smac import Scenario
 from smac.runhistory.dataclasses import TrialValue
-from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, GridSearchWSECrossValidation, test_config_vec, test_boosters, test_boosters_avepred, test_multi_reg
+from smacdirected import DirectedLossCrossValidation, WeightedLossCrossValidation, SearchbyInstanceCrossValid, DirectedLossCrossValHyper, QuadLossCrossValidation, GridSearchWSECrossValidation, QuantileSearch, test_config_vec, test_boosters, test_boosters_avepred, test_multi_reg
 
 from PThenO import PThenO
 from demoProb import ProdObj, optsingleprod, opttwoprod, gen_xy_twoprod
@@ -78,7 +78,12 @@ def perf_rand(prob, y_true, n_rand_trials):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--search_estimators", type=int, default=100)
+    parser.add_argument("--search-estimators", type=int, default=32, help="num of estimaters during search")
+    parser.add_argument("--final-estimators", type=int, default=100, help="num of estimaters at final train")
+    parser.add_argument("--xgb-lr", type=float, default=0.3, help="Used for xgboost eta")
+    parser.add_argument("--xgb-max-depth", type=int, default=10, help="max depth parameters for xgb")
+    parser.add_argument("--xgb-earlystop", type=int, default=2, help="early stop for xgboost")
+
     parser.add_argument("--num-feats", type=int, default=10)
     parser.add_argument("--cov-mat", type=str, default="[[1, -0.9], [-0.9, 1]]")
     parser.add_argument("--gen-method", type=str, default="generate_dataset")
@@ -101,7 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("--param-low", type=float, default=0.1)
     parser.add_argument("--param-upp", type=float, default=100)
     parser.add_argument("--param-def", type=float, default=10)
-    parser.add_argument("--xgb-lr", type=float, default=0.3, help="Used for xgboost eta")
+
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cv-fold", type=int, default=5)
     parser.add_argument("--use-randcv", action="store_true", help="Train CV with each fold the same prob sampling")
