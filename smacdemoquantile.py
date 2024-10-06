@@ -274,14 +274,14 @@ if __name__ == "__main__":
 
 
     start_time = time.time()
-    fimodels = model.train(incumbent, xtrain=xtrain, ytrain=ytrain, train_only=True)
+    fimodels = model.train(incumbent, seed=0, xtrain=xtrain, ytrain=ytrain, train_only=True)
     print(f"TIME Final train time, {time.time() - start_time}, seconds")
 
     ytrainpredfi =model.pred(fimodels, xtrain)
     trainsmac = prob.dec_loss(ytrainpredfi, ytrain).flatten()
 
-    xtestpredfi = booster.inplace_predict(xtest)
-    testsmac = prob.dec_loss(xtestpredfi, ytest).flatten()
+    ytestpredfi = booster.inplace_predict(xtest)
+    testsmac = prob.dec_loss(ytestpredfi, ytest).flatten()
 
 
     print_dq([trainsmac, testsmac], ["trainsmac", "testsmac"], -1.0)

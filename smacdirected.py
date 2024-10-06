@@ -307,7 +307,7 @@ class QuantileSearch:
         xtrain = self.X[self.traininds]
         ytrain = self.Y[self.traininds]
 
-        xval = self.Y[self.valinds]
+        xval = self.X[self.valinds]
         yval = self.Y[self.valinds]
 
         if "xtrain" in kwargs:
@@ -336,9 +336,9 @@ class QuantileSearch:
         if "train_only" in kwargs and kwargs["train_only"] == True:
             return models
 
-        ypred = []
+        yvalpred = []
         for i in range(num_models):
-            ypred.append(models[i].inplace_predict(xtrain))
+            yvalpred.append(models[i].inplace_predict(xval))
 
         ypred = np.stack(ypred, axis=-1)
         valdl = self.prob.dec_loss(ypred, yval).flatten().mean()
