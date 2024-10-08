@@ -20,7 +20,7 @@ from smacdirected import QuantileSearch
 
 from PThenO import PThenO
 from demoProb import ProdObj, optsingleprod, opttwoprod, gen_xy_twoprod
-from utils import print_dq, print_nor_dq, print_nor_dq_filter0clip, print_booster_mse
+from utils import print_dq, print_nor_dq, print_nor_dq_filter0clip, print_booster_mse, print_multi_mse
 
 
 
@@ -264,6 +264,9 @@ if __name__ == "__main__":
             testdlsf = prob.dec_loss(ytestpredsf, ytest).flatten()
             print(f"iter{cnt}, val cost, {cost}, traindliter, {traindliter.mean()}, testdliter, {testdliter.mean()}, traindlsf, {traindlsf.mean()}, testdlsf, {testdlsf.mean()}")
 
+            print_multi_mse(f"MSEiter{cnt}", [ytrainpred, ytestpred, ytrainpredsf, ytestpredsf], [ytrain, ytest, ytrain, ytest], ["CurMSETrain", "CurMSETest", "SFMSETrain", "SFMSETest"])
+
+
 
 
     print(f"TIME Search takes, {time.time() - start_time}, seconds")
@@ -290,5 +293,6 @@ if __name__ == "__main__":
     print_nor_dq_filter0clip("Comparetrainnor", [traindl2st, trainsmac], ["traindl2st", "trainsmac"], traindlrand, traindltrue)
     print_nor_dq_filter0clip("Comparetestnor", [testdl2st, testsmac], ["testdl2st", "testsmac"], testdlrand, testdltrue)
 
+    print_multi_mse(f"MSEFinal", [ytrainpredfi, ytestpredfi], [ytrain, ytest], ["FinalMSETrain", "FinalMSETest"])
 
 

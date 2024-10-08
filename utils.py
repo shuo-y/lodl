@@ -113,6 +113,14 @@ def print_nor_dqagg(verbose, dllist, namelist, randdl, optdl):
         print(f"agg_{namelist[i]}, {nordq},", end="")
     print("Not per instance normalized, aggregate normalized")
 
+def print_multi_mse(verbose, ypredlist, ygoldlist, namelist):
+    print(f"MSE_{verbose}", end=", ")
+    assert len(ypredlist) == len(ygoldlist)
+    assert len(ygoldlist) == len(namelist)
+    for i in range(len(ypredlist)):
+        print(f"{namelist[i]}_mse,{((ypredlist[i] - ygoldlist[i]) ** 2).mean()}", end="")
+    print()
+
 def print_booster_mse(verbose, booster, xdata, ygold):
     ypred = booster.inplace_predict(xdata)
     mse = ((ypred - ygold)**2).mean()
