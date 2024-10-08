@@ -280,7 +280,7 @@ if __name__ == "__main__":
     ytrainpredfi =model.pred(fimodels, xtrain)
     trainsmac = prob.dec_loss(ytrainpredfi, ytrain).flatten()
 
-    ytestpredfi = booster.inplace_predict(xtest)
+    ytestpredfi = model.pred(fimodels, xtest)
     testsmac = prob.dec_loss(ytestpredfi, ytest).flatten()
 
 

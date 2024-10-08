@@ -340,8 +340,8 @@ class QuantileSearch:
         for i in range(num_models):
             yvalpred.append(models[i].inplace_predict(xval))
 
-        ypred = np.stack(ypred, axis=-1)
-        valdl = self.prob.dec_loss(ypred, yval).flatten().mean()
+        yvalpred = np.stack(yvalpred, axis=-1)
+        valdl = self.prob.dec_loss(yvalpred, yval).flatten().mean()
 
         if "return_model" in kwargs and kwargs["return_model"] == True:
             return valdl, models
