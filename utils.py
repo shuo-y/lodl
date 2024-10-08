@@ -118,7 +118,7 @@ def print_multi_mse(verbose, ypredlist, ygoldlist, namelist):
     assert len(ypredlist) == len(ygoldlist)
     assert len(ygoldlist) == len(namelist)
     for i in range(len(ypredlist)):
-        print(f"{namelist[i]}_mse,{((ypredlist[i] - ygoldlist[i]) ** 2).mean()}", end="")
+        print(f"{namelist[i]}_mse, {((ypredlist[i] - ygoldlist[i]) ** 2).mean()}, ", end="")
     print()
 
 def print_booster_mse(verbose, booster, xdata, ygold):

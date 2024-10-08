@@ -182,13 +182,13 @@ if __name__ == "__main__":
     reg.fit(xtrain, ytrain)
     print(f"TIME train use XGBRegressor, {time.time() - start_time} , seconds.")
 
-    ytrainpred = reg.predict(xtrain)
-    traindecs, traindl2st = prob.dec_loss(ytrainpred, ytrain, return_dec=True)
+    ytrainpred2st = reg.predict(xtrain)
+    traindecs, traindl2st = prob.dec_loss(ytrainpred2st, ytrain, return_dec=True)
     traindl2st = traindl2st.flatten()
 
 
-    ytestpred = reg.predict(xtest)
-    testdecs, testdl2st = prob.dec_loss(ytestpred, ytest, return_dec=True)
+    ytestpred2st = reg.predict(xtest)
+    testdecs, testdl2st = prob.dec_loss(ytestpred2st, ytest, return_dec=True)
     testdl2st = testdl2st.flatten()
 
     truetraindc, traindltrue = prob.dec_loss(ytrain, ytrain, return_dec=True)
@@ -293,6 +293,6 @@ if __name__ == "__main__":
     print_nor_dq_filter0clip("Comparetrainnor", [traindl2st, trainsmac], ["traindl2st", "trainsmac"], traindlrand, traindltrue)
     print_nor_dq_filter0clip("Comparetestnor", [testdl2st, testsmac], ["testdl2st", "testsmac"], testdlrand, testdltrue)
 
-    print_multi_mse(f"MSEFinal", [ytrainpredfi, ytestpredfi], [ytrain, ytest], ["FinalMSETrain", "FinalMSETest"])
+    print_multi_mse(f"MSECompare", [ytrainpred2st, ytestpred2st, ytrainpredfi, ytestpredfi], [ytrain, ytest, ytrain, ytest], ["MSETrain2st", "MSETest2st", "FinalMSETrain", "FinalMSETest"])
 
 
