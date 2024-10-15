@@ -97,7 +97,7 @@ if __name__ == "__main__":
     parser.add_argument("--dnum", type=int, default=10, help="The number of d contained in each y instance")
     parser.add_argument("--n-trials", type=int, default=5)
     parser.add_argument("--search-method", type=str, default="qt", choices=["qt"])
-    #parser.add_argument("--power-scale", type=int, default=0)
+
     # The rand trials for perf rand dq
     parser.add_argument("--n-rand-trials", type=int, default=10)
     # For search and XGB train
@@ -105,6 +105,8 @@ if __name__ == "__main__":
     parser.add_argument("--param-low", type=float, default=0.05)
     parser.add_argument("--param-upp", type=float, default=0.95)
     parser.add_argument("--param-def", type=float, default=0.5)
+    parser.add_argument("--param-list", type=str, default="[0.0001, 0.01, 0.1, 0.5, 0.9, 0.99, 0.999]", help="use if configs is set to categorical")
+    parser.add_argument("--configs", type=str, default="continue", choices=["continue", "categorical"], help="Is the searched configuration continuous or categorical")
 
     parser.add_argument("--n-test-history", type=int, default=0, help="Test history every what iterations default 0 not checking history")
     parser.add_argument("--cv-fold", type=int, default=5)
@@ -208,9 +210,10 @@ if __name__ == "__main__":
     search_map_cv = {"qt": QuantileSearch}
 
     search_model = search_map_cv[params["search_method"]]
-    model = search_model(prob, params, xtrain, ytrain, params["param_low"], params["param_upp"], params["param_def"])
+    model = search_model(prob, params, xtrain, ytrain, params["param_low"], params["param_upp"], params["param_def"], param_list=eval(params["param_list"]))
+    config_map = {"continue": model.configspace, "categorical": model.configspace_cat}
 
-    scenario = Scenario(model.configspace, n_trials=params["n_trials"])
+    scenario = Scenario(config_map[params["configs"]], n_trials=params["n_trials"])
     intensifier = HPOFacade.get_intensifier(scenario, max_config_calls=1)
     smac = HPOFacade(scenario, model.train, intensifier=intensifier, overwrite=True)
 
