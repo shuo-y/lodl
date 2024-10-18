@@ -201,11 +201,12 @@ if __name__ == "__main__":
 
     print_dq([traindltrue, testdltrue, traindl2st, testdl2st, traindlrand, testdlrand], ["traintrue", "testtrue","train2st", "test2st", "trainrand", "testrand"], -1.0)
 
-
     print_nor_dq("_trainnor", [traindl2st], ["train2st"], traindlrand, traindltrue)
     print_nor_dq("_testnor", [testdl2st], ["test2st"], testdlrand, testdltrue)
     print_nor_dq_filter0clip("trainnor2st", [traindl2st], ["train2st"], traindlrand, traindltrue)
     print_nor_dq_filter0clip("testnor2st", [testdl2st], ["test2st"], testdlrand, testdltrue)
+
+    print_multi_mse(f"MSECompare", [ytrainpred2st, ytestpred2st], [ytrain, ytest], ["MSETrain2st", "MSETest2st"])
 
     search_map_cv = {"qt": QuantileSearch}
 
@@ -266,6 +267,11 @@ if __name__ == "__main__":
             ytestpredsf = model.pred(sofarbests, xtest)
             testdlsf = prob.dec_loss(ytestpredsf, ytest).flatten()
             print(f"iter{cnt}, val cost, {cost}, traindliter, {traindliter.mean()}, testdliter, {testdliter.mean()}, traindlsf, {traindlsf.mean()}, testdlsf, {testdlsf.mean()}")
+
+            print_nor_dq(f"iter{cnt}_Comparetrainnor", [traindlsf], ["trainsf"], traindlrand, traindltrue)
+            print_nor_dq(f"iter{cnt}_Comparetestnor", [testdlsf], ["testsf"], testdlrand, testdltrue)
+            print_nor_dq_filter0clip(f"iter{cnt}filter0trainnor", [traindlsf], ["trainsf"], traindlrand, traindltrue)
+            print_nor_dq_filter0clip(f"iter{cnt}filter0Comparetestnor", [testdlsf], ["testsf"], testdlrand, testdltrue)
 
             print_multi_mse(f"MSEiter{cnt}", [ytrainpred, ytestpred, ytrainpredsf, ytestpredsf], [ytrain, ytest, ytrain, ytest], ["CurMSETrain", "CurMSETest", "SFMSETrain", "SFMSETest"])
 
