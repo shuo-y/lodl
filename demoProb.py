@@ -49,7 +49,7 @@ def opttwoprod(y_pred, y_true, **kwargs):
 
     return c[0] * truefirst2.mean() + c[1] * truelast2.mean()
 
-def gen_xy_twoprod(num_ins, dnum, N, epsilon, num_feat):
+def gen_xy_twoprod(num_ins, dnum, N, epsilon, num_feat, **kwargs):
     """
     num_ins  number of optimization instances
     nd number of d in each instance in paper
@@ -67,6 +67,8 @@ def gen_xy_twoprod(num_ins, dnum, N, epsilon, num_feat):
             Ymat[i][d][3] = 0.5 * N - epsilon
 
     xmat = np.random.random((num_ins, dnum, num_feat))
+    if "xfeat" in kwargs and kwargs["xfeat"] == "xcons":
+        xmat = np.ones((num_ins, dnum, num_feat))
 
     return xmat, Ymat
 

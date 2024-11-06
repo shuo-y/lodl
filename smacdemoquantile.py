@@ -85,6 +85,7 @@ if __name__ == "__main__":
     parser.add_argument("--xgb-earlystop", type=int, default=2, help="early stop for xgboost")
 
     parser.add_argument("--num-feats", type=int, default=10)
+    parser.add_argument("--xfeat", type=str, default="")
     parser.add_argument("--cov-mat", type=str, default="[[1, -0.9], [-0.9, 1]]")
     parser.add_argument("--gen-method", type=str, default="generate_dataset")
     parser.add_argument("--mus", type=str, default="[-0.1, -0.1]")
@@ -157,7 +158,7 @@ if __name__ == "__main__":
     numInstance = args.num_train + args.num_test
     prob = ProdObj(opttwoprod, args.dnum)
     num_feat=args.num_feats
-    X, Y = gen_xy_twoprod(numInstance, args.dnum, 1000, 0.1, num_feat=num_feat)
+    X, Y = gen_xy_twoprod(numInstance, args.dnum, 1000, 0.1, num_feat=num_feat, xfeat=args.xfeat)
 
 
     indices = list(range(args.num_train + args.num_test))
