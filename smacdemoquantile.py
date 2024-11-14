@@ -20,7 +20,7 @@ from smacdirected import QuantileSearch
 
 from PThenO import PThenO
 from demoProb import ProdObj, optsingleprod, opttwoprod, gen_xy_twoprod
-from utils import print_dq, print_nor_dq, print_nor_dq_filter0clip, print_booster_mse, print_multi_mse
+from utils import print_dq, print_nor_dq, print_nor_dq_filter0clip, print_booster_mse, print_multi_mse, perf_rand
 
 
 
@@ -67,13 +67,6 @@ def sanity_check(vec: np.ndarray, msg: str) -> None:
     if (vec < 0).any():
         print(f"{msg}: check some negative value {vec}")
 
-
-def perf_rand(prob, y_true, n_rand_trials):
-    objs_rand = []
-    for i in range(n_rand_trials):
-        objs_rand.append(prob.dec_loss(np.random.random(y_true.shape), y_true))
-    randomdqs = np.stack(objs_rand).mean(axis=0)
-    return randomdqs
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

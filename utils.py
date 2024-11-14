@@ -30,6 +30,14 @@ def perfrandomdq(problem, Y, Y_aux, trials):
     return randomdqs
 
 
+def perf_rand(prob, y_true, n_rand_trials):
+    objs_rand = []
+    for i in range(n_rand_trials):
+        objs_rand.append(prob.dec_loss(np.random.random(y_true.shape), y_true))
+    randomdqs = np.stack(objs_rand).mean(axis=0)
+    return randomdqs
+
+
 #def print_train_test(trainvaldl2st, testdl2st, trainvalsmac, testsmac, trainvaldlrand, testdlrand, trainvaldltrue, testdltrue, bltestdl):
 
 def norm_regret(obj, true_obj, sense="MINIMIZE"):

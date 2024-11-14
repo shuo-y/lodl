@@ -136,6 +136,9 @@ class ShortestPath(PThenO):
     def dec_loss(self, z_pred: np.ndarray, z_true: np.ndarray, verbose=False, **kwargs) -> np.ndarray:
         # From the https://github.com/facebookresearch/LANCER
         # Z in lancer paper means y in lodl
+        return_dec = True if "return_dec" in kwargs and kwargs["return_dec"] == True else False
+        if return_dec:
+            decs = []
         assert z_pred.shape == z_true.shape
         if "use_cvxpylayer" in kwargs and kwargs["use_cvxpylayer"] == True:
             return self._dec_loss_cvxpylayer(z_pred, z_true, verbose)
@@ -151,10 +154,15 @@ class ShortestPath(PThenO):
             self._model.obj = pe.Objective(sense=pe.minimize, expr=obj)
             self._solverfac.solve(self._model)
             sol = [pe.value(self._vars[k]) for k in self._vars]
+            if return_dec:
+                decs.append(sol)
             #print(sol)
             ############################
             f_hat_i_cp = np.dot(sol, z_true[i])
             f_hat_list.append([f_hat_i_cp])
+
+        if return_dec:
+            return np.array(decs), np.array(f_hat_list)
         return np.array(f_hat_list)
 
     def generate_dataset(self, N, deg=1, noise_width=0):
